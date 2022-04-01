@@ -1,8 +1,8 @@
 '''An all-in-one user authenticator and data manager.'''
 import json
-import os
 import hashlib
 import base64
+import requests
 from datetime import datetime
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -21,30 +21,18 @@ class Auth:
 
     call repr(Auth) to retrive the current user.
     '''
-    def __init__(self, Path = '\\Users\\', Name = None, Pass = None):
+    def __init__(self, Path = 'http://127.0.0.1:5678/', Name = None, Pass = None):
         self.Name = Name
         self.Pass = Pass
         self.Path = Path
         self.__User = None
-        if self.Path[0] == '\\':
-            self.Path = os.path.join(os.getcwd() + self.Path)
-        else:
-            self.Path = os.path.join(self.Path)
-        if os.path.isdir(self.Path) is False:
-             os.mkdir(self.Path)
-        if os.path.isfile(self.Path + '\\data.json') is False:
-            base = {'Accounts' :[{}]}
-            with open(self.Path + '\\data.json', 'w+') as f:
-                json.dump(base, f)
-                f.close()
-        with open(self.Path + '\\data.json', 'r') as d:
-            self.jFile = json.load(d)
+        rep = requests.post(self.Path + 'Shake', {'DateTime': str(datetime.now()), 'ID':hash(repr(Auth))}).json()
+        self.Time = rep['DateTime']
+        self.ID = rep['ID']
     def __repr__(self):
         return self.__User
     def __del__(self):
-        self.Name = None
-        self.Pass = None
-        self.__User = None
+        requests.put(self.Path+'Shake', {'ID':self.ID}).json()
     def Save(self, Location = None, Data = None) -> None:
         '''
         Saves specified data to specified location. Creates location if it doesn't exist.
@@ -107,69 +95,39 @@ class Auth:
         
         Raises an exception if it fails.
         '''
-        if self.Name != None:
-            if self.jFile['Accounts'][0].get(self.Name) != None :
-                try:
-                    if self.__Decrypt(self.jFile['Accounts'][0][self.Name][0]['Password']) == hashlib.sha512((self.Pass + self.Name + self.jFile['Accounts'][0][self.Name][0]['Join Date']).encode("UTF-8")).hexdigest():
-                        self.__User = self.Name
-                        return True
-                    else:
-                        raise PasswordError('Incorrect password')
-                except CryptError:
-                    raise PasswordError('Incorrect password')
-                except Exception as err:
-                    raise err
-            else:
-                raise UsernameError('Username does not exists')
-        else:
-            raise UsernameError('Must enter username')
+        Pass = self.__Encrypt(hashlib.sha512((self.Pass + self.Name).encode("UTF-8")).hexdigest())
+        name = self.__Encrypt(self.Name)
+        ret = requests.put(self.Path+'Auth', {'Username':name, 'Password':Pass, 'ID': self.ID}).json()
+        if ret == 200:
+            return True
     def Signup(self) -> bool:
         '''
         Attempts to signup with previously specified Auth.Name and Auth.Pass values.
         
         Raises an exception if it fails.
         '''
-        join = str(datetime.now())
-        if self.Name != None:
-            if self.jFile['Accounts'][0].get(self.Name) != None :
-                raise UsernameError('Username already exists')
-            else:
-                if self.Name.isalnum() == True:
-                    self.jFile['Accounts'][0][self.Name] = [{'Join Date': join}]
-                    self.jFile['Accounts'][0][self.Name] = [{'Password':self.__Encrypt(hashlib.sha512((self.Pass + self.Name + join).encode("UTF-8")).hexdigest()).decode(), 'Data':[{}], 'Join Date': join}]
-                    self.__User = self.Name
-                    self.Save()
-                    return True
-                else:
-                        raise UsernameError('Invalid username')
-        else:
-                raise UsernameError('Must enter username')
+        Pass = self.__Encrypt(hashlib.sha512((self.Pass + self.Name).encode("UTF-8")).hexdigest())
+        name = self.__Encrypt(self.Name)
+        ret = requests.post(self.Path+'Auth', {'Username':name, 'Password':Pass, 'ID': self.ID}).json()
+        if ret == 200:
+            return True
     def __Encrypt(self, Data):
-        if self.Pass != None:
             kdf = PBKDF2HMAC(
                 algorithm=hashes.SHA256(),
                 length=32,
-                salt=bytes(self.jFile['Accounts'][0][self.Name][0]['Join Date'].encode()),
+                salt=bytes(self.ID.encode()),
                 iterations=390000,
                 )
-            key = base64.urlsafe_b64encode(kdf.derive(bytes(self.Pass.encode())))
+            key = base64.urlsafe_b64encode(kdf.derive(bytes(self.Time.encode())))
             fernet = Fernet(key)
-            return fernet.encrypt(Data.encode())
-        else:
-            PasswordError('No password')
+            return fernet.encrypt(Data.encode()).decode()
     def __Decrypt(self, Data):
-        if self.Pass != None:
             kdf = PBKDF2HMAC(
                 algorithm=hashes.SHA256(),
                 length=32,
-                salt=bytes(self.jFile['Accounts'][0][self.Name][0]['Join Date'].encode()),
+                salt=bytes(self.ID.encode()),
                 iterations=390000,
                 )
-            key = base64.urlsafe_b64encode(kdf.derive(bytes(self.Pass.encode())))
+            key = base64.urlsafe_b64encode(kdf.derive(bytes(self.Time.encode())))
             fernet = Fernet(key)
-            try:
-                return fernet.decrypt(Data.encode()).decode()
-            except:
-                raise CryptError('Bad Key')
-        else:
-            PasswordError('No password')
+            return fernet.decrypt(Data.encode()).decode()
