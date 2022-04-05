@@ -7,9 +7,6 @@ from datetime import datetime
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.fernet import Fernet
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
 class LocationError(Exception): ...
 class UsernameError(Exception): ...
 class PasswordError(Exception): ...
@@ -29,7 +26,7 @@ class Auth:
         self.Pass = Pass
         self.Path = Path
         self.__User = None
-        rep = requests.post(self.Path + 'Shake', {'DateTime': str(datetime.now()), 'ID':hash(repr(Auth))}, verify='server-public-key.pem').json()
+        rep = requests.post(self.Path + 'Shake', {'DateTime': str(datetime.now()), 'ID':hash(repr(Auth))}, cert=('ca-public-key.pem', 'ca-private-key.pem', '3008362')).json()
         self.Time = rep['DateTime']
         self.ID = rep['ID']
     def __repr__(self):
