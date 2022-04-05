@@ -29,7 +29,9 @@ class Auth:
         self.Pass = Pass
         self.Path = Path
         self.__User = None
-        rep = requests.post(self.Path + 'Shake', {'DateTime': str(datetime.now()), 'ID':hash(repr(Auth))}, verify='server-public-key.pem').json()
+        sesh = requests.Session()
+        sesh.cert = ('ca-public-key.pem', 'ca-private-key.pem')
+        rep = sesh.post(self.Path + 'Shake', {'DateTime': str(datetime.now()), 'ID':hash(repr(Auth))}).json()
         self.Time = rep['DateTime']
         self.ID = rep['ID']
     def __repr__(self):
