@@ -10,8 +10,8 @@ def generate_private_key(filename: str, passphrase: str):
     )
 
     utf8_pass = passphrase.encode("utf-8")
-    algorithm = serialization.BestAvailableEncryption(utf8_pass)
-
+    #algorithm = serialization.BestAvailableEncryption(utf8_pass)
+    algorithm = serialization.NoEncryption()
     with open(filename, "wb") as keyfile:
         keyfile.write(
             private_key.private_bytes(
@@ -56,7 +56,8 @@ def generate_public_key(private_key, filename, **kwargs):
         .serial_number(x509.random_serial_number())
         .not_valid_before(valid_from)
         .not_valid_after(valid_to)
-        .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True,)
+        .add_extension(x509.BasicConstraints(ca=True,
+            path_length=None), critical=True)
     )
 
     # Sign the certificate with the private key
@@ -124,8 +125,8 @@ def sign_csr(csr, ca_public_key, ca_private_key, new_filename):
 
     with open(new_filename, "wb") as keyfile:
         keyfile.write(public_key.public_bytes(serialization.Encoding.PEM))
-server_private_key = generate_private_key("server-private-key.pem", "yesyes")
-private_key = generate_private_key("ca-private-key.pem", "3008362")
+server_private_key = generate_private_key("server-private-key.pem", "")
+private_key = generate_private_key("ca-private-key.pem", "")
 generate_public_key(
   private_key,
   filename="ca-public-key.pem",
@@ -154,7 +155,7 @@ ca_public_key = x509.load_pem_x509_certificate(
 ca_private_key_file = open("ca-private-key.pem", "rb")
 ca_private_key = serialization.load_pem_private_key(
   ca_private_key_file.read(),
-  getpass().encode("utf-8"),
+  None,#getpass().encode("utf-8"),
   default_backend(),
 )
 sign_csr(csr, ca_public_key, ca_private_key, "server-public-key.pem")
