@@ -7,6 +7,9 @@ from datetime import datetime
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.fernet import Fernet
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 class LocationError(Exception): ...
 class UsernameError(Exception): ...
 class PasswordError(Exception): ...
@@ -21,18 +24,18 @@ class Auth:
 
     call repr(Auth) to retrive the current user.
     '''
-    def __init__(self, Path = 'http://127.0.0.1:5678/', Name = None, Pass = None):
+    def __init__(self, Path = 'https://localhost:5678/', Name = None, Pass = None):
         self.Name = Name
         self.Pass = Pass
         self.Path = Path
         self.__User = None
-        rep = requests.post(self.Path + 'Shake', {'DateTime': str(datetime.now()), 'ID':hash(repr(Auth))}).json()
+        rep = requests.post(self.Path + 'Shake', {'DateTime': str(datetime.now()), 'ID':hash(repr(Auth))}, verify='server-public-key.pem').json()
         self.Time = rep['DateTime']
         self.ID = rep['ID']
     def __repr__(self):
         return self.__User
     def __del__(self):
-        requests.put(self.Path+'Shake', {'ID':self.ID}).json()
+        requests.put(self.Path+'Shake', {'ID':self.ID}, verify='server-public-key.pem').json()
     def Save(self, Location = None, Data = None) -> None:
         '''
         Saves specified data to specified location. Creates location if it doesn't exist.
@@ -97,7 +100,7 @@ class Auth:
         '''
         Pass = self.__Encrypt(hashlib.sha512((self.Pass + self.Name).encode("UTF-8")).hexdigest())
         name = self.__Encrypt(self.Name)
-        ret = requests.put(self.Path+'Auth', {'Username':name, 'Password':Pass, 'ID': self.ID}).json()
+        ret = requests.put(self.Path+'Auth', {'Username':name, 'Password':Pass, 'ID': self.ID}, verify='server-public-key.pem').json()
         if ret == 200:
             return True
     def Signup(self) -> bool:
@@ -108,7 +111,7 @@ class Auth:
         '''
         Pass = self.__Encrypt(hashlib.sha512((self.Pass + self.Name).encode("UTF-8")).hexdigest())
         name = self.__Encrypt(self.Name)
-        ret = requests.post(self.Path+'Auth', {'Username':name, 'Password':Pass, 'ID': self.ID}).json()
+        ret = requests.post(self.Path+'Auth', {'Username':name, 'Password':Pass, 'ID': self.ID}, verify='server-public-key.pem').json()
         if ret == 200:
             return True
     def __Encrypt(self, Data):

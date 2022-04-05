@@ -7,6 +7,9 @@ from datetime import datetime
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.fernet import Fernet
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 app = Flask(__name__)
 api = Api(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
@@ -88,4 +91,4 @@ api.add_resource(Auth, '/Auth')
 api.add_resource(Shake, '/Shake')
 api.add_resource(Data1, '/Data')
 if __name__ == '__main__':
-	app.run(debug=True, host='0.0.0.0', port=5678)
+	app.run(debug=True, host='0.0.0.0', port=5678, ssl_context=('server-public-key.pem', 'server-private-key.pem'))
