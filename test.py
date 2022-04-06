@@ -1,5 +1,5 @@
 import Auth
-log = Auth.Auth('https://localhost:5679/')
+log = Auth.Auth()
 log.Name = str(input('username: '))
 log.Pass = str(input('password: '))
 yeah = str(input('l or s: '))
@@ -9,7 +9,7 @@ elif yeah == 's':
     print(log.Signup())
 load = str(input('load or save: '))
 if load == 'l':
-    print(log.Load('Data/fuck me/pleas'))
+    print(log.Load('Data/fuck me/please'))
 else:
     print(log.Save('Data/fuck me/please', '14'))
 #except Auth.UsernameError as err:

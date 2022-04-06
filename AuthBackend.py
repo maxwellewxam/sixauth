@@ -145,5 +145,5 @@ api.add_resource(Auth, '/Auth')
 api.add_resource(Shake, '/Shake')
 api.add_resource(Data1, '/Data')
 if __name__ == '__main__':
-	app.run(debug=True, host='0.0.0.0', port=5679, ssl_context=('server-public-key.pem', 'server-private-key.pem'))
+	app.run(debug=True, host='0.0.0.0', port=5678, ssl_context=('server-public-key.pem', 'server-private-key.pem'))
 print('closed')
