@@ -10,6 +10,9 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+import subprocess
+import sys
+import os
 class LocationError(Exception): ...
 class UsernameError(Exception): ...
 class PasswordError(Exception): ...
@@ -28,16 +31,22 @@ class Auth:
         self.Name = Name
         self.Pass = Pass
         self.Path = Path
-        self.__User = None
-        sesh = requests.Session()
-        sesh.cert = ('ca-public-key.pem', 'ca-private-key.pem')
-        rep = sesh.post(self.Path + 'Shake', {'DateTime': str(datetime.now()), 'ID':hash(repr(Auth))}).json()
-        self.Time = rep['DateTime']
-        self.ID = rep['ID']
+        if self.Path == 'https://localhost:5678/':
+            self.server = subprocess.Popen([sys.executable, os.path.join(os.getcwd(), "AuthBackend.py")], shell=True)
+        self.sesh = requests.Session()
+        self.sesh.cert = ('ca-public-key.pem', 'ca-private-key.pem')
+        rep = self.sesh.post(self.Path + 'Shake').json()
     def __repr__(self):
-        return self.__User
+        return self.Name
     def __del__(self):
-        requests.put(self.Path+'Shake', {'ID':self.ID}, verify='server-public-key.pem').json()
+        try:
+            self.sesh.put(self.Path+'Shake').json()
+        except:
+            pass
+        try:
+            self.server.send_signal(signal.SIGINT)
+        except:
+            pass
     def Save(self, Location = None, Data = None) -> None:
         '''
         Saves specified data to specified location. Creates location if it doesn't exist.
@@ -100,39 +109,25 @@ class Auth:
         
         Raises an exception if it fails.
         '''
-        Pass = self.__Encrypt(hashlib.sha512((self.Pass + self.Name).encode("UTF-8")).hexdigest())
-        name = self.__Encrypt(self.Name)
-        ret = requests.put(self.Path+'Auth', {'Username':name, 'Password':Pass, 'ID': self.ID}, verify='server-public-key.pem').json()
-        if ret == 200:
-            return True
+        #Pass = self.__Encrypt(self.Pass)
+        #name = self.__Encrypt(self.Name)
+        return self.requestHandle(self.sesh.put(self.Path+'Auth', {'Username':self.Name, 'Password':self.Pass}).json())
+        
     def Signup(self) -> bool:
         '''
         Attempts to signup with previously specified Auth.Name and Auth.Pass values.
         
         Raises an exception if it fails.
         '''
-        Pass = self.__Encrypt(hashlib.sha512((self.Pass + self.Name).encode("UTF-8")).hexdigest())
-        name = self.__Encrypt(self.Name)
-        ret = requests.post(self.Path+'Auth', {'Username':name, 'Password':Pass, 'ID': self.ID}, verify='server-public-key.pem').json()
-        if ret == 200:
+        return self.requestHandle(self.sesh.post(self.Path+'Auth', {'Username':self.Name, 'Password':self.Pass}).json())
+    def requestHandle(self, request):
+        if request == 200:
             return True
-    def __Encrypt(self, Data):
-            kdf = PBKDF2HMAC(
-                algorithm=hashes.SHA256(),
-                length=32,
-                salt=bytes(self.ID.encode()),
-                iterations=390000,
-                )
-            key = base64.urlsafe_b64encode(kdf.derive(bytes(self.Time.encode())))
-            fernet = Fernet(key)
-            return fernet.encrypt(Data.encode()).decode()
-    def __Decrypt(self, Data):
-            kdf = PBKDF2HMAC(
-                algorithm=hashes.SHA256(),
-                length=32,
-                salt=bytes(self.ID.encode()),
-                iterations=390000,
-                )
-            key = base64.urlsafe_b64encode(kdf.derive(bytes(self.Time.encode())))
-            fernet = Fernet(key)
-            return fernet.decrypt(Data.encode()).decode()
+        elif request == 401:
+            raise PasswordError('Incorrect password')
+        elif request == 404:
+            raise UsernameError('Username does not exsist')
+        elif request == 406:
+            raise UsernameError('Invalid username')
+        elif request == 409:
+            raise UsernameError('Username already exists')

@@ -7,12 +7,11 @@ from datetime import datetime
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.fernet import Fernet
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
+from datetime import datetime, timedelta
 app = Flask(__name__)
 api = Api(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 class DataMod(db.Model):
     Username = db.Column(db.String, nullable=False, primary_key=True)
@@ -25,25 +24,13 @@ Dataargs = reqparse.RequestParser()
 Dataargs.add_argument('Username', type=str)
 Dataargs.add_argument('Password', type=str)
 hand = reqparse.RequestParser()
-hand.add_argument('DateTime', type=str)
+hand.add_argument('JoinTime', type=str)
 hand.add_argument('ID', type=str)
 Auth1 = reqparse.RequestParser()
 Auth1.add_argument('Username', type=str, required=True)
 Auth1.add_argument('Password', type=str, required=True)
-Auth1.add_argument('ID', type=str, required=True)
 datfields = {'Data': fields.Raw}
 passfields = {'Password': fields.String}
-conns = {}
-def Decrypt(Data, ID):
-    kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=bytes(ID.encode()),
-        iterations=390000,
-        )
-    key = base64.urlsafe_b64encode(kdf.derive(bytes(conns[ID].encode())))
-    fernet = Fernet(key)
-    return fernet.decrypt(Data.encode()).decode()
 class Data1(Resource):
     @marshal_with(datfields)
     def put(self):
@@ -60,35 +47,45 @@ class Data1(Resource):
 class Auth(Resource):
     def put(self):#login
         Args = Auth1.parse_args()
-        DEcry = {'Username': Decrypt(Args['Username'], Args['ID']), 'Password': Decrypt(Args['Password'], Args['ID'])}
-        dat = DataMod.query.filter_by(Username=DEcry['Username']).first()
-        Pass = marshal(dat, passfields)
-        if Pass['Password'] == DEcry['Password']:
+        fromuser = {'Username': Args['Username'], 'Password': Args['Password']}
+        if fromuser['Username'] == '':
+            return 400
+        if fromuser['Username'].isalnum() == False:
+            return 406
+        fromdat = DataMod.query.filter_by(Username=fromuser['Username']).first()
+        if not fromdat:
+            return 404
+        datPass = marshal(fromdat, passfields)['Password']
+        userPass = hashlib.sha512((fromuser['Password'] + fromuser['Username']).encode("UTF-8")).hexdigest()
+        if userPass == datPass:
             return 200
         else:
-            return 409
+            return 401
     def post(slef):#signup
         Args = Auth1.parse_args()
-        DEcry = {'Username': Decrypt(Args['Username'], Args['ID']), 'Password': Decrypt(Args['Password'], Args['ID'])}
-        dat = DataMod.query.filter_by(Username=DEcry['Username']).first()
-        if dat:
-            abort(409, message='User already exists')
+        fromuser = {'Username': Args['Username'], 'Password': Args['Password']}
+        if fromuser['Username'] == '':
+            return 400
+        if fromuser['Username'].isalnum() == False:
+            return 406
+        fromdat = DataMod.query.filter_by(Username=fromuser['Username']).first()
+        if fromdat:
+            return 409
         else:
-            inf = DataMod(Username=DEcry['Username'], Password=DEcry['Password'])
+            inf = DataMod(Username=fromuser['Username'], Password=fromuser['Password'])
             db.session.add(inf)
             db.session.commit()
             return 200
 class Shake(Resource):
     def post(self):#greeting
         jointime = hand.parse_args()
-        conns[jointime['ID']] = jointime['DateTime']
-        return {'DateTime':jointime['DateTime'], 'ID':jointime['ID']}
+        return {'JoinTime':str(datetime.now())}
     def put(self):#goodbyes
         jointime = hand.parse_args()
-        del(conns[jointime['ID']])
         return 200
 api.add_resource(Auth, '/Auth')
 api.add_resource(Shake, '/Shake')
 api.add_resource(Data1, '/Data')
 if __name__ == '__main__':
-	app.run(debug=True, host='0.0.0.0', port=5678, ssl_context=('server-public-key.pem', 'server-private-key.pem'))
+	app.run(debug=True, host='0.0.0.0', port=5679, ssl_context=('server-public-key.pem', 'server-private-key.pem'))
+print('closed')

@@ -4,6 +4,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from getpass import getpass
+import certifi
 def generate_private_key(filename: str, passphrase: str):
     private_key = rsa.generate_private_key(
         public_exponent=65537, key_size=2048, backend=default_backend()
@@ -159,3 +160,8 @@ ca_private_key = serialization.load_pem_private_key(
   default_backend(),
 )
 sign_csr(csr, ca_public_key, ca_private_key, "server-public-key.pem")
+cafile = certifi.where()
+with open('server-public-key.pem', 'rb') as infile:
+    customca = infile.read()
+with open(cafile, 'ab') as outfile:
+    outfile.write(customca)

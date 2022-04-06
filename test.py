@@ -1,9 +1,12 @@
 import Auth
-log = Auth.Auth()
+log = Auth.Auth('https://localhost:5679/')
 log.Name = str(input('username: '))
 log.Pass = str(input('password: '))
-#try:
-print(log.Login())
+yeah = str(input('l or s: '))
+if yeah == 'l':
+    print(log.Login())
+elif yeah == 's':
+    print(log.Signup())
 #except Auth.UsernameError as err:
    # if str(err) == 'Username already exists':
         #log.Login()
