@@ -14,8 +14,9 @@ import subprocess
 import sys
 import os
 class LocationError(Exception): ...
-class UsernameError(Exception): ...
-class PasswordError(Exception): ...
+class AuthenticationError(Exception): ...
+class UsernameError(AuthenticationError): ...
+class PasswordError(AuthenticationError): ...
 class CryptError(Exception): ...
 class Auth:
     '''
@@ -47,62 +48,20 @@ class Auth:
             self.server.send_signal(signal.SIGINT)
         except:
             pass
-    def Save(self, Location = None, Data = None) -> None:
+    def Save(self, Location, Data) -> None:
         '''
         Saves specified data to specified location. Creates location if it doesn't exist.
 
         Auth.Save(['Loc1', 'Loc2',...], Data1) Saves Data1 to /Loc1/Loc2/
         '''
-        if self.__User != None:
-            try:
-                if self.__Decrypt(self.jFile['Accounts'][0][self.__User][0]['Password']) == hashlib.sha512((self.Pass + self.__User + self.jFile['Accounts'][0][self.__User][0]['Join Date']).encode("UTF-8")).hexdigest():
-                    if Location != None:
-                        temp = self.jFile['Accounts'][0][self.__User][0]
-                        Location.insert(0, 'Data')
-                        for i in range(len(Location)):
-                            try:
-                                if i == len(Location)-1:
-                                    temp[Location[i]] = self.__Encrypt(Data).decode()
-                                else:
-                                    newtemp = temp[Location[i]]
-                            except:
-                                if i == len(Location)-1:
-                                    temp[Location[i]] = self.__Encrypt(Data).decode()
-                                else:
-                                    temp[Location[i]] = [{}]
-                                    newtemp = temp[Location[i]]
-                            temp = newtemp[0]
-                    with open(self.Path + '\\data.json', 'w+') as f:
-                        json.dump(self.jFile, f)
-                else:
-                    raise PasswordError('Password or Username incorrect')
-            except:
-                raise UsernameError('Invalid user')
-        else:
-            raise UsernameError('User not defined')
+        return self.requestHandle(self.sesh.post(self.Path+'Data', {'Username':self.Name, 'Password':self.Pass, 'Location':Location, 'Data':Data}).json())
     def Load(self, Location) -> str:
         '''
         Loads data at specified location. Raises an exception if location doesn't exist.
 
-        Auth.Load(['Loc1', 'Loc2',...]) Loads data in /Loc1/Loc2/
+        Auth.Load(['Loc1', 'Loc2',...]) Returns data in /Loc1/Loc2/
         '''
-        if self.__User != None:
-            try:
-                if self.__Decrypt(self.jFile['Accounts'][0][self.__User][0]['Password']) == hashlib.sha512((self.Pass + self.__User + self.jFile['Accounts'][0][self.__User][0]['Join Date']).encode("UTF-8")).hexdigest():
-                    temp = self.jFile['Accounts'][0][self.__User][0]['Data'][0]
-                    for i in range(len(Location)):
-                        try:
-                            newtemp = temp[Location[i]]
-                        except:
-                            raise LocationError('Location does not exsist')
-                        temp = newtemp[0]
-                    return self.__Decrypt(newtemp)
-                else:
-                    raise PasswordError('Password or Username incorrect')
-            except:
-                raise UsernameError('Invalid user')
-        else:
-            raise UsernameError('User not defined')
+        return self.requestHandle(self.sesh.put(self.Path+'Data', {'Username':self.Name, 'Password':self.Pass, 'Location':Location}).json())
     def Login(self) -> bool:
         '''
         Attempts to login with previously specified Auth.Name and Auth.Pass values.
@@ -121,13 +80,19 @@ class Auth:
         '''
         return self.requestHandle(self.sesh.post(self.Path+'Auth', {'Username':self.Name, 'Password':self.Pass}).json())
     def requestHandle(self, request):
-        if request == 200:
+        if request['Code'] == 200:
             return True
-        elif request == 401:
+        elif request['Code'] == 202:
+            return request['Data']
+        elif request['Code'] == 416:
+            raise LocationError('Loaction does not exist')
+        elif request['Code'] == 401:
             raise PasswordError('Incorrect password')
-        elif request == 404:
-            raise UsernameError('Username does not exsist')
-        elif request == 406:
+        elif request['Code'] == 404:
+            raise UsernameError('Username does not exist')
+        elif request['Code'] == 406:
             raise UsernameError('Invalid username')
-        elif request == 409:
+        elif request['Code'] == 409:
             raise UsernameError('Username already exists')
+        elif request['Code'] == 423:
+            raise AuthenticationError('Failed to authenticate user')
