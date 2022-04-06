@@ -11,7 +11,7 @@ load = str(input('load or save: '))
 if load == 'l':
     print(log.Load('Data/fuck me/please'))
 else:
-    print(log.Save('Data/fuck me/please', '14'))
+    print(log.Save('Data/fuck me/please/more', '14'))
 #except Auth.UsernameError as err:
    # if str(err) == 'Username already exists':
         #log.Login()

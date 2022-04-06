@@ -28,11 +28,12 @@ class Auth:
 
     call repr(Auth) to retrive the current user.
     '''
-    def __init__(self, Path = 'https://localhost:5678/', Name = None, Pass = None):
+    def __init__(self, Path = None, Name = None, Pass = None):
         self.Name = Name
         self.Pass = Pass
         self.Path = Path
-        if self.Path == 'https://localhost:5678/':
+        if self.Path == None:
+            self.Path = 'https://localhost:5678/'
             self.server = subprocess.Popen([sys.executable, os.path.join(os.getcwd(), "AuthBackend.py")], shell=True)
         self.sesh = requests.Session()
         self.sesh.cert = ('ca-public-key.pem', 'ca-private-key.pem')
@@ -43,11 +44,11 @@ class Auth:
         try:
             self.sesh.put(self.Path+'Shake').json()
         except:
-            pass
+            print('dont care about this rn')
         try:
-            self.server.send_signal(signal.SIGINT)
+            self.server.terminate()
         except:
-            pass
+            print('couldnt close this')
     def Save(self, Location, Data) -> None:
         '''
         Saves specified data to specified location. Creates location if it doesn't exist.
