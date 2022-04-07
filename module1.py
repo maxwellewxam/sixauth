@@ -160,6 +160,11 @@ ca_private_key = serialization.load_pem_private_key(
   default_backend(),
 )
 sign_csr(csr, ca_public_key, ca_private_key, "server-public-key.pem")
+import subprocess
+import sys
+subprocess.check_call([sys.executable, "-m", "pip", "uninstall", 'certifi'])
+subprocess.check_call([sys.executable, "-m", "pip", "install", 'certifi'])
+import certifi
 cafile = certifi.where()
 with open('server-public-key.pem', 'rb') as infile:
     customca = infile.read()

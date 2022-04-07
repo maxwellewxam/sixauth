@@ -82,19 +82,26 @@ class Data1(Resource):
             locate = list(DataArgs['Location'].split("/"))
             DData = DataArgs['Data']
             locate.insert(0, 'yup')
+            print(len(locate))
             for i in range(len(locate)):
+                print(i)
                 try:
                     if i == len(locate)-1:
                         temp[locate[i]] = DData
                     else:
                         newtemp = temp[locate[i]]
+                    print(temp)
+                    print(newtemp)
                 except:
                     if i == len(locate)-1:
                         temp[locate[i]] = DData
                     else:
                         temp[locate[i]] = [{}]
                         newtemp = temp[locate[i]]
+                    print(temp)
+                    print(newtemp)
                 temp = newtemp[0]
+                input('s')
             db.session.delete(fromdat)
             db.session.commit()
             inf = DataMod(Username=fromuser['Username'], Password=hashlib.sha512((fromuser['Password'] + fromuser['Username']).encode("UTF-8")).hexdigest(), Data=farter)

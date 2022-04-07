@@ -9,7 +9,7 @@ elif yeah == 's':
     print(log.Signup())
 load = str(input('load or save: '))
 if load == 'l':
-    print(log.Load('Data/fuck me/please'))
+    print(log.Load('Data/fuck me/please/more'))
 else:
     print(log.Save('Data/fuck me/please/more', '14'))
 #except Auth.UsernameError as err:
