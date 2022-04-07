@@ -24,10 +24,10 @@ class DataMod(db.Model):
         self.Data = Data
 if os.path.isfile('database.db') is False:
     db.create_all()
-    print(debug)
 Dataargs = reqparse.RequestParser()
 Dataargs.add_argument('Location', type=str)
 Dataargs.add_argument('Data', type=str)
+Dataargs.add_argument('Value', type=str)
 Auth1 = reqparse.RequestParser()
 Auth1.add_argument('Username', type=str, required=True)
 Auth1.add_argument('Password', type=str, required=True)
@@ -80,28 +80,23 @@ class Data1(Resource):
             farter = dict(marshal(fromdat, datfields)['Data'])
             temp = farter['Data'][0]
             locate = list(DataArgs['Location'].split("/"))
-            DData = DataArgs['Data']
+            DData = [{DataArgs['Value']:DataArgs['Data']}]
+            print(DData)
             locate.insert(0, 'yup')
             print(len(locate))
             for i in range(len(locate)):
-                print(i)
                 try:
                     if i == len(locate)-1:
                         temp[locate[i]] = DData
                     else:
                         newtemp = temp[locate[i]]
-                    print(temp)
-                    print(newtemp)
                 except:
                     if i == len(locate)-1:
                         temp[locate[i]] = DData
                     else:
                         temp[locate[i]] = [{}]
                         newtemp = temp[locate[i]]
-                    print(temp)
-                    print(newtemp)
                 temp = newtemp[0]
-                input('s')
             db.session.delete(fromdat)
             db.session.commit()
             inf = DataMod(Username=fromuser['Username'], Password=hashlib.sha512((fromuser['Password'] + fromuser['Username']).encode("UTF-8")).hexdigest(), Data=farter)
