@@ -49,13 +49,13 @@ class Auth:
             self.server.terminate()
         except:
             print('couldnt close this')
-    def Save(self, Location, Name, Data) -> None:
+    def Save(self, Location, Data) -> None:
         '''
         Saves specified data to specified location. Creates location if it doesn't exist.
 
         Auth.Save(['Loc1', 'Loc2',...], Data1) Saves Data1 to /Loc1/Loc2/
         '''
-        return self.requestHandle(self.sesh.post(self.Path+'Data', {'Username':self.Name, 'Password':self.Pass, 'Location':Location, 'Data':Data, 'Value':Name}).json())
+        return self.requestHandle(self.sesh.post(self.Path+'Data', {'Username':self.Name, 'Password':self.Pass, 'Location':Location, 'Data':Data}).json())
     def Load(self, Location, Name) -> str:
         '''
         Loads data at specified location. Raises an exception if location doesn't exist.
