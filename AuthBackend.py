@@ -1,14 +1,15 @@
 from flask import Flask
 from flask_restful import Api, Resource, reqparse, abort, fields, marshal
 from flask_sqlalchemy import SQLAlchemy
-import hashlib
-import base64
 from datetime import datetime
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.fernet import Fernet
 from datetime import datetime, timedelta
 import os
+import jsonpath_ng
+import hashlib
+import base64
 app = Flask(__name__)
 api = Api(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
@@ -24,58 +25,6 @@ class DataMod(db.Model):
         self.Data = Data
 if os.path.isfile('database.db') is False:
     db.create_all()
-class tree(dict):
-    def __setitem__(self, key, value):
-        if key[0] == '/' : key = key[1:]
-        parts = key.split('/', 1)
-        if len(parts) == 2:
-            if parts[0] not in self: self[parts[0]] = tree()
-            self[parts[0]].__setitem__(parts[1], value)
-        else:
-            super(tree, self).__setitem__(key, value)
-
-    def __getitem__(self, key):
-        if key[0] == '/' : key = key[1:]
-        parts = key.split('/', 1)
-        if len(parts) == 2:
-            if parts[0] not in self: raise keyerror(parts[0])
-            return self[parts[0]][parts[1]]
-        else:
-            if key not in self: raise keyerror(parts[0])
-            return super(tree, self).__getitem__(key)
-    def __contains__(self,key):
-        if key[0] == '/' : key = key[1:]
-        parts = key.split('/', 1)
-        if len(parts) == 2:
-            if not super(tree, self).__contains__(parts[0]): return False
-            return parts[1] in self[parts[0]]
-        else:
-            if not super(tree, self).__contains__(key): return False
-            return True
-    def __delitem__(self, key):
-        if key[0] == '/' : key = key[1:]
-        parts = key.split('/', 1)
-        if len(parts) == 2:
-            if parts[0] not in self: raise keyerror(parts[0])
-            self[parts[0]].__delitem__(parts[1])
-        else:
-            if key not in list(self): raise keyerror(parts[0])
-            super(tree,self).__delitem__(key)
-    def __iter__(self, parent=""):
-        for name in super(tree, self).keys():
-            if isinstance(self[name], tree):
-                for item in self[name].__iter__(parent=parent+'/'+name):
-                    yield item
-            else:
-                yield parent+'/'+name
-    def keys(self,parent=""):
-        names = []
-        for name in super(tree, self).keys():
-            if isinstance(self[name], tree):
-                names += self[name].keys(parent=parent+'/'+name)
-            else:
-                names.append(parent+'/'+name)
-        return names
 Dataargs = reqparse.RequestParser()
 Dataargs.add_argument('Location', type=str)
 Dataargs.add_argument('Data', type=str)
@@ -128,9 +77,11 @@ class Data1(Resource):
         datPass = marshal(fromdat, passfields)['Password']
         userPass = hashlib.sha512((fromuser['Password'] + fromuser['Username']).encode("UTF-8")).hexdigest()
         if userPass == datPass:
-            new = tree(dict(marshal(fromdat, datfields)['Data']))
-            new[DataArgs['Location']] = DataArgs['Data']
-            print(new)
+            #new = tree(dict(marshal(fromdat, datfields)['Data']))
+            #new[DataArgs['Location']] = DataArgs['Data']
+            #print(new)
+            jsonpath_expr = jsonpath_ng.parse('foo.bazs')
+
             db.session.delete(fromdat)
             db.session.add(DataMod(Username=fromuser['Username'], Password=hashlib.sha512((fromuser['Password'] + fromuser['Username']).encode("UTF-8")).hexdigest(), Data=new))
             db.session.commit()
