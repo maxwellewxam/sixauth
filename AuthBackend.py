@@ -1,5 +1,5 @@
 from flask import Flask
-from flask_restful import Api, Resource, reqparse, abort, fields, marshal
+from flask_restful import Api, Resource, reqparse, fields, marshal
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from cryptography.hazmat.primitives import hashes
@@ -15,6 +15,26 @@ api = Api(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
+def Encrypt(Data, pas, nam):
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=bytes(nam.encode()),
+            iterations=390000,
+            )
+        key = base64.urlsafe_b64encode(kdf.derive(bytes(pas.encode())))
+        fernet = Fernet(key)
+        return fernet.encrypt(Data.encode()).decode()
+def Decrypt(Data, pas, nam):
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=bytes(nam.encode()),
+            iterations=390000,
+            )
+        key = base64.urlsafe_b64encode(kdf.derive(bytes(pas.encode())))
+        fernet = Fernet(key)
+        return fernet.decrypt(Data.encode()).decode()
 class DataMod(db.Model):
     Username = db.Column(db.String, nullable=False, primary_key = True)
     Password = db.Column(db.String, nullable=False)
@@ -49,18 +69,14 @@ class Data1(Resource):
         userPass = hashlib.sha512((fromuser['Password'] + fromuser['Username']).encode("UTF-8")).hexdigest()
         if userPass == datPass:
             farter = dict(marshal(fromdat, datfields)['Data'])
-            temp = farter['Data'][0]
-            print(temp)
-            locate = list(DataArgs['Location'].split("/"))
-            locate.insert(0, 'yup')
-            print(locate)
-            for i in range(len(locate)):
-                try:
-                    newtemp = temp[locate[i]]
-                except:
+            try:
+                jsonpath_expr = Decrypt([match.value for match in jsonpath_ng.parse(DataArgs['Location'].replace('/', '.').replace(' ', '-')).find(farter)][0], Args['Username'], Args['Password'])
+            except IndexError as err:
+                if str(err) == 'list index out of range':
                     return {'Code':416}
-                temp = newtemp[0]
-            return {'Data':newtemp, 'Code':202}
+                else: 
+                    raise IndexError(err)
+            return {'Data':jsonpath_expr, 'Code':202}
         else:
             return {'Code':423}
     def post(self):#save data
@@ -77,11 +93,12 @@ class Data1(Resource):
         datPass = marshal(fromdat, passfields)['Password']
         userPass = hashlib.sha512((fromuser['Password'] + fromuser['Username']).encode("UTF-8")).hexdigest()
         if userPass == datPass:
-            #new = tree(dict(marshal(fromdat, datfields)['Data']))
-            #new[DataArgs['Location']] = DataArgs['Data']
-            #print(new)
-            jsonpath_expr = jsonpath_ng.parse('foo.bazs')
-
+            new = dict(marshal(fromdat, datfields)['Data'])
+            try:
+                jsonpath_ng.parse(DataArgs['Location'].replace('/', '.').replace(' ', '-')).update_or_create(new, Encrypt(DataArgs['Data'], Args['Username'], Args['Password']))
+            except TypeError as err:
+                if err == '\'str\' object does not support item assignment':
+                    return {'Code':422}
             db.session.delete(fromdat)
             db.session.add(DataMod(Username=fromuser['Username'], Password=hashlib.sha512((fromuser['Password'] + fromuser['Username']).encode("UTF-8")).hexdigest(), Data=new))
             db.session.commit()

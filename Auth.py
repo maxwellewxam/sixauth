@@ -1,15 +1,5 @@
 '''An all-in-one user authenticator and data manager.'''
-import json
-import hashlib
-import base64
 import requests
-from datetime import datetime
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.fernet import Fernet
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
 import subprocess
 import sys
 import os
@@ -34,7 +24,7 @@ class Auth:
         self.Path = Path
         if self.Path == None:
             self.Path = 'https://localhost:5678/'
-            self.server = subprocess.Popen([sys.executable, os.path.join(os.getcwd(), "AuthBackend.py")], shell=True)
+            self.server = subprocess.Popen([sys.executable, os.path.join(os.getcwd(), "AuthBackend.py")], shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
         self.sesh = requests.Session()
         self.sesh.cert = ('ca-public-key.pem', 'ca-private-key.pem')
         rep = self.sesh.post(self.Path + 'Shake').json()
@@ -49,20 +39,20 @@ class Auth:
             self.server.terminate()
         except:
             print('couldnt close this')
-    def Save(self, Location, Data) -> None:
+    def Save(self, Location, Data) -> bool:
         '''
         Saves specified data to specified location. Creates location if it doesn't exist.
 
         Auth.Save(['Loc1', 'Loc2',...], Data1) Saves Data1 to /Loc1/Loc2/
         '''
         return self.requestHandle(self.sesh.post(self.Path+'Data', {'Username':self.Name, 'Password':self.Pass, 'Location':Location, 'Data':Data}).json())
-    def Load(self, Location, Name) -> str:
+    def Load(self, Location) -> str:
         '''
         Loads data at specified location. Raises an exception if location doesn't exist.
 
         Auth.Load(['Loc1', 'Loc2',...]) Returns data in /Loc1/Loc2/
         '''
-        return self.requestHandle(self.sesh.put(self.Path+'Data', {'Username':self.Name, 'Password':self.Pass, 'Location':Location.append(Name)}).json())
+        return self.requestHandle(self.sesh.put(self.Path+'Data', {'Username':self.Name, 'Password':self.Pass, 'Location':Location}).json())
     def Login(self) -> bool:
         '''
         Attempts to login with previously specified Auth.Name and Auth.Pass values.
@@ -97,3 +87,5 @@ class Auth:
             raise UsernameError('Username already exists')
         elif request['Code'] == 423:
             raise AuthenticationError('Failed to authenticate user')
+        elif request['Code'] == 422:
+            raise LocationError('Cannot access type \'str\'')
