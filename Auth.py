@@ -13,16 +13,16 @@ class CryptError(Exception): ...
 
 class Auth:
     '''
-    Main class of the Auth module. Set Path to desired data.json location.  Set Name and Pass to desired values.
+    Main class of the Auth module.
     
-    Auth() Sets data.json location to the current working directory in 'Users' folder.
-    Auth('\\\\Example\\\\') Sets data.json location to the current working directory in 'Example' folder.
-    Auth('C:\\\\Users\\\\John Doe\\\\Repos\\\\') Set data.json location to 'C:\\Users\\John Doe\\Repos\\' dir.
+    Auth(Name, Pass) starts backend server on localhost
+    
+    Auth(Name, Pass, Path) connects to backend server at address in path
 
-    call repr(Auth) to retrive the current user.
+    repr(Auth) returns the current username.
     '''
     
-    def __init__(self, Path = None, Name = None, Pass = None):
+    def __init__(self, Name: str, Pass: str, Path: str = None):
         self.Name = Name
         self.Pass = Pass
         self.Path = Path
@@ -31,40 +31,39 @@ class Auth:
             self.server = subprocess.Popen([sys.executable, os.path.join(os.getcwd(), "AuthBackend.py")], shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
         self.sesh = requests.Session()
         self.sesh.cert = ('ca-public-key.pem', 'ca-private-key.pem')
-        rep = self.sesh.post(self.Path + 'Shake').json()
-        
+        try:
+            rep = self.sesh.post(self.Path + 'Shake').json()
+        except requests.ConnectionError as err:
+            raise LocationError('Couldn\'t connect to backend server')
     def __repr__(self):
         return self.Name
     
     def __del__(self):
-        try:
-            self.sesh.put(self.Path+'Shake').json()
-        except:
-            print('dont care about this rn')
+        self.sesh.put(self.Path+'Shake').json()
         try:
             self.server.terminate()
         except:
-            print('couldnt close this')
-            
-    def Save(self, Location, Data) -> bool:
+            pass
+    
+    def Save(self, Location: str, Data: str) -> bool:
         '''
         Saves specified data to specified location. Creates location if it doesn't exist.
 
-        Auth.Save(['Loc1', 'Loc2',...], Data1) Saves Data1 to /Loc1/Loc2/
+        Auth.Save('Loc1/Loc2/Loc3', Data1) Saves Data1 to Loc1/Loc2/Loc3/
         '''
         return self.requestHandle(self.sesh.post(self.Path+'Data', {'Username':self.Name, 'Password':self.Pass, 'Location':Location, 'Data':Data}).json())
     
-    def Load(self, Location) -> str:
+    def Load(self, Location: str) -> str:
         '''
         Loads data at specified location. Raises an exception if location doesn't exist.
 
-        Auth.Load(['Loc1', 'Loc2',...]) Returns data in /Loc1/Loc2/
+        Auth.Load('Loc1/Loc2/Loc3') Returns data in Loc1/Loc2/Loc3/
         '''
         return self.requestHandle(self.sesh.put(self.Path+'Data', {'Username':self.Name, 'Password':self.Pass, 'Location':Location}).json())
     
     def Login(self) -> bool:
         '''
-        Attempts to login with previously specified Auth.Name and Auth.Pass values.
+        Attempts to login with specified Auth.Name and Auth.Pass values.
         
         Raises an exception if it fails.
         '''
@@ -72,7 +71,7 @@ class Auth:
         
     def Signup(self) -> bool:
         '''
-        Attempts to signup with previously specified Auth.Name and Auth.Pass values.
+        Attempts to signup with specified Auth.Name and Auth.Pass values.
         
         Raises an exception if it fails.
         '''
