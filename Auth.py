@@ -34,7 +34,8 @@ class Auth:
         try:
             rep = self.sesh.post(self.Path + 'Shake').json()
         except requests.ConnectionError as err:
-            raise LocationError('Couldn\'t connect to backend server')
+            raise LocationError('Couldn\'t connect to backend server\nMessage:\n' + str(err))
+
     def __repr__(self):
         return self.Name
     
