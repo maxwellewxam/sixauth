@@ -1,15 +1,25 @@
-import jsonpath_ng
-# Initializing JSON data
-json_data = {}
-# Setting up a parser
-jsonpath_ng.parse('foo.baz.hmmm').update_or_create(json_data, 'new')
-jsonpath_expr = [match.value for match in jsonpath_ng.parse('foo.baz').find(json_data)][0]
-print(jsonpath_expr)
-bruh = ['foo', 'bar', 'fat']
+from flask_sqlalchemy import SQLAlchemy
+from flask import Flask
+import os
 
-#jsonpath_ng.Child(jsonpath_ng.Fields('baz'), jsonpath_ng.Fields(*'foo/bar/urmom'.replace('/', '.').split('.'))).update_or_create(json_data, 'new')
-#jsonpath_expr = [match.value for match in jsonpath_ng.parse('foo.bazs.bruh.here').find_or_create(json_data)][0]
-print(jsonpath_expr)
-# Parsing the values of JSON data
-#https://stackoverflow.com/questions/59057672/update-json-nodes-in-python-using-jsonpath look here
-print(json_data) 
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
+
+class DataMod(db.Model):
+    Username = db.Column(db.String, nullable=False, primary_key = True)
+    Password = db.Column(db.String, nullable=False)
+    Data = db.Column(db.JSON)
+
+    def __init__(self, Username, Password, Data):
+        self.Username = Username
+        self.Password = Password
+        self.Data = Data
+
+if os.path.isfile('database.db') is False:
+    db.create_all()
+db.session.add(DataMod(Username='Maxs', Password='lol', Data={'more':'lol'}))
+db.session.commit()
+fromdat = DataMod.query.filter_by(Username='Max').first()
+print(fromdat)

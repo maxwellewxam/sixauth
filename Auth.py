@@ -5,6 +5,9 @@ import subprocess
 import sys
 import os
 
+from flask_sqlalchemy import SQLAlchemy
+from flask import Flask
+
 class LocationError(Exception): ...
 class AuthenticationError(Exception): ...
 class UsernameError(AuthenticationError): ...
@@ -27,14 +30,37 @@ class Auth:
         self.Pass = Pass
         self.Path = Path
         if self.Path == None:
-            self.Path = 'https://localhost:5678/'
-            self.server = subprocess.Popen([sys.executable, os.path.join(os.getcwd(), "AuthBackend.py")], shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-        self.sesh = requests.Session()
-        self.sesh.cert = ('ca-public-key.pem', 'ca-private-key.pem')
-        try:
-            rep = self.sesh.post(self.Path + 'Shake').json()
-        except requests.ConnectionError as err:
-            raise LocationError('Couldn\'t connect to backend server\nMessage:\n' + str(err))
+            self.Path = ''
+            app = Flask(__name__)
+            app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
+            app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+            db = SQLAlchemy(app)
+            class DataMod(db.Model):
+                Username = db.Column(db.String, nullable=False, primary_key = True)
+                Password = db.Column(db.String, nullable=False)
+                Data = db.Column(db.JSON)
+
+                def __init__(self, Username, Password, Data):
+                    self.Username = Username
+                    self.Password = Password
+                    self.Data = Data
+            class seshHandle:
+                def __init__(self):
+                    pass
+                def post(self, location, data):
+                    print(location)
+                def put(self, location, data):
+                    print(location)
+                def json(self, yes):
+                    pass
+            self.sesh = seshHandle()
+        else:
+            self.sesh = requests.Session()
+            self.sesh.cert = ('ca-public-key.pem', 'ca-private-key.pem')
+            try:
+                rep = self.sesh.post(self.Path + 'Shake').json()
+            except requests.ConnectionError as err:
+                raise LocationError('Couldn\'t connect to backend server\nMessage:\n' + str(err))
 
     def __repr__(self):
         return self.Name
