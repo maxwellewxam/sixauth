@@ -18,26 +18,26 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 def Encrypt(Data, pas, nam):
-        kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=bytes(nam.encode()),
-            iterations=390000,
-            )
-        key = base64.urlsafe_b64encode(kdf.derive(bytes(pas.encode())))
-        fernet = Fernet(key)
-        return fernet.encrypt(Data.encode()).decode()
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=bytes(nam.encode()),
+        iterations=390000,
+        )
+    key = base64.urlsafe_b64encode(kdf.derive(bytes(pas.encode())))
+    fernet = Fernet(key)
+    return fernet.encrypt(Data.encode()).decode()
 
 def Decrypt(Data, pas, nam):
-        kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=bytes(nam.encode()),
-            iterations=390000,
-            )
-        key = base64.urlsafe_b64encode(kdf.derive(bytes(pas.encode())))
-        fernet = Fernet(key)
-        return fernet.decrypt(Data.encode()).decode()
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=bytes(nam.encode()),
+        iterations=390000,
+        )
+    key = base64.urlsafe_b64encode(kdf.derive(bytes(pas.encode())))
+    fernet = Fernet(key)
+    return fernet.decrypt(Data.encode()).decode()
 
 class DataMod(db.Model):
     Username = db.Column(db.String, nullable=False, primary_key = True)
