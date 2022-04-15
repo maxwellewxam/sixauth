@@ -1,9 +1,6 @@
 '''An all-in-one user authenticator and data manager.'''
 
 import requests
-import subprocess
-import sys
-import os
 import hashlib
 import jsonpath_ng
 import base64
@@ -19,13 +16,12 @@ class LocationError(Exception): ...
 class AuthenticationError(Exception): ...
 class UsernameError(AuthenticationError): ...
 class PasswordError(AuthenticationError): ...
-class CryptError(Exception): ...
 
 class Auth:
     '''
     Main class of the Auth module.
     
-    Auth(Name, Pass) starts backend server on localhost
+    Auth(Name, Pass) connects to database internally
     
     Auth(Name, Pass, Path) connects to backend server at address in path
 
@@ -37,31 +33,32 @@ class Auth:
         self.Pass = Pass
         self.Path = Path
         if self.Path == None:
+            
             self.Path = ''
             app = Flask(__name__)
             app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
             app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
             db = SQLAlchemy(app)
             
-            def Encrypt(Data, pas, nam):
+            def Encrypt(Data, password, username):
                 kdf = PBKDF2HMAC(
                     algorithm=hashes.SHA256(),
                     length=32,
-                    salt=bytes(nam.encode()),
+                    salt=bytes(username.encode()),
                     iterations=390000,
                     )
-                key = base64.urlsafe_b64encode(kdf.derive(bytes(pas.encode())))
+                key = base64.urlsafe_b64encode(kdf.derive(bytes(password.encode())))
                 fernet = Fernet(key)
                 return fernet.encrypt(Data.encode()).decode()
 
-            def Decrypt(Data, pas, nam):
+            def Decrypt(Data, password, username):
                 kdf = PBKDF2HMAC(
                     algorithm=hashes.SHA256(),
                     length=32,
-                    salt=bytes(nam.encode()),
+                    salt=bytes(username.encode()),
                     iterations=390000,
                     )
-                key = base64.urlsafe_b64encode(kdf.derive(bytes(pas.encode())))
+                key = base64.urlsafe_b64encode(kdf.derive(bytes(password.encode())))
                 fernet = Fernet(key)
                 return fernet.decrypt(Data.encode()).decode()
     
@@ -77,123 +74,146 @@ class Auth:
             
             datfields = {'Data': fields.Raw}
             passfields = {'Password': fields.String}
-            class Handle:
+            
+            class jsonHandle:
                 def __init__(self, Code):
                     self.Code = Code
                     
                 def json(self):
                     return self.Code
-            def warp(func):
-                def wraper(*args, **kwargs):
-                        return Handle(func(*args, **kwargs))
-                return wraper
-            class seshHandle:
-                def __init__(self):
-                    pass
-                @warp
+                
+            def HandleWrapper(func):
+                def Wrapper(*args, **kwargs):
+                        return jsonHandle(func(*args, **kwargs))
+                return Wrapper
+            
+            class datHandle:
+                @HandleWrapper
                 def post(self, location, data):
                     if location == 'Auth':
                         fromuser = data
                         if fromuser['Username'] == '':
                             return {'Code':406}
+                        
                         if fromuser['Username'].isalnum() == False:
                             return {'Code':406}
+                        
                         fromdat = DataMod.query.filter_by(Username=fromuser['Username']).first()
                         if fromdat:
                             return {'Code':409}
+                        
                         else:
                             inf = DataMod(Username=fromuser['Username'], Password=hashlib.sha512((fromuser['Password'] + fromuser['Username']).encode("UTF-8")).hexdigest(), Data={})
                             db.session.add(inf)
                             db.session.commit()
                             return {'Code':200}
+                        
                     elif location == 'Data':
                         fromuser = data
                         if fromuser['Username'] == '':
                             return {'Code':423}
+                        
                         if fromuser['Username'].isalnum() == False:
                             return {'Code':423}
+                        
                         fromdat = DataMod.query.filter_by(Username=fromuser['Username']).first()
                         if not fromdat:
                             return {'Code':423}
+                        
                         datPass = marshal(fromdat, passfields)['Password']
                         userPass = hashlib.sha512((fromuser['Password'] + fromuser['Username']).encode("UTF-8")).hexdigest()
                         if userPass == datPass:
                             new = dict(marshal(fromdat, datfields)['Data'])
                             try:
                                 jsonpath_ng.parse(data['Location'].replace('/', '.').replace(' ', '-')).update_or_create(new, Encrypt(data['Data'], data['Username'], data['Password']))
+                                
                             except TypeError as err:
                                 if err == '\'str\' object does not support item assignment':
                                     return {'Code':422}
+                                
                             db.session.delete(fromdat)
                             db.session.add(DataMod(Username=fromuser['Username'], Password=hashlib.sha512((fromuser['Password'] + fromuser['Username']).encode("UTF-8")).hexdigest(), Data=new))
                             db.session.commit()
                             return {'Code':200}
+                        
                         else:
-                            return {'Code':423} 
+                            return {'Code':423}
+                        
                     elif location == 'Shake':
                         return {'Code':200}
-                @warp
+                    
+                @HandleWrapper
                 def put(self, location, data):
                     if location == 'Auth':
                         fromuser = data
                         if fromuser['Username'] == '':
                             return {'Code':406}
+                        
                         if fromuser['Username'].isalnum() == False:
                             return {'Code':406}
+                        
                         fromdat = DataMod.query.filter_by(Username=fromuser['Username']).first()
                         if not fromdat:
                             return {'Code':404}
+                        
                         datPass = marshal(fromdat, passfields)['Password']
                         userPass = hashlib.sha512((fromuser['Password'] + fromuser['Username']).encode("UTF-8")).hexdigest()
                         if userPass == datPass:
                             return {'Code':200}
+                        
                         else:
                             return {'Code':401}
+                        
                     elif location == 'Data':
                         fromuser = data
                         if fromuser['Username'] == '':
                             return {'Code':423}
+                        
                         if fromuser['Username'].isalnum() == False:
                             return {'Code':423}
+                        
                         fromdat = DataMod.query.filter_by(Username=fromuser['Username']).first()
                         if not fromdat:
                             return {'Code':423}
+                        
                         datPass = marshal(fromdat, passfields)['Password']
                         userPass = hashlib.sha512((fromuser['Password'] + fromuser['Username']).encode("UTF-8")).hexdigest()
                         if userPass == datPass:
                             farter = dict(marshal(fromdat, datfields)['Data'])
                             try:
                                 jsonpath_expr = Decrypt([match.value for match in jsonpath_ng.parse(data['Location'].replace('/', '.').replace(' ', '-')).find(farter)][0], data['Username'], data['Password'])
+                                
                             except IndexError as err:
                                 if str(err) == 'list index out of range':
                                     return {'Code':416}
+                                
                                 else: 
                                     raise IndexError(err)
+                                
                             return {'Data':jsonpath_expr, 'Code':202}
+                        
                         else:
                             return {'Code':423}
+                        
                     elif location == 'Shake':
                         return {'Code':200}
                 
-            self.sesh = seshHandle()
+            self.sesh = datHandle()
         else:
             self.sesh = requests.Session()
             self.sesh.cert = ('ca-public-key.pem', 'ca-private-key.pem')
-            try:
-                rep = self.sesh.post(self.Path + 'Shake').json()
-            except requests.ConnectionError as err:
-                raise LocationError('Couldn\'t connect to backend server\nMessage:\n' + str(err))
-            pass
+            
+        try:
+            self.sesh.post(self.Path + 'Shake').json()
+            
+        except requests.ConnectionError as err:
+            raise LocationError('Couldn\'t connect to backend server\nMessage:\n' + str(err))
 
     def __repr__(self):
         return self.Name
     
     def __del__(self):
         self.sesh.put(self.Path+'Shake', 'JOE MOMMA').json()
-        try:
-            self.server.terminate()
-        except:
-            pass
     
     def Save(self, Location: str, Data: str) -> bool:
         '''
@@ -230,19 +250,27 @@ class Auth:
     def requestHandle(self, request):
         if request['Code'] == 200:
             return True
+        
         elif request['Code'] == 202:
             return request['Data']
+        
         elif request['Code'] == 416:
             raise LocationError('Loaction does not exist')
+        
         elif request['Code'] == 401:
             raise PasswordError('Incorrect password')
+        
         elif request['Code'] == 404:
             raise UsernameError('Username does not exist')
+        
         elif request['Code'] == 406:
             raise UsernameError('Invalid username')
+        
         elif request['Code'] == 409:
             raise UsernameError('Username already exists')
+        
         elif request['Code'] == 423:
             raise AuthenticationError('Failed to authenticate user')
+        
         elif request['Code'] == 422:
             raise LocationError('Cannot access type \'str\'')
