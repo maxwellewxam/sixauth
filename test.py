@@ -8,7 +8,7 @@ class MainApp:
         print('Welcome')
         username = str(input('Enter Username: '))
         password = str(input('Enter Password: '))
-        self.log = Auth.Auth()
+        self.log = Auth.Auth()#'https://localhost:5678/')
         self.log.set_auth_values(Name=username, Pass=password)
         try:
             self.arf = self.log.Login()

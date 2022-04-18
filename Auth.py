@@ -2,8 +2,9 @@
 
 import requests
 import hashlib
-import os
 import jsonpath_ng
+import os
+import json
 import base64
 
 from flask_sqlalchemy import SQLAlchemy
@@ -40,6 +41,7 @@ class Auth:
             db = SQLAlchemy(app)
             
             def Encrypt(Data, password, username):
+                Data1 = json.dumps(Data)
                 kdf = PBKDF2HMAC(
                     algorithm=hashes.SHA256(),
                     length=32,
@@ -48,7 +50,7 @@ class Auth:
                     )
                 key = base64.urlsafe_b64encode(kdf.derive(bytes(password.encode())))
                 fernet = Fernet(key)
-                return fernet.encrypt(Data.encode()).decode()
+                return fernet.encrypt(Data1.encode()).decode()
 
             def Decrypt(Data, password, username):
                 kdf = PBKDF2HMAC(
@@ -59,7 +61,7 @@ class Auth:
                     )
                 key = base64.urlsafe_b64encode(kdf.derive(bytes(password.encode())))
                 fernet = Fernet(key)
-                return fernet.decrypt(Data.encode()).decode()
+                return json.loads(fernet.decrypt(Data.encode()).decode())
     
             class DataMod(db.Model):
                 Username = db.Column(db.String, nullable=False, primary_key = True)
@@ -70,10 +72,10 @@ class Auth:
                     self.Username = Username
                     self.Password = Password
                     self.Data = Data
-            
+                    
             if os.path.isfile('database.db') is False:
                 db.create_all()
-            
+                
             datfields = {'Data': fields.Raw}
             passfields = {'Password': fields.String}
             
@@ -93,48 +95,46 @@ class Auth:
                 @HandleWrapper
                 def post(self, location, data):
                     if location == 'Auth':
-                        fromuser = data
-                        if fromuser['Username'] == '':
+                        if data['Username'] == '':
                             return {'Code':406}
                         
-                        if fromuser['Username'].isalnum() == False:
+                        if data['Username'].isalnum() == False:
                             return {'Code':406}
                         
-                        fromdat = DataMod.query.filter_by(Username=fromuser['Username']).first()
+                        fromdat = DataMod.query.filter_by(Username=data['Username']).first()
                         if fromdat:
                             return {'Code':409}
                         
                         else:
-                            inf = DataMod(Username=fromuser['Username'], Password=hashlib.sha512((fromuser['Password'] + fromuser['Username']).encode("UTF-8")).hexdigest(), Data={})
+                            inf = DataMod(Username=data['Username'], Password=hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt({}, data['Username'], data['Password']))
                             db.session.add(inf)
                             db.session.commit()
                             return {'Code':200}
                         
                     elif location == 'Data':
-                        fromuser = data
-                        if fromuser['Username'] == '':
+                        if data['Username'] == '':
                             return {'Code':423}
                         
-                        if fromuser['Username'].isalnum() == False:
+                        if data['Username'].isalnum() == False:
                             return {'Code':423}
                         
-                        fromdat = DataMod.query.filter_by(Username=fromuser['Username']).first()
+                        fromdat = DataMod.query.filter_by(Username=data['Username']).first()
                         if not fromdat:
                             return {'Code':423}
                         
                         datPass = marshal(fromdat, passfields)['Password']
-                        userPass = hashlib.sha512((fromuser['Password'] + fromuser['Username']).encode("UTF-8")).hexdigest()
+                        userPass = hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest()
                         if userPass == datPass:
-                            new = dict(marshal(fromdat, datfields)['Data'])
+                            new = Decrypt(marshal(fromdat, datfields)['Data'], data['Username'], data['Password'])
                             try:
-                                jsonpath_ng.parse(data['Location'].replace('/', '.').replace(' ', '-')).update_or_create(new, Encrypt(data['Data'], data['Username'], data['Password']))
+                                jsonpath_ng.parse(data['Location'].replace('/', '.').replace(' ', '-')).update_or_create(new, data['Data'])
                                 
                             except TypeError as err:
                                 if err == '\'str\' object does not support item assignment':
                                     return {'Code':422}
                                 
                             db.session.delete(fromdat)
-                            db.session.add(DataMod(Username=fromuser['Username'], Password=hashlib.sha512((fromuser['Password'] + fromuser['Username']).encode("UTF-8")).hexdigest(), Data=new))
+                            db.session.add(DataMod(Username=data['Username'], Password=hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt(new, data['Username'], data['Password'])))
                             db.session.commit()
                             return {'Code':200}
                         
@@ -147,19 +147,18 @@ class Auth:
                 @HandleWrapper
                 def put(self, location, data):
                     if location == 'Auth':
-                        fromuser = data
-                        if fromuser['Username'] == '':
+                        if data['Username'] == '':
                             return {'Code':406}
                         
-                        if fromuser['Username'].isalnum() == False:
+                        if data['Username'].isalnum() == False:
                             return {'Code':406}
                         
-                        fromdat = DataMod.query.filter_by(Username=fromuser['Username']).first()
+                        fromdat = DataMod.query.filter_by(Username=data['Username']).first()
                         if not fromdat:
                             return {'Code':404}
                         
                         datPass = marshal(fromdat, passfields)['Password']
-                        userPass = hashlib.sha512((fromuser['Password'] + fromuser['Username']).encode("UTF-8")).hexdigest()
+                        userPass = hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest()
                         if userPass == datPass:
                             return {'Code':200}
                         
@@ -167,23 +166,22 @@ class Auth:
                             return {'Code':401}
                         
                     elif location == 'Data':
-                        fromuser = data
-                        if fromuser['Username'] == '':
+                        if data['Username'] == '':
                             return {'Code':423}
                         
-                        if fromuser['Username'].isalnum() == False:
+                        if data['Username'].isalnum() == False:
                             return {'Code':423}
                         
-                        fromdat = DataMod.query.filter_by(Username=fromuser['Username']).first()
+                        fromdat = DataMod.query.filter_by(Username=data['Username']).first()
                         if not fromdat:
                             return {'Code':423}
                         
                         datPass = marshal(fromdat, passfields)['Password']
-                        userPass = hashlib.sha512((fromuser['Password'] + fromuser['Username']).encode("UTF-8")).hexdigest()
+                        userPass = hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest()
                         if userPass == datPass:
-                            farter = dict(marshal(fromdat, datfields)['Data'])
+                            farter = Decrypt(marshal(fromdat, datfields)['Data'], data['Username'], data['Password'])
                             try:
-                                jsonpath_expr = Decrypt([match.value for match in jsonpath_ng.parse(data['Location'].replace('/', '.').replace(' ', '-')).find(farter)][0], data['Username'], data['Password'])
+                                jsonpath_expr = [match.value for match in jsonpath_ng.parse(data['Location'].replace('/', '.').replace(' ', '-')).find(farter)][0]
                                 
                             except IndexError as err:
                                 if str(err) == 'list index out of range':
