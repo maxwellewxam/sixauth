@@ -8,7 +8,8 @@ class MainApp:
         print('Welcome')
         username = str(input('Enter Username: '))
         password = str(input('Enter Password: '))
-        self.log = Auth.Auth(Name=username, Pass=password)
+        self.log = Auth.Auth()
+        self.log.set_auth_values(Name=username, Pass=password)
         try:
             self.arf = self.log.Login()
             self.mainloop()
@@ -63,3 +64,56 @@ class MainApp:
             self.mainloop()
             
 MainApp()
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy
+i will not be a bad boy

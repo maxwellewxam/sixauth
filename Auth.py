@@ -21,16 +21,14 @@ class Auth:
     '''
     Main class of the Auth module.
     
-    Auth(Name, Pass) connects to database internally
+    Auth() connects to database internally
     
-    Auth(Name, Pass, Path) connects to backend server at address in path
+    Auth(Path) connects to backend server at address in path
 
     repr(Auth) returns the current username.
     '''
     
-    def __init__(self, Name: str, Pass: str, Path: str = None):
-        self.Name = Name
-        self.Pass = Pass
+    def __init__(self, Path: str = None):
         self.Path = Path
         if self.Path == None:
             
@@ -214,6 +212,13 @@ class Auth:
     
     def __del__(self):
         self.sesh.put(self.Path+'Shake', 'JOE MOMMA').json()
+        
+    def set_auth_values(self, Name: str, Pass:str):
+        '''
+        Sets the Desired username and password 
+        '''
+        self.Name = Name
+        self.Pass = Pass
     
     def Save(self, Location: str, Data: str) -> bool:
         '''
