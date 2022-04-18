@@ -1,4 +1,4 @@
-'''An all-in-one user authenticator and data manager.'''
+'''An all-in-one user authenticator and data manager'''
 
 import requests
 import hashlib
@@ -19,16 +19,16 @@ class PasswordError(AuthenticationError): ...
 
 class Auth:
     '''
-    Main class of the Auth module.
+    Main class of the Auth module
     
     Auth() connects to database internally
     
-    Auth(Path) connects to backend server at address in path
+    Auth(Path) connects to backend Auth server at address in path
 
-    repr(Auth) returns the current username.
+    repr(Auth) returns the current username
     '''
     
-    def __init__(self, Path: str = None):
+    def __init__(self, Path: str = None, HandshakeData = None):
         self.Path = Path
         if self.Path == None:
             
@@ -202,7 +202,7 @@ class Auth:
             self.sesh.cert = ('ca-public-key.pem', 'ca-private-key.pem')
             
         try:
-            self.sesh.post(self.Path + 'Shake').json()
+            self.sesh.post(self.Path + 'Shake', HandshakeData).json()
             
         except requests.ConnectionError as err:
             raise LocationError('Couldn\'t connect to backend server\nMessage:\n' + str(err))
@@ -210,19 +210,19 @@ class Auth:
     def __repr__(self):
         return self.Name
     
-    def __del__(self):
-        self.sesh.put(self.Path+'Shake', 'JOE MOMMA').json()
+    def __del__(self, HandshakeData = None):
+        self.sesh.put(self.Path+'Shake', HandshakeData).json()
         
     def set_auth_values(self, Name: str, Pass:str):
         '''
-        Sets the Desired username and password 
+        Sets the desired username and password 
         '''
         self.Name = Name
         self.Pass = Pass
     
     def Save(self, Location: str, Data: str) -> bool:
         '''
-        Saves specified data to specified location. Creates location if it doesn't exist.
+        Saves specified data to specified location. Creates location if it doesn't exist
 
         Auth.Save('Loc1/Loc2/Loc3', Data1) Saves Data1 to Loc1/Loc2/Loc3/
         '''
@@ -230,7 +230,7 @@ class Auth:
     
     def Load(self, Location: str) -> str:
         '''
-        Loads data at specified location. Raises an exception if location doesn't exist.
+        Loads data at specified location. Raises an exception if location doesn't exist
 
         Auth.Load('Loc1/Loc2/Loc3') Returns data in Loc1/Loc2/Loc3/
         '''
@@ -238,17 +238,17 @@ class Auth:
     
     def Login(self) -> bool:
         '''
-        Attempts to login with specified Auth.Name and Auth.Pass values.
+        Attempts to login with specified Auth.Name and Auth.Pass values
         
-        Raises an exception if it fails.
+        Raises an exception if it fails
         '''
         return self.requestHandle(self.sesh.put(self.Path+'Auth', {'Username':self.Name, 'Password':self.Pass}).json())
         
     def Signup(self) -> bool:
         '''
-        Attempts to signup with specified Auth.Name and Auth.Pass values.
+        Attempts to signup with specified Auth.Name and Auth.Pass values
         
-        Raises an exception if it fails.
+        Raises an exception if it fails
         '''
         return self.requestHandle(self.sesh.post(self.Path+'Auth', {'Username':self.Name, 'Password':self.Pass}).json())
     
