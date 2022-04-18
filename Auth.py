@@ -2,6 +2,7 @@
 
 import requests
 import hashlib
+import os
 import jsonpath_ng
 import base64
 
@@ -69,6 +70,9 @@ class Auth:
                     self.Username = Username
                     self.Password = Password
                     self.Data = Data
+            
+            if os.path.isfile('database.db') is False:
+                db.create_all()
             
             datfields = {'Data': fields.Raw}
             passfields = {'Password': fields.String}
