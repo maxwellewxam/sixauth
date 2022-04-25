@@ -86,6 +86,11 @@ class Data1(Resource):
                     return {'Code':416}
                 else: 
                     raise IndexError(err)
+            except AttributeError as err:
+                if str(err) == '\'NoneType\' object has no attribute \'lineno\'':
+                    return {'Data':farter, 'Code':202}
+                else:
+                    raise AttributeError(err)
             return {'Data':jsonpath_expr, 'Code':202}
         else:
             return {'Code':423}
@@ -109,6 +114,14 @@ class Data1(Resource):
             except TypeError as err:
                 if err == '\'str\' object does not support item assignment':
                     return {'Code':422}
+            except AttributeError as err:
+                if str(err) == '\'NoneType\' object has no attribute \'lineno\'':
+                    try:
+                        new = json.loads(DataArgs['Data'])
+                    except:
+                        return {'Code':422}
+                else:
+                    raise AttributeError(err)
             db.session.delete(fromdat)
             db.session.add(DataMod(Username=Args['Username'], Password=hashlib.sha512((Args['Password'] + Args['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt(new, Args['Username'], Args['Password'])))
             db.session.commit()
@@ -116,6 +129,24 @@ class Data1(Resource):
         else:
             return {'Code':423}
 
+class User(Resource):
+    def post(self):#remove user
+        Args = Auth1.parse_args()
+        if Args['Username'] == '':
+            return {'Code':423}
+        if Args['Username'].isalnum() == False:
+            return {'Code':423}
+        fromdat = DataMod.query.filter_by(Username=Args['Username']).first()
+        if not fromdat:
+            return {'Code':423}
+        datPass = marshal(fromdat, passfields)['Password']
+        userPass = hashlib.sha512((Args['Password'] + Args['Username']).encode("UTF-8")).hexdigest()
+        if userPass == datPass:
+            db.session.delete(fromdat)
+            db.session.commit()
+            return {'Code':200}
+        else:
+            return {'Code':423}
 class Auth(Resource):
 
     def put(self):#login
@@ -160,6 +191,7 @@ class Shake(Resource):
 api.add_resource(Auth, '/Auth')
 api.add_resource(Shake, '/Shake')
 api.add_resource(Data1, '/Data')
+api.add_resource(User, '/User')
 
 if __name__ == '__main__':
 	app.run(host='0.0.0.0', port=5678, ssl_context=('server-public-key.pem', 'server-private-key.pem'))

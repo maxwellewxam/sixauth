@@ -132,7 +132,16 @@ class Auth:
                             except TypeError as err:
                                 if err == '\'str\' object does not support item assignment':
                                     return {'Code':422}
-                                
+                            
+                            except AttributeError as err:
+                                if str(err) == '\'NoneType\' object has no attribute \'lineno\'':
+                                    try:
+                                        new = json.loads(data['Data'])
+                                    except:
+                                        return {'Code':422}
+                                else:
+                                    raise AttributeError(err)
+                            
                             db.session.delete(fromdat)
                             db.session.add(DataMod(Username=data['Username'], Password=hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt(new, data['Username'], data['Password'])))
                             db.session.commit()
@@ -143,6 +152,23 @@ class Auth:
                         
                     elif location == 'Shake':
                         return {'Code':200}
+
+                    elif location == 'User':
+                        if data['Username'] == '':
+                            return {'Code':423}
+                        if data['Username'].isalnum() == False:
+                            return {'Code':423}
+                        fromdat = DataMod.query.filter_by(Username=data['Username']).first()
+                        if not fromdat:
+                            return {'Code':423}
+                        datPass = marshal(fromdat, passfields)['Password']
+                        userPass = hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest()
+                        if userPass == datPass:
+                            db.session.delete(fromdat)
+                            db.session.commit()
+                            return {'Code':200}
+                        else:
+                            return {'Code':423}
                     
                 @HandleWrapper
                 def put(self, location, data):
@@ -190,6 +216,12 @@ class Auth:
                                 else: 
                                     raise IndexError(err)
                                 
+                            except AttributeError as err:
+                                if str(err) == '\'NoneType\' object has no attribute \'lineno\'':
+                                    return {'Data':farter, 'Code':202}
+                                else:
+                                    raise AttributeError(err)
+                                
                             return {'Data':jsonpath_expr, 'Code':202}
                         
                         else:
@@ -215,22 +247,24 @@ class Auth:
     def __del__(self, HandshakeData = None):
         self.sesh.put(self.Path+'Shake', HandshakeData).json()
         
-    def set_auth_values(self, Name: str, Pass:str):
+    def get_vals(self, Name: str, Pass:str):
         '''
         Sets the desired username and password 
         '''
         self.Name = Name
         self.Pass = Pass
     
-    def Save(self, Location: str, Data: str) -> bool:
+    def Save(self, Location: str, Data):
         '''
         Saves specified data to specified location. Creates location if it doesn't exist
 
         Auth.Save('Loc1/Loc2/Loc3', Data1) Saves Data1 to Loc1/Loc2/Loc3/
         '''
+        if type(Data) == dict:
+            Data = json.dumps(Data) 
         return self.requestHandle(self.sesh.post(self.Path+'Data', {'Username':self.Name, 'Password':self.Pass, 'Location':Location, 'Data':Data}).json())
     
-    def Load(self, Location: str) -> str:
+    def Load(self, Location: str):
         '''
         Loads data at specified location. Raises an exception if location doesn't exist
 
@@ -238,7 +272,7 @@ class Auth:
         '''
         return self.requestHandle(self.sesh.put(self.Path+'Data', {'Username':self.Name, 'Password':self.Pass, 'Location':Location}).json())
     
-    def Login(self) -> bool:
+    def Login(self):
         '''
         Attempts to login with specified Auth.Name and Auth.Pass values
         
@@ -246,13 +280,21 @@ class Auth:
         '''
         return self.requestHandle(self.sesh.put(self.Path+'Auth', {'Username':self.Name, 'Password':self.Pass}).json())
         
-    def Signup(self) -> bool:
+    def Signup(self):
         '''
         Attempts to signup with specified Auth.Name and Auth.Pass values
         
         Raises an exception if it fails
         '''
         return self.requestHandle(self.sesh.post(self.Path+'Auth', {'Username':self.Name, 'Password':self.Pass}).json())
+    
+    def Remove_User(self):
+        '''
+        Attempts to remove the user with specified Auth.Name and Auth.Pass values
+        
+        Raises an exception if it fails
+        '''
+        return self.requestHandle(self.sesh.post(self.Path+'User', {'Username':self.Name, 'Password':self.Pass}).json())
     
     def requestHandle(self, request):
         if request['Code'] == 200:
