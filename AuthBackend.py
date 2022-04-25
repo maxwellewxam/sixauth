@@ -130,6 +130,7 @@ class Data1(Resource):
             return {'Code':423}
 
 class User(Resource):
+
     def post(self):#remove user
         Args = Auth1.parse_args()
         if Args['Username'] == '':
@@ -147,6 +148,7 @@ class User(Resource):
             return {'Code':200}
         else:
             return {'Code':423}
+
 class Auth(Resource):
 
     def put(self):#login

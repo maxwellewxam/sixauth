@@ -1,8 +1,4 @@
 import Auth
-import subprocess
-import os
-import sys
-import json
 import unittest
 
 class testAuth(unittest.TestCase):
@@ -149,11 +145,6 @@ class testAuth(unittest.TestCase):
         self.assertTrue(self.user2.Remove_User())
         
 if __name__ == '__main__':
-    server = subprocess.Popen([sys.executable, os.path.join(os.getcwd(), "AuthBackend.py")], shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-    try:
-        unittest.main()
-    except:
-        pass
-    server.terminate()
+    unittest.main()
 
 
