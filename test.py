@@ -3,7 +3,7 @@ import unittest
 
 class testAuth(unittest.TestCase):
     user1 = Auth.Auth()
-    user2 = Auth.Auth('https://localhost:5678/')
+    user2 = Auth.Auth('https://ldums.com:5678/')
     def test_111_login_client_side_wrong_username(self):
         self.user1.get_vals('test', 'test')
         with self.assertRaises(Auth.AuthenticationError) as cm:
