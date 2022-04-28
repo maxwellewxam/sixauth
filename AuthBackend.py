@@ -4,6 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.backends import default_backend
 from cryptography.fernet import Fernet
 from datetime import datetime
 import os
@@ -25,6 +26,7 @@ def Encrypt(Data, password, username):
         length=32,
         salt=bytes(username.encode()),
         iterations=390000,
+        backend=default_backend()
         )
     key = base64.urlsafe_b64encode(kdf.derive(bytes(password.encode())))
     fernet = Fernet(key)
@@ -36,6 +38,7 @@ def Decrypt(Data, password, username):
         length=32,
         salt=bytes(username.encode()),
         iterations=390000,
+        backend=default_backend()
         )
     key = base64.urlsafe_b64encode(kdf.derive(bytes(password.encode())))
     fernet = Fernet(key)
@@ -63,9 +66,9 @@ Auth1.add_argument('Password', type=str, required=True)
 datfields = {'Data': fields.Raw}
 passfields = {'Password': fields.String}
 
-class Data1(Resource):
-
-    def put(self):#load data
+class Load(Resource):
+    
+    def post(self):#load data
         Args = Auth1.parse_args()
         DataArgs = Dataargs.parse_args()
         if Args['Username'] == '':
@@ -95,6 +98,8 @@ class Data1(Resource):
         else:
             return {'Code':423}
 
+class Save(Resource):
+
     def post(self):#save data
         Args = Auth1.parse_args()
         DataArgs = Dataargs.parse_args()
@@ -112,16 +117,17 @@ class Data1(Resource):
             try:
                 jsonpath_ng.parse(DataArgs['Location'].replace('/', '.').replace(' ', '-')).update_or_create(new, DataArgs['Data'])
             except TypeError as err:
-                if err == '\'str\' object does not support item assignment':
-                    return {'Code':422}
+                return {'Code':422, 'err': str(err)}
             except AttributeError as err:
                 if str(err) == '\'NoneType\' object has no attribute \'lineno\'':
                     try:
                         new = json.loads(DataArgs['Data'])
-                    except:
-                        return {'Code':422}
+                    except Exception as err2:
+                        return {'Code':422, 'err': str(err2)}
                 else:
                     raise AttributeError(err)
+            except Exception as err:
+                return {'Code':422, 'err': err}
             db.session.delete(fromdat)
             db.session.add(DataMod(Username=Args['Username'], Password=hashlib.sha512((Args['Password'] + Args['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt(new, Args['Username'], Args['Password'])))
             db.session.commit()
@@ -129,7 +135,7 @@ class Data1(Resource):
         else:
             return {'Code':423}
 
-class User(Resource):
+class Remove(Resource):
 
     def post(self):#remove user
         Args = Auth1.parse_args()
@@ -149,9 +155,9 @@ class User(Resource):
         else:
             return {'Code':423}
 
-class Auth(Resource):
-
-    def put(self):#login
+class Login(Resource):
+    
+    def post(self):#login
         Args = Auth1.parse_args()
         if Args['Username'] == '':
             return {'Code':406}
@@ -166,6 +172,8 @@ class Auth(Resource):
             return {'Code':200}
         else:
             return {'Code':401}
+         
+class Signup(Resource):
 
     def post(slef):#signup
         Args = Auth1.parse_args()
@@ -182,20 +190,25 @@ class Auth(Resource):
             db.session.commit()
             return {'Code':200}
 
-class Shake(Resource):
+class Greet(Resource):
 
     def post(self):#greeting
         return {'Code':200, 'JoinTime':str(datetime.now())}
 
-    def put(self):#goodbyes
+class Leave(Resource):
+
+    def post(self):#goodbyes
         return {'Code':200}
 
-api.add_resource(Auth, '/Auth')
-api.add_resource(Shake, '/Shake')
-api.add_resource(Data1, '/Data')
-api.add_resource(User, '/User')
+api.add_resource(Login, '/Login')
+api.add_resource(Signup, '/Signup')
+api.add_resource(Greet, '/Greet')
+api.add_resource(Leave, '/Leave')
+api.add_resource(Load, '/Load')
+api.add_resource(Save, '/Save')
+api.add_resource(Remove, '/Remove')
 
 if __name__ == '__main__':
-	app.run(host='0.0.0.0', port=5678, ssl_context=('server-public-key.pem', 'server-private-key.pem'))
+	app.run(host='0.0.0.0', port=5678, debug = True, ssl_context=('server-public-key.pem', 'server-private-key.pem'))
 
 print('closed')

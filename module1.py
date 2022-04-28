@@ -135,17 +135,17 @@ generate_public_key(
   state="Iowa",
   locality="Ankeny",
   org="32",
-  hostname="Ldums.com",
+  hostname="192.168.6.3",
 )
-generate_csr(
+fart = generate_csr(
   server_private_key,
   filename="server-csr.pem",
   country="US",
   state="Iowa",
   locality="Ankeny",
   org="32",
-  hostname="Ldums.com",
-  alt_names=["localhost"],
+  hostname="192.168.6.3",
+  alt_names=["localhost", "ldums.com", "192.168.6.3"],
 )
 csr_file = open("server-csr.pem", "rb")
 csr = x509.load_pem_x509_csr(csr_file.read(), default_backend())

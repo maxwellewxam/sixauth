@@ -68,7 +68,7 @@ class testAuth(unittest.TestCase):
         with self.assertRaises(Auth.LocationError) as cm:
             self.user1.Save('', 'comma')
         the_exception = cm.exception
-        self.assertEqual(str(the_exception), 'Cannot access type \'str\'')
+        self.assertEqual(str(the_exception), 'Expecting value: line 1 column 1 (char 0)')
     
     def test_199_remove_client_side_success(self):
         self.user1.get_vals('test', 'test')
@@ -138,7 +138,7 @@ class testAuth(unittest.TestCase):
         with self.assertRaises(Auth.LocationError) as cm:
             self.user2.Save('', 'comma')
         the_exception = cm.exception
-        self.assertEqual(str(the_exception), 'Cannot access type \'str\'')
+        self.assertEqual(str(the_exception), 'Expecting value: line 1 column 1 (char 0)')
     
     def test_299_remove_server_side_success(self):
         self.user2.get_vals('test', 'test')

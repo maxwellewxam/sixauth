@@ -1,4 +1,6 @@
 import Auth
+from urllib.request import urlopen
+urlopen('https://www.howsmyssl.com/a/check').read()
 class MainApp:
     def __init__(self) -> None:
         self.startloop()
@@ -7,7 +9,7 @@ class MainApp:
         print('Welcome')
         username = str(input('Enter Username: '))
         password = str(input('Enter Password: '))
-        self.log = Auth.Auth('https://localhost:5678/')
+        self.log = Auth.Auth('https://ldums.com:5678/')
         self.log.get_vals(Name=username, Pass=password)
         try:
             self.arf = self.log.Login()
@@ -16,6 +18,7 @@ class MainApp:
             if str(err) == 'Username does not exist':
                 try:
                     self.log.Signup()
+                    self.mainloop()
                 except Auth.AuthenticationError as err:
                     print(err)
             else: print(err)
@@ -47,7 +50,7 @@ class MainApp:
                 elif choice == 's':
                     try:
                         location = str(input('Save to where? (ex: Data/john/local/ur mom): '))
-                        data = {'UR MOM':'test'}#str(input('What to save: '))
+                        data = str(input('What to save: '))
                         self.log.Save(location, data)
                         print('Success')
                         self.mainloop()

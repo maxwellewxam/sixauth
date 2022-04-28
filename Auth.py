@@ -4,7 +4,7 @@ import requests
 import hashlib
 import jsonpath_ng
 import os
-import json
+import json as jjson
 import base64
 
 from flask_sqlalchemy import SQLAlchemy
@@ -12,6 +12,7 @@ from flask import Flask
 from flask_restful import fields, marshal
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.backends import default_backend
 from cryptography.fernet import Fernet
 
 class LocationError(Exception): ...
@@ -41,12 +42,13 @@ class Auth:
             db = SQLAlchemy(app)
             
             def Encrypt(Data, password, username):
-                Data1 = json.dumps(Data)
+                Data1 = jjson.dumps(Data)
                 kdf = PBKDF2HMAC(
                     algorithm=hashes.SHA256(),
                     length=32,
                     salt=bytes(username.encode()),
                     iterations=390000,
+                    backend=default_backend()
                     )
                 key = base64.urlsafe_b64encode(kdf.derive(bytes(password.encode())))
                 fernet = Fernet(key)
@@ -58,10 +60,11 @@ class Auth:
                     length=32,
                     salt=bytes(username.encode()),
                     iterations=390000,
+                    backend=default_backend()
                     )
                 key = base64.urlsafe_b64encode(kdf.derive(bytes(password.encode())))
                 fernet = Fernet(key)
-                return json.loads(fernet.decrypt(Data.encode()).decode())
+                return jjson.loads(fernet.decrypt(Data.encode()).decode())
     
             class DataMod(db.Model):
                 Username = db.Column(db.String, nullable=False, primary_key = True)
@@ -93,8 +96,9 @@ class Auth:
             
             class datHandle:
                 @HandleWrapper
-                def post(self, location, data):
-                    if location == 'Auth':
+                def post(self, location, json):
+                    data = json
+                    if location == 'Signup':
                         if data['Username'] == '':
                             return {'Code':406}
                         
@@ -111,7 +115,7 @@ class Auth:
                             db.session.commit()
                             return {'Code':200}
                         
-                    elif location == 'Data':
+                    elif location == 'Save':
                         if data['Username'] == '':
                             return {'Code':423}
                         
@@ -131,14 +135,14 @@ class Auth:
                                 
                             except TypeError as err:
                                 if err == '\'str\' object does not support item assignment':
-                                    return {'Code':422}
+                                    return {'Code':422, 'err': str(err)}
                             
                             except AttributeError as err:
                                 if str(err) == '\'NoneType\' object has no attribute \'lineno\'':
                                     try:
-                                        new = json.loads(data['Data'])
-                                    except:
-                                        return {'Code':422}
+                                        new = jjson.loads(data['Data'])
+                                    except Exception as err2:
+                                        return {'Code':422, 'err': str(err2)}
                                 else:
                                     raise AttributeError(err)
                             
@@ -150,10 +154,10 @@ class Auth:
                         else:
                             return {'Code':423}
                         
-                    elif location == 'Shake':
+                    elif location == 'Leave':
                         return {'Code':200}
 
-                    elif location == 'User':
+                    elif location == 'Remove':
                         if data['Username'] == '':
                             return {'Code':423}
                         if data['Username'].isalnum() == False:
@@ -170,9 +174,7 @@ class Auth:
                         else:
                             return {'Code':423}
                     
-                @HandleWrapper
-                def put(self, location, data):
-                    if location == 'Auth':
+                    elif location == 'Login':
                         if data['Username'] == '':
                             return {'Code':406}
                         
@@ -191,7 +193,7 @@ class Auth:
                         else:
                             return {'Code':401}
                         
-                    elif location == 'Data':
+                    elif location == 'Load':
                         if data['Username'] == '':
                             return {'Code':423}
                         
@@ -227,7 +229,7 @@ class Auth:
                         else:
                             return {'Code':423}
                         
-                    elif location == 'Shake':
+                    elif location == 'Greet':
                         return {'Code':200}
                 
             self.sesh = datHandle()
@@ -236,7 +238,7 @@ class Auth:
             self.sesh.cert = ('ca-public-key.pem', 'ca-private-key.pem')
             
         try:
-            self.sesh.post(self.Path + 'Shake', HandshakeData).json()
+            self.sesh.post(self.Path + 'Greet', HandshakeData).json()
             
         except requests.ConnectionError as err:
             raise LocationError('Couldn\'t connect to backend server\nMessage:\n' + str(err))
@@ -245,7 +247,7 @@ class Auth:
         return self.Name
     
     def __del__(self, HandshakeData = None):
-        self.sesh.put(self.Path+'Shake', HandshakeData).json()
+        self.sesh.post(self.Path+'Leave', HandshakeData).json()
         
     def get_vals(self, Name: str, Pass:str):
         '''
@@ -261,16 +263,15 @@ class Auth:
         Auth.Save('Loc1/Loc2/Loc3', Data1) Saves Data1 to Loc1/Loc2/Loc3/
         '''
         if type(Data) == dict:
-            Data = json.dumps(Data) 
-        return self.requestHandle(self.sesh.post(self.Path+'Data', {'Username':self.Name, 'Password':self.Pass, 'Location':Location, 'Data':Data}).json())
-    
+            Data = jjson.dumps(Data) 
+        return self.requestHandle(self.sesh.post(self.Path+'Save', json={'Username':self.Name, 'Password':self.Pass, 'Location':Location, 'Data':Data}).json())
     def Load(self, Location: str):
         '''
         Loads data at specified location. Raises an exception if location doesn't exist
 
         Auth.Load('Loc1/Loc2/Loc3') Returns data in Loc1/Loc2/Loc3/
         '''
-        return self.requestHandle(self.sesh.put(self.Path+'Data', {'Username':self.Name, 'Password':self.Pass, 'Location':Location}).json())
+        return self.requestHandle(self.sesh.post(self.Path+'Load', json={'Username':self.Name, 'Password':self.Pass, 'Location':Location}).json())
     
     def Login(self):
         '''
@@ -278,7 +279,7 @@ class Auth:
         
         Raises an exception if it fails
         '''
-        return self.requestHandle(self.sesh.put(self.Path+'Auth', {'Username':self.Name, 'Password':self.Pass}).json())
+        return self.requestHandle(self.sesh.post(self.Path+'Login', json={'Username':self.Name, 'Password':self.Pass}).json())
         
     def Signup(self):
         '''
@@ -286,7 +287,7 @@ class Auth:
         
         Raises an exception if it fails
         '''
-        return self.requestHandle(self.sesh.post(self.Path+'Auth', {'Username':self.Name, 'Password':self.Pass}).json())
+        return self.requestHandle(self.sesh.post(self.Path+'Signup', json={'Username':self.Name, 'Password':self.Pass}).json())
     
     def Remove_User(self):
         '''
@@ -294,7 +295,7 @@ class Auth:
         
         Raises an exception if it fails
         '''
-        return self.requestHandle(self.sesh.post(self.Path+'User', {'Username':self.Name, 'Password':self.Pass}).json())
+        return self.requestHandle(self.sesh.post(self.Path+'Remove', json={'Username':self.Name, 'Password':self.Pass}).json())
     
     def requestHandle(self, request):
         if request['Code'] == 200:
@@ -322,4 +323,4 @@ class Auth:
             raise AuthenticationError('Failed to authenticate user')
         
         elif request['Code'] == 422:
-            raise LocationError('Cannot access type \'str\'')
+            raise LocationError(request['err'])
