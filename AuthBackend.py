@@ -115,7 +115,7 @@ class Save(Resource):
         if userPass == datPass:
             new = Decrypt(marshal(fromdat, datfields)['Data'], Args['Username'], Args['Password'])
             try:
-                jsonpath_ng.parse(DataArgs['Location'].replace('/', '.').replace(' ', '-')).update_or_create(new, DataArgs['Data'])
+                jsonpath_ng.parse(DataArgs['Location'].replace('/', '.').replace(' ', '-').replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')).update_or_create(new, DataArgs['Data'])
             except TypeError as err:
                 return {'Code':422, 'err': str(err)}
             except AttributeError as err:
@@ -127,7 +127,7 @@ class Save(Resource):
                 else:
                     raise AttributeError(err)
             except Exception as err:
-                return {'Code':422, 'err': err}
+                return {'Code':422, 'err': str(err)}
             db.session.delete(fromdat)
             db.session.add(DataMod(Username=Args['Username'], Password=hashlib.sha512((Args['Password'] + Args['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt(new, Args['Username'], Args['Password'])))
             db.session.commit()
@@ -209,6 +209,6 @@ api.add_resource(Save, '/Save')
 api.add_resource(Remove, '/Remove')
 
 if __name__ == '__main__':
-	app.run(host='0.0.0.0', port=5678, debug = True, ssl_context=('server-public-key.pem', 'server-private-key.pem'))
+	app.run(host='0.0.0.0', port=5678, ssl_context=('server-public-key.pem', 'server-private-key.pem'))
 
 print('closed')

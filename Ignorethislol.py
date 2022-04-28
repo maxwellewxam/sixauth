@@ -9,7 +9,7 @@ class MainApp:
         print('Welcome')
         username = str(input('Enter Username: '))
         password = str(input('Enter Password: '))
-        self.log = Auth.Auth('https://ldums.com:5678/')
+        self.log = Auth.Auth('https://localhost:5678/')
         self.log.get_vals(Name=username, Pass=password)
         try:
             self.arf = self.log.Login()
