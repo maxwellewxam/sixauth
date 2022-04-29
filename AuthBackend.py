@@ -83,7 +83,7 @@ class Load(Resource):
         if userPass == datPass:
             farter = Decrypt(marshal(fromdat, datfields)['Data'], Args['Username'], Args['Password'])
             try:
-                jsonpath_expr = [match.value for match in jsonpath_ng.parse(DataArgs['Location'].replace('/', '.').replace(' ', '-')).find(farter)][0]
+                jsonpath_expr = [match.value for match in jsonpath_ng.parse(DataArgs['Location'].replace('/', '.').replace(' ', '-').replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')).find(farter)][0]
             except IndexError as err:
                 if str(err) == 'list index out of range':
                     return {'Code':416}
