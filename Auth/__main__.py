@@ -5,7 +5,7 @@ import jsonpath_ng
 import os
 import json as jjson
 import base64
-from . import getcert
+import sys
 
 from flask_sqlalchemy import SQLAlchemy
 from flask import Flask
@@ -325,3 +325,51 @@ class AuthSesh:
         
         elif request['Code'] == 422:
             raise LocationError(request['err'])
+if __name__ == '__main__':
+    from MaxMods import Menu
+    class AuthMenu:
+        def MainMenu(self):
+            self.Menu = Menu.basicMenu('Auth')
+            self.Menu.add_item(1, 'Login', self.Login, 1)
+            self.Menu.add_item(2, 'Signup', self.Login, 2)
+            return self.Menu
+        def Login(self, val):
+            Name = str(input('Username: '))
+            Pass = str(input('Password: '))
+            self.Auth = AuthSesh().get_vals(Name, Pass)
+            try:
+                if val == 1:
+                    self.Auth.Login()
+                elif val == 2:
+                    self.Auth.Signup()
+                self.Menu.update_item(1, 'Logout', self.Logout)
+                self.Menu.remove_item(2)
+                self.Menu.add_item(2, 'Load', self.Load)
+                self.Menu.add_item(3, 'Save', self.Save)
+            except AuthenticationError as err:
+                print(err)
+                input('Press enter')
+        def Load(self):
+            Loc = str(input('From where: '))
+            try:
+                print(self.Auth.Load(Loc))
+                input('Press enter')
+            except LocationError as err:
+                print(err)
+                input('Press enter')
+        def Save(self):
+            Loc = str(input('To where: '))
+            Dat = str(input('What to save: '))
+            try:
+                print(self.Auth.Save(Loc, Dat))
+                input('Press enter')
+            except LocationError as err:
+                print(err)
+                input('Press enter')
+        def Logout(self):
+            self.Menu.update_item(1, 'Login', self.Login, 1)
+            self.Menu.update_item(2, 'Signup', self.Login, 2)
+            self.Menu.remove_item(3)
+    menu = AuthMenu().MainMenu()
+    menu.Run()
+    
