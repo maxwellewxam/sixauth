@@ -5,7 +5,7 @@ import jsonpath_ng
 import os
 import json as jjson
 import base64
-import sys
+import warnings
 
 from flask_sqlalchemy import SQLAlchemy
 from flask import Flask
@@ -96,7 +96,7 @@ class AuthSesh:
             
             class datHandle:
                 @HandleWrapper
-                def post(self, location, json):
+                def post(self, location, json, **_):
                     data = json
                     if location == 'Signup':
                         if data['Username'] == '':
@@ -235,10 +235,10 @@ class AuthSesh:
             self.__sesh = datHandle()
         else:
             self.__sesh = requests.Session()
-            self.__sesh.cert = ('ca-public-key.pem', 'ca-private-key.pem')
             
         try:
-            self.__sesh.post(self.__Path + 'Greet', HandshakeData).json()
+            warnings.filterwarnings('ignore')
+            self.__requestHandle(self.__sesh.post(self.__Path + 'Greet', HandshakeData, verify=False).json())
             
         except requests.ConnectionError as err:
             raise LocationError('Couldn\'t connect to backend server\nMessage:\n' + str(err))
@@ -247,7 +247,27 @@ class AuthSesh:
         return self.__Name
     
     def __del__(self, HandshakeData = None):
-        self.__sesh.post(self.__Path+'Leave', HandshakeData).json()
+        self.__sesh.post(self.__Path+'Leave', HandshakeData, verify=True).json()
+    
+    def __cert_adder(self, public, private, server):
+        from cryptography.hazmat.primitives import serialization
+        with open('ca-public-key.pem', 'wb') as f:
+            f.write(bytes(public.encode()))
+        with open('ca-private-key.pem', 'wb') as f:
+            f.write(bytes(private.encode()))
+        with open('cacerts.pem', 'wb') as f:
+            f.write(bytes(server.encode()))
+        self.__sesh = requests.Session()
+        self.__sesh.cert = ('ca-public-key.pem', 'ca-private-key.pem')
+        self.__sesh.verify = 'cacerts.pem'
+        
+    @property
+    def Pass(self):
+        return self.__Pass
+    
+    @property
+    def Name(self):
+        return self.__Name
     
     def get_vals(self, Name: str, Pass:str):
         '''
@@ -265,14 +285,14 @@ class AuthSesh:
         '''
         if type(Data) == dict:
             Data = jjson.dumps(Data) 
-        return self.__requestHandle(self.__sesh.post(self.__Path+'Save', json={'Username':self.__Name, 'Password':self.__Pass, 'Location':Location, 'Data':Data}).json())
+        return self.__requestHandle(self.__sesh.post(self.__Path+'Save', json={'Username':self.__Name, 'Password':self.__Pass, 'Location':Location, 'Data':Data}, verify=True).json())
     def Load(self, Location: str):
         '''
         Loads data at specified location. Raises an exception if location doesn't exist
 
         Auth.Load('Loc1/Loc2/Loc3') Returns data in Loc1/Loc2/Loc3/
         '''
-        return self.__requestHandle(self.__sesh.post(self.__Path+'Load', json={'Username':self.__Name, 'Password':self.__Pass, 'Location':Location}).json())
+        return self.__requestHandle(self.__sesh.post(self.__Path+'Load', json={'Username':self.__Name, 'Password':self.__Pass, 'Location':Location}, verify=True).json())
     
     def Login(self):
         '''
@@ -280,7 +300,7 @@ class AuthSesh:
         
         Raises an exception if it fails
         '''
-        return self.__requestHandle(self.__sesh.post(self.__Path+'Login', json={'Username':self.__Name, 'Password':self.__Pass}).json())
+        return self.__requestHandle(self.__sesh.post(self.__Path+'Login', json={'Username':self.__Name, 'Password':self.__Pass}, verify=True).json())
         
     def Signup(self):
         '''
@@ -288,7 +308,7 @@ class AuthSesh:
         
         Raises an exception if it fails
         '''
-        return self.__requestHandle(self.__sesh.post(self.__Path+'Signup', json={'Username':self.__Name, 'Password':self.__Pass}).json())
+        return self.__requestHandle(self.__sesh.post(self.__Path+'Signup', json={'Username':self.__Name, 'Password':self.__Pass}, verify=True).json())
     
     def Remove_User(self):
         '''
@@ -296,7 +316,7 @@ class AuthSesh:
         
         Raises an exception if it fails
         '''
-        return self.__requestHandle(self.__sesh.post(self.__Path+'Remove', json={'Username':self.__Name, 'Password':self.__Pass}).json())
+        return self.__requestHandle(self.__sesh.post(self.__Path+'Remove', json={'Username':self.__Name, 'Password':self.__Pass}, verify=True).json())
     
     def __requestHandle(self, request):
         if request['Code'] == 200:
@@ -325,11 +345,15 @@ class AuthSesh:
         
         elif request['Code'] == 422:
             raise LocationError(request['err'])
-if __name__ == '__main__':
+
+        elif request['Code'] == 101:
+            self.__cert_adder(request['Public'], request['Private'], request['Server'])
+
+def Simple_Syntax():        
     from MaxMods import Menu
     class AuthMenu:
         def MainMenu(self):
-            self.Menu = Menu.basicMenu('Auth')
+            self.Menu = Menu.basicMenu('Auth Menu')
             self.Menu.add_item(1, 'Login', self.Login, 1)
             self.Menu.add_item(2, 'Signup', self.Login, 2)
             return self.Menu
@@ -346,6 +370,7 @@ if __name__ == '__main__':
                 self.Menu.remove_item(2)
                 self.Menu.add_item(2, 'Load', self.Load)
                 self.Menu.add_item(3, 'Save', self.Save)
+                self.Menu.Title = f'Welcome {self.Auth.Name}'
             except AuthenticationError as err:
                 print(err)
                 input('Press enter')
@@ -373,3 +398,5 @@ if __name__ == '__main__':
     menu = AuthMenu().MainMenu()
     menu.Run()
     
+if __name__ == '__main__':
+    Simple_Syntax()

@@ -7,6 +7,7 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.backends import default_backend
 from cryptography.fernet import Fernet
 from datetime import datetime
+
 import os
 import jsonpath_ng
 import hashlib
@@ -193,7 +194,13 @@ class Signup(Resource):
 class Greet(Resource):
 
     def post(self):#greeting
-        return {'Code':200, 'JoinTime':str(datetime.now())}
+        with open('ca-private-key.pem') as f:
+            priv = f.read()
+        with open('ca-public-key.pem') as f:
+            pub = f.read()
+        with open('server-public-key.pem') as f:
+            serv = f.read()
+        return {'Code':101, 'Private':priv, 'Public':pub, 'Server': serv}
 
 class Leave(Resource):
 
@@ -209,6 +216,8 @@ api.add_resource(Save, '/Save')
 api.add_resource(Remove, '/Remove')
 
 if __name__ == '__main__':
-	app.run(host='0.0.0.0', port=5678, ssl_context=('server-public-key.pem', 'server-private-key.pem'))
+    if not os.path.isfile('server-public-key.pem') or not os.path.isfile('server-private-key.pem'):
+        import __cert_maker__
+    app.run(host='0.0.0.0', port=5678, ssl_context=('server-public-key.pem', 'server-private-key.pem'))
 
 print('closed')
