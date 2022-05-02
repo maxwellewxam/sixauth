@@ -250,7 +250,6 @@ class AuthSesh:
         self.__sesh.post(self.__Path+'Leave', HandshakeData, verify=True).json()
     
     def __cert_adder(self, public, private, server):
-        from cryptography.hazmat.primitives import serialization
         with open('ca-public-key.pem', 'wb') as f:
             f.write(bytes(public.encode()))
         with open('ca-private-key.pem', 'wb') as f:
