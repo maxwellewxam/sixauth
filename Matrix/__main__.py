@@ -2,6 +2,10 @@ from copy import deepcopy
 class Matrix():
     def __init__(self, Array):
         self.Array = Array
+    def __getitem__(self, item):
+        return self.Array[item]
+    def __len__(self):
+        return len(self.Array)
     def copy(self):
         Array2 = []
         for item in self.Array:
@@ -63,11 +67,11 @@ class Multiply(Matrix):
         rowtemp = 0
         columntemp = 0
         temp = 0
-        if len(MatA.Array[1]) == len(MatB.Array):
-            for a in range(len(MatA.Array)):
-                for b in range(len(MatB.Array[1])):
-                    for c in range(len(MatB.Array)):
-                        temp += MatA.Array[a][c] * MatB.Array[c][b]
+        if len(MatA[1]) == len(MatB):
+            for a in range(len(MatA)):
+                for b in range(len(MatB[1])):
+                    for c in range(len(MatB)):
+                        temp += MatA[a][c] * MatB[c][b]
                     self.index(row = rowtemp, column = columntemp, value = temp)
                     temp = 0
                     columntemp += 1
