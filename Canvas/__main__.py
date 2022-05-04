@@ -11,6 +11,7 @@ class MainGui:
         self.worker = worker
         self.master = master
         self.master.geometry(f'{width}x{height}')
+        self.master.resizable(False, False)
         self.master.title('3D Render')
         self.canvas = tk.Canvas(self.master, width = width, height = height, bg = 'white')
         self.canvas.bind('<Map>', self.start)
@@ -23,14 +24,29 @@ class MainGui:
                 msg = self.queue.get()
                 if msg[0] not in self.tagdict.keys():
                     if msg[2] == 1:
-                        id = self.canvas.create_line(msg[1][0], msg[1][1], fill = 'black')
-                        self.tagdict[msg[0]] = id
+                        try:
+                            id = func_timeout(.1, self.canvas.create_line, (msg[1][0], msg[1][1]), {'fill' : 'black'})
+                            self.tagdict[msg[0]] = id
+                        except FunctionTimedOut as err:
+                            pass
                     if msg[2] == 2:
-                        id = self.canvas.create_polygon(msg[1][0], msg[1][1], msg[1][2], fill = 'black')
-                        self.tagdict[msg[0]] = id
+                        try:
+                            id = func_timeout(.1, self.canvas.create_polygon, (msg[1][0], msg[1][1], msg[1][2]), {'fill' : 'black'})
+                            self.tagdict[msg[0]] = id
+                        except FunctionTimedOut as err:
+                            pass
                 else:
-                    self.canvas.coords(self.tagdict[msg[0]], *msg[1][0], *msg[1][1])
-            except:
+                    if msg[2] == 1:
+                        try:
+                            func_timeout(.1, self.canvas.coords, (self.tagdict[msg[0]], *msg[1][0], *msg[1][1]))
+                        except FunctionTimedOut as err:
+                            pass
+                    if msg[2] == 2:
+                        try:
+                            func_timeout(.1, self.canvas.coords, (self.tagdict[msg[0]], *msg[1][0], *msg[1][1], *msg[1][2]))
+                        except FunctionTimedOut as err:
+                            pass
+            except queue.Empty:
                 pass
 class ThreadedClient:
     def __init__(self, master, shape, height, width):
@@ -54,13 +70,10 @@ class ThreadedClient:
         prev_time = time.time()
         t = threading.current_thread()
         while getattr(t, "do_run", True):
-            try:
-                func_timeout(2,self.run.Main)
-            except FunctionTimedOut as err:
-                print(err)
+            self.run.Main()
             curr_time = time.time()
             diff = curr_time - prev_time
-            delay = max(1.0/144 - diff, 0)
+            delay = max(1.0/60 - diff, 0)
             time.sleep(delay)
             prev_time = curr_time
     def start(self, event = None):
@@ -68,6 +81,7 @@ class ThreadedClient:
         self.thread1.start()
     def stop(self, event = None):
         self.thread1.do_run = False
+        self.thread1.join(.5)
     def line(self, pos, tag1):
         self.queue.put([tag1, pos, 1])
         self.gui.processIncoming()
