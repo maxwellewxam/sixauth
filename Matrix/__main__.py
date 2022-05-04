@@ -4,7 +4,7 @@ class Matrix():
         self.Array = Array
     def copy(self):
         Array2 = []
-        for _, item in enumerate(self.Array):
+        for item in self.Array:
             Array2.append(deepcopy(item))
         return Array2
     def index(self, row = 1, column = 1, value = 0):
@@ -26,11 +26,6 @@ class Matrix():
                 print((self.Array[i][x]), end = ' ')
             print()
         print()
-    def modular(self, mod):
-        for i in range(len(self.Array)):
-            for x in range(len(self.Array[i])):
-                if self.Array[i][x] % mod != 0:
-                    self.Array[i][x] = 0
         return self
     def sum(self):
         val = 0
@@ -45,6 +40,12 @@ class Matrix():
             self.Array2 = list(zip(*self.Array))[::-1]
         self.Array = [list(elem) for elem in self.Array2]
         return self
+    def modular(self, ModOf):
+        for i in range(len(self.Array)):
+            for x in range(len(self.Array[i])):
+                if self.Array[i][x] % ModOf != 0:
+                    self.index(row = i, column = x, value = 0)
+        return self
     def flip(self, direction = 1):
         self.Array2 = self.copy()
         if direction == 1:
@@ -55,25 +56,27 @@ class Matrix():
         self.Array = self.Array2
         del(self.Array2)
         return self
+    
 class Multiply(Matrix):
-    def __init__(self, mA, mB):
+    def __init__(self, MatA, MatB):
         self.Array = []
         rowtemp = 0
         columntemp = 0
         temp = 0
-        if len(mA.Array[1]) == len(mB.Array):
-            for a in range(len(mA.Array)):
-                for b in range(len(mB.Array[1])):
-                    for c in range(len(mB.Array)):
-                        temp += mA.Array[a][c] * mB.Array[c][b]
+        if len(MatA.Array[1]) == len(MatB.Array):
+            for a in range(len(MatA.Array)):
+                for b in range(len(MatB.Array[1])):
+                    for c in range(len(MatB.Array)):
+                        temp += MatA.Array[a][c] * MatB.Array[c][b]
                     self.index(row = rowtemp, column = columntemp, value = temp)
                     temp = 0
                     columntemp += 1
                 rowtemp += 1
+                
 class Add(Matrix):
-    def __init__(self, mA, mB):
+    def __init__(self, MatA, MatB):
         self.Array = []
-        for i in range(len(mA.Array)):
-            for x in range(len(mB.Array[i])):
-                temp = mA.Array[i][x] + mB.Array[i][x]
+        for i in range(len(MatA.Array)):
+            for x in range(len(MatB.Array[i])):
+                temp = MatA.Array[i][x] + MatB.Array[i][x]
                 self.index(row = i, column = x, value = temp)
