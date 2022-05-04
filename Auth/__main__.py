@@ -244,7 +244,7 @@ class AuthSesh:
             raise LocationError('Couldn\'t connect to backend server\nMessage:\n' + str(err))
 
     def __repr__(self):
-        return self.__Name
+        return f'AuthSesh({self.__Path}).get_vals({self.__Name}, {self.__Pass})'
     
     def __del__(self, HandshakeData = None):
         self.__sesh.post(self.__Path+'Leave', HandshakeData, verify=True).json()
