@@ -8,7 +8,6 @@ class cube:
     lines = 12
     def __init__(self, master):
         self.root = master
-        self.drawq = queue.Queue()
         self.anglex = 0
         self.angley = 0
         self.anglez = 0
@@ -21,7 +20,7 @@ class cube:
         self.far = 1080000
         self.a = 500/500
         self.camera = [0,0,0]
-        file = ObjLoader('I:/network info/More Extra Space/python scripts ig/AuthMod/3DRender/cube.obj')
+        file = ObjLoader('3DRender/Cube.obj')
         self.cubm = file.vertices
         self.faces =  file.faces
     def transforms(self, pos):
@@ -37,9 +36,14 @@ class cube:
             for vector in project:
                 vector[0] /= project[3][0]
         return project
+    def get_color(self);
+    int rgbNum = 255 - (int) ((colNum/50.0)*255.0);
+  return new Color (rgbNum,rgbNum,rgbNum);
+    return "#%02x%02x%02x" % rgb
     def Main(self):
         self.running = True
         while self.running is True:
+            self.drawq = []
             self.f = 1/(math.tan((self.fov*.5)/(180*math.pi)))
             self.prerspective = Matrix([[self.a*self.f,0,0,0],[0,self.f,0,0],[0,0,(self.far/(self.far-self.near)),1], [0,0,(self.far*self.near)/(self.far-self.near),0]])
             self.scale = Matrix([[self.sca,0,0,0], [0,self.sca,0,0], [0,0,self.sca,0], [0,0,0,1]])
@@ -67,19 +71,24 @@ class cube:
                 normalx /= l
                 normaly /= l
                 normalz /= l
-                if normalz < 0:
+                if (normalx * (trans1[0][0] - self.camera[0]) +
+                    normaly * (trans1[1][0] - self.camera[1]) +
+                    normalz * (trans1[2][0] - self.camera[2]) < 0):
                     project1 = self.project(trans1)
                     project2 = self.project(trans2)
                     project3 = self.project(trans3)
-                    self.drawq.put([[[project1[0][0]+250, project1[1][0]+250], [project2[0][0]+250, project2[1][0]+250], [project3[0][0]+250, project3[1][0]+250]],i])
+                    light = [0,0,-1]
+                    l = math.sqrt(light[0]*light[0]+light[1]*light[1]+light[2]*light[2])
+                    light[0] /= l
+                    light[1] /= l
+                    light[2] /= l
+                    dp = normalx * light[0] + normaly * light[1] + normalz * light[2]
+                    self.get_color(dp)
+                    self.drawq.append([[[project1[0][0]+250, project1[1][0]+250], [project2[0][0]+250, project2[1][0]+250], [project3[0][0]+250, project3[1][0]+250]],i])
                 else:
-                    self.drawq.put([[[0,0],[0,0],[0,0]],i])
-            while self.drawq.qsize():
-                try:
-                    drawthis = self.drawq.get()
-                    self.root.triangle(drawthis[0], drawthis[1])
-                except queue.Empty:
-                    pass
+                    self.drawq.append([[[0,0],[0,0],[0,0]],i])
+            for item in self.drawq:
+                    self.root.triangle(item[0], item[1])
             if key.is_pressed('w') is True:
                 self.anglex -= .01
             if key.is_pressed('a') is True:
