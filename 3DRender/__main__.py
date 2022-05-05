@@ -10,13 +10,13 @@ class cube:
         self.anglex = 0
         self.angley = 0
         self.anglez = 0
-        self.sca = 25
+        self.sca = 5
         self.transx = 0
         self.transy = 0
         self.transz = 100
         self.fov = 90
-        self.near = .1
-        self.far = 100000
+        self.near = .01
+        self.far = 1080000
         self.a = 500/500
         file = ObjLoader('I:/network info/More Extra Space/python scripts ig/AuthMod/3DRender/cube.obj')
         self.cubm = file.vertices
