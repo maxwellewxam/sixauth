@@ -10,9 +10,9 @@ class cube:
         self.anglex = 0
         self.angley = 0
         self.anglez = 0
-        self.sca = 50
-        self.transx = 250
-        self.transy = 250
+        self.sca = 25
+        self.transx = 0
+        self.transy = 0
         self.transz = 100
         self.fov = 90
         self.near = .1
@@ -27,7 +27,7 @@ class cube:
         roty = Multiply(self.rotationy, rotx)
         rotz = Multiply(self.rotationz, roty)
         translated = Multiply(self.trans, rotz)
-        return translated
+        return self.project(translated)
     def project(self, translated):
         project = Multiply(self.prerspective, translated)
         if project[3][0] != 0:
@@ -51,7 +51,7 @@ class cube:
                 project1 = self.transforms(pos1)
                 project2 = self.transforms(pos2)
                 project3 = self.transforms(pos3)
-                self.root.triangle([[project1[0][0], project1[1][0]], [project2[0][0], project2[1][0]], [project3[0][0], project3[1][0]]],i+1)
+                self.root.triangle([[project1[0][0]+250, project1[1][0]+250], [project2[0][0]+250, project2[1][0]+250], [project3[0][0]+250, project3[1][0]+250]],i+1)
             if key.is_pressed('w') is True:
                 self.anglex -= .01
             if key.is_pressed('a') is True:
