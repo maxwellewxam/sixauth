@@ -20,6 +20,7 @@ class cube:
         self.near = .01
         self.far = 1080000
         self.a = 500/500
+        self.camera = [0,0,0]
         file = ObjLoader('I:/network info/More Extra Space/python scripts ig/AuthMod/3DRender/cube.obj')
         self.cubm = file.vertices
         self.faces =  file.faces
