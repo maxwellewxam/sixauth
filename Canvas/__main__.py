@@ -2,6 +2,8 @@ import tkinter as tk
 import queue
 import threading
 import time
+import sys
+import fpstimer
 from func_timeout import func_timeout, FunctionTimedOut
 class MainGui:
     def __init__(self, master, worker, height, width):
@@ -26,26 +28,30 @@ class MainGui:
                     if msg[2] == 1:
                         try:
                             id = func_timeout(.1, self.canvas.create_line, (msg[1][0], msg[1][1]), {'fill' : 'black'})
+                            self.canvas.itemconfig(id, fill='red')
                             self.tagdict[msg[0]] = id
-                        except FunctionTimedOut as err:
-                            pass
+                        except FunctionTimedOut  as err:
+                            sys.exit()
                     if msg[2] == 2:
                         try:
                             id = func_timeout(.1, self.canvas.create_polygon, (msg[1][0], msg[1][1], msg[1][2]), {'fill' : 'black'})
+                            self.canvas.itemconfig(id, fill='red')
                             self.tagdict[msg[0]] = id
-                        except FunctionTimedOut as err:
-                            pass
+                        except FunctionTimedOut  as err:
+                            sys.exit()
                 else:
                     if msg[2] == 1:
                         try:
                             func_timeout(.1, self.canvas.coords, (self.tagdict[msg[0]], *msg[1][0], *msg[1][1]))
+                            self.canvas.itemconfig(self.tagdict[msg[0]], fill='red')
                         except FunctionTimedOut as err:
-                            pass
+                            sys.exit()
                     if msg[2] == 2:
                         try:
                             func_timeout(.1, self.canvas.coords, (self.tagdict[msg[0]], *msg[1][0], *msg[1][1], *msg[1][2]))
+                            self.canvas.itemconfig(self.tagdict[msg[0]], fill='red')
                         except FunctionTimedOut as err:
-                            pass
+                            sys.exit()
             except queue.Empty:
                 pass
 class ThreadedClient:
@@ -67,21 +73,17 @@ class ThreadedClient:
         except:
             pass
         self.run = self.shape(self)
-        prev_time = time.time()
         t = threading.current_thread()
+        timer = fpstimer.FPSTimer(60)
         while getattr(t, "do_run", True):
             self.run.Main()
-            curr_time = time.time()
-            diff = curr_time - prev_time
-            delay = max(1.0/60 - diff, 0)
-            time.sleep(delay)
-            prev_time = curr_time
+            timer.sleep()
     def start(self, event = None):
         self.thread1 = threading.Thread(target = self.workerThread1, name = 'WorkerThread')
         self.thread1.start()
     def stop(self, event = None):
         self.thread1.do_run = False
-        self.thread1.join(.5)
+        self.thread1.join(.2)
     def line(self, pos, tag1):
         self.queue.put([tag1, pos, 1])
         self.gui.processIncoming()
@@ -94,4 +96,3 @@ class Canvas:
         client = ThreadedClient(root, Handler, Height, Width)
         root.mainloop()
         client.stop()
-        
