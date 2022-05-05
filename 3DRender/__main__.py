@@ -3,10 +3,12 @@ from MaxMods.Canvas import *
 import keyboard as key
 import math
 import sys
+import queue
 class cube:
     lines = 12
     def __init__(self, master):
         self.root = master
+        self.drawq = queue.Queue()
         self.anglex = 0
         self.angley = 0
         self.anglez = 0
@@ -68,7 +70,15 @@ class cube:
                     project1 = self.project(trans1)
                     project2 = self.project(trans2)
                     project3 = self.project(trans3)
-                    self.root.triangle([[project1[0][0]+250, project1[1][0]+250], [project2[0][0]+250, project2[1][0]+250], [project3[0][0]+250, project3[1][0]+250]],i+1)
+                    self.drawq.put([[[project1[0][0]+250, project1[1][0]+250], [project2[0][0]+250, project2[1][0]+250], [project3[0][0]+250, project3[1][0]+250]],i])
+                else:
+                    self.drawq.put([[[0,0],[0,0],[0,0]],i])
+            while self.drawq.qsize():
+                try:
+                    drawthis = self.drawq.get()
+                    self.root.triangle(drawthis[0], drawthis[1])
+                except queue.Empty:
+                    pass
             if key.is_pressed('w') is True:
                 self.anglex -= .01
             if key.is_pressed('a') is True:
