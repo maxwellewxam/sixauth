@@ -27,15 +27,15 @@ class MainGui:
                 if msg[0] not in self.tagdict.keys():
                     if msg[2] == 1:
                         try:
-                            id = func_timeout(.1, self.canvas.create_line, (msg[1][0], msg[1][1]), {'fill' : 'black'})
-                            self.canvas.itemconfig(id, fill='red')
+                            id = func_timeout(.1, self.canvas.create_line, (msg[1][0], msg[1][1]))
+                            self.canvas.itemconfig(id, fill='black')
                             self.tagdict[msg[0]] = id
                         except FunctionTimedOut  as err:
                             sys.exit()
                     if msg[2] == 2:
                         try:
-                            id = func_timeout(.1, self.canvas.create_polygon, (msg[1][0], msg[1][1], msg[1][2]), {'fill' : 'black'})
-                            self.canvas.itemconfig(id, fill='red')
+                            id = func_timeout(.1, self.canvas.create_polygon, (msg[1][0], msg[1][1], msg[1][2]))
+                            self.canvas.itemconfig(id, fill='black')
                             self.tagdict[msg[0]] = id
                         except FunctionTimedOut  as err:
                             sys.exit()
@@ -43,13 +43,13 @@ class MainGui:
                     if msg[2] == 1:
                         try:
                             func_timeout(.1, self.canvas.coords, (self.tagdict[msg[0]], *msg[1][0], *msg[1][1]))
-                            self.canvas.itemconfig(self.tagdict[msg[0]], fill='red')
+                            self.canvas.itemconfig(self.tagdict[msg[0]], fill='black')
                         except FunctionTimedOut as err:
                             sys.exit()
                     if msg[2] == 2:
                         try:
                             func_timeout(.1, self.canvas.coords, (self.tagdict[msg[0]], *msg[1][0], *msg[1][1], *msg[1][2]))
-                            self.canvas.itemconfig(self.tagdict[msg[0]], fill='red')
+                            self.canvas.itemconfig(self.tagdict[msg[0]], fill='black')
                         except FunctionTimedOut as err:
                             sys.exit()
             except queue.Empty:
