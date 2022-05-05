@@ -27,7 +27,7 @@ class cube:
         roty = Multiply(self.rotationy, rotx)
         rotz = Multiply(self.rotationz, roty)
         translated = Multiply(self.trans, rotz)
-        return self.project(translated)
+        return translated
     def project(self, translated):
         project = Multiply(self.prerspective, translated)
         if project[3][0] != 0:
@@ -48,10 +48,27 @@ class cube:
                 pos1 = Matrix([[self.cubm[a][0]], [self.cubm[a][1]], [self.cubm[a][2]], [self.cubm[a][3]]])
                 pos2 = Matrix([[self.cubm[b][0]], [self.cubm[b][1]], [self.cubm[b][2]], [self.cubm[b][3]]])
                 pos3 = Matrix([[self.cubm[c][0]], [self.cubm[c][1]], [self.cubm[c][2]], [self.cubm[c][3]]])
-                project1 = self.transforms(pos1)
-                project2 = self.transforms(pos2)
-                project3 = self.transforms(pos3)
-                self.root.triangle([[project1[0][0]+250, project1[1][0]+250], [project2[0][0]+250, project2[1][0]+250], [project3[0][0]+250, project3[1][0]+250]],i+1)
+                trans1 = self.transforms(pos1)
+                trans2 = self.transforms(pos2)
+                trans3 = self.transforms(pos3)
+                line1x = trans2[0][0] - trans1[0][0]
+                line1y = trans2[1][0] - trans1[1][0]
+                line1z = trans2[2][0] - trans1[2][0]
+                line2x = trans3[0][0] - trans1[0][0]
+                line2y = trans3[1][0] - trans1[1][0]
+                line2z = trans3[2][0] - trans1[2][0]
+                normalx = line1y * line2z - line1z * line2y
+                normaly = line1z * line2x - line1x * line2z
+                normalz = line1x * line2y - line1y * line2x
+                l = math.sqrt(normalx*normalx+normaly*normaly+normalz*normalz)
+                normalx /= l
+                normaly /= l
+                normalz /= l
+                if normalz < 0:
+                    project1 = self.project(trans1)
+                    project2 = self.project(trans2)
+                    project3 = self.project(trans3)
+                    self.root.triangle([[project1[0][0]+250, project1[1][0]+250], [project2[0][0]+250, project2[1][0]+250], [project3[0][0]+250, project3[1][0]+250]],i+1)
             if key.is_pressed('w') is True:
                 self.anglex -= .01
             if key.is_pressed('a') is True:
@@ -82,7 +99,7 @@ class ObjLoader(object):
                     index1 = line.find(" ") + 1
                     index2 = line.find(" ", index1 + 1)
                     index3 = line.find(" ", index2 + 1)
-                    vertex = [int(line[index1:index2]), int(line[index2:index3]), int(line[index3:-1])]
+                    vertex = [float(line[index1:index2]), float(line[index2:index3]), float(line[index3:-1])]
                     vertex = [round(vertex[0], 2), round(vertex[1], 2), round(vertex[2], 2), 1]
                     self.vertices.append(vertex)
                 elif line[0] == "f":
