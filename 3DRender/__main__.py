@@ -178,20 +178,19 @@ class Renderer:
                 normalx = line1y * line2z - line1z * line2y
                 normaly = line1z * line2x - line1x * line2z
                 normalz = line1x * line2y - line1y * line2x
-                N= [normalx, normaly, normalz]
-                l = np.sqrt(N[0]*N[0]+N[1]*N[1]+N[2]*N[2])
-                N[0] /= l
-                N[1] /= l
-                N[2] /= l
-                if (N[0] * (transtri[0][0][0][0] - self.camera[0]) +
-                    N[1] * (transtri[0][0][1][0] - self.camera[1]) +
-                    N[2] * (transtri[0][0][2][0] - self.camera[2]) < 0):
+                l = np.sqrt(normalx*normalx+normaly*normaly+normalz*normalz)
+                normalx /= l
+                normaly /= l
+                normalz /= l
+                if (normalx * (transtri[0][0][0][0] - self.camera[0]) +
+                    normaly * (transtri[0][0][1][0] - self.camera[1]) +
+                    normalz * (transtri[0][0][2][0] - self.camera[2]) < 0):
                     light = [0,0,-1]
                     l = np.sqrt(light[0]*light[0]+light[1]*light[1]+light[2]*light[2])
                     light[0] /= l
                     light[1] /= l
                     light[2] /= l
-                    dp = N[0] * light[0] + N[1] * light[1] + N[2] * light[2]
+                    dp = normalx * light[0] + normaly * light[1] + normalz * light[2]
                     color = self.get_color(dp)
                     projected = np.array([
                         [self.prerspective@transtri[0]],
