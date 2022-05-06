@@ -3,7 +3,10 @@ from MaxMods.Canvas import *
 import keyboard as key
 import math
 import sys
-import queue
+import numpy as np
+import pygame
+import fpstimer
+from regex import E
 class cube:
     lines = 12
     def __init__(self, master):
@@ -14,13 +17,13 @@ class cube:
         self.sca = 5
         self.transx = 0
         self.transy = 0
-        self.transz = 100
+        self.transz = 50
         self.fov = 90
         self.near = .01
         self.far = 1080000
         self.a = 500/500
         self.camera = [0,0,0]
-        file = ObjLoader('3DRender/Cube.obj')
+        file = ObjLoader('3DRender/MONKEY.obj')
         self.cubm = file.vertices
         self.faces =  file.faces
     def transforms(self, pos):
@@ -36,10 +39,10 @@ class cube:
             for vector in project:
                 vector[0] /= project[3][0]
         return project
-    def get_color(self);
-    int rgbNum = 255 - (int) ((colNum/50.0)*255.0);
-  return new Color (rgbNum,rgbNum,rgbNum);
-    return "#%02x%02x%02x" % rgb
+    def get_color(self, colNum):
+        rgbNum = int(255 - ((1-colNum)*225.0))
+        Color = (rgbNum,rgbNum,rgbNum)
+        return "#%02x%02x%02x" % Color
     def Main(self):
         self.running = True
         while self.running is True:
@@ -83,29 +86,127 @@ class cube:
                     light[1] /= l
                     light[2] /= l
                     dp = normalx * light[0] + normaly * light[1] + normalz * light[2]
-                    self.get_color(dp)
-                    self.drawq.append([[[project1[0][0]+250, project1[1][0]+250], [project2[0][0]+250, project2[1][0]+250], [project3[0][0]+250, project3[1][0]+250]],i])
+                    if dp < 0:
+                        color = 'black'
+                    else:
+                        color = self.get_color(dp)
+                    self.root.triangle([[project1[0][0]+250, project1[1][0]+250], [project2[0][0]+250, project2[1][0]+250], [project3[0][0]+250, project3[1][0]+250]],i, color)
                 else:
-                    self.drawq.append([[[0,0],[0,0],[0,0]],i])
-            for item in self.drawq:
-                    self.root.triangle(item[0], item[1])
+                    self.root.triangle([[0,0],[0,0],[0,0]],i, 'black')
             if key.is_pressed('w') is True:
-                self.anglex -= .01
+                self.anglex -= .1
             if key.is_pressed('a') is True:
-                self.angley += .01
+                self.angley += .1
             if key.is_pressed('s') is True:
-                self.anglex += .01
+                self.anglex += .1
             if key.is_pressed('d') is True:
-                self.angley -= .01
+                self.angley -= .1
             if key.is_pressed('e') is True:
-                self.anglez += .01
+                self.anglez += .1
             if key.is_pressed('q') is True:
-                self.anglez -= .01
+                self.anglez -= .1
             if key.is_pressed('Escape') is True:
                 self.stop()
     def stop(self):
         self.running = False
         sys.exit()
+
+class Renderer:
+    def __init__(self):
+        file = ObjLoader('3DRender/MONKEY.obj')
+        self.cubm = file.vertices
+        self.faces = file.faces
+        self.anglex = 0
+        self.angley = 0
+        self.anglez = 0
+        self.sca = 10
+        self.transx = 0
+        self.transy = 0
+        self.transz = 50
+        self.fov = 90
+        self.near = .01
+        self.far = 1080000
+        self.a = 500/500
+        self.camera = [0,0,0,0]
+        pygame.init()
+        screen = pygame.display.set_mode([500, 500])
+        running = True
+        timer = fpstimer.FPSTimer(60)
+        while running:
+            timer.sleep()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+            if key.is_pressed('w') is True:
+                self.anglex -= .1
+            if key.is_pressed('a') is True:
+                self.angley += .1
+            if key.is_pressed('s') is True:
+                self.anglex += .1
+            if key.is_pressed('d') is True:
+                self.angley -= .1
+            if key.is_pressed('e') is True:
+                self.anglez += .1
+            if key.is_pressed('q') is True:
+                self.anglez -= .1
+            self.f = 1/(np.tan((self.fov*.5)/(180*math.pi)))
+            self.prerspective = np.array([[self.a*self.f,0,0,0],[0,self.f,0,0],[0,0,(self.far/(self.far-self.near)),1], [0,0,(self.far*self.near)/(self.far-self.near),0]])
+            self.scale = np.array([[self.sca,0,0,0], [0,self.sca,0,0], [0,0,self.sca,0], [0,0,0,1]])
+            self.trans = np.array([[1,0,0,self.transx], [0,1,0,self.transy], [0,0,1,self.transz], [0,0,0,1]])
+            self.rotationx = np.array([[1,0,0,0],[0,float(np.cos(self.anglex)),float(-np.sin(self.anglex)),0],[0,float(np.sin(self.anglex)),float(np.cos(self.anglex)),0],[0,0,0,1]])
+            self.rotationy = np.array([[float(np.cos(self.angley)),0,float(np.sin(self.angley)),0],[0,1,0,0],[float(-np.sin(self.angley)),0,float(np.cos(self.angley)),0],[0,0,0,1]])
+            self.rotationz = np.array([[float(np.cos(self.anglez)),float(-np.sin(self.anglez)),0,0],[float(np.sin(self.anglez)),float(np.cos(self.anglez)),0,0],[0,0,1,0],[0,0,0,1]])
+            screen.fill((0, 0, 0))
+            screen.lock()
+            for a,b,c in self.faces:
+                triangle = np.array([
+                    [[i] for i in self.cubm[a]],
+                    [[i] for i in self.cubm[b]],
+                    [[i] for i in self.cubm[c]]
+                ])
+                transtri = np.array([
+                    [self.trans@self.rotationz@self.rotationy@self.rotationx@self.scale@triangle[0]],
+                    [self.trans@self.rotationz@self.rotationy@self.rotationx@self.scale@triangle[1]],
+                    [self.trans@self.rotationz@self.rotationy@self.rotationx@self.scale@triangle[2]]
+                ])
+                line1x = transtri[1][0][0][0] - transtri[0][0][0][0]
+                line1y = transtri[1][0][1][0] - transtri[0][0][1][0]
+                line1z = transtri[1][0][2][0] - transtri[0][0][2][0]
+                line2x = transtri[2][0][0][0] - transtri[0][0][0][0]
+                line2y = transtri[2][0][1][0] - transtri[0][0][1][0]
+                line2z = transtri[2][0][2][0] - transtri[0][0][2][0]
+                normalx = line1y * line2z - line1z * line2y
+                normaly = line1z * line2x - line1x * line2z
+                normalz = line1x * line2y - line1y * line2x
+                N= [normalx, normaly, normalz]
+                l = np.sqrt(N[0]*N[0]+N[1]*N[1]+N[2]*N[2])
+                N[0] /= l
+                N[1] /= l
+                N[2] /= l
+                if (N[0] * (transtri[0][0][0][0] - self.camera[0]) +
+                    N[1] * (transtri[0][0][1][0] - self.camera[1]) +
+                    N[2] * (transtri[0][0][2][0] - self.camera[2]) < 0):
+                    light = [0,0,-1]
+                    l = np.sqrt(light[0]*light[0]+light[1]*light[1]+light[2]*light[2])
+                    light[0] /= l
+                    light[1] /= l
+                    light[2] /= l
+                    dp = N[0] * light[0] + N[1] * light[1] + N[2] * light[2]
+                    color = self.get_color(dp)
+                    projected = np.array([
+                        [self.prerspective@transtri[0]],
+                        [self.prerspective@transtri[1]],
+                        [self.prerspective@transtri[2]]
+                    ])
+                    fart = [[i[0] for i in projected[0][0][0]], [i[0] for i in projected[1][0][0]], [i[0] for i in projected[2][0][0]]]
+                    pygame.draw.polygon(screen, color,[(fart[0][0]+250, fart[0][1]+250), (fart[1][0]+250, fart[1][1]+250), (fart[2][0]+250, fart[2][1]+250)])
+            screen.unlock()
+            pygame.display.update()
+        pygame.quit()
+    def get_color(self, colNum):
+        rgbNum = abs(int(255 - ((1-colNum)*225.0)))
+        return (rgbNum,rgbNum,rgbNum)
+
 class ObjLoader(object):
     def __init__(self, fileName):
         self.vertices = []
@@ -136,4 +237,5 @@ class ObjLoader(object):
             f.close()
         except IOError as err:
             raise Exception(err)
-Canvas(cube, 500, 500)
+#Canvas(cube, 500, 500)
+Renderer()
