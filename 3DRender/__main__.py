@@ -160,41 +160,27 @@ class Renderer:
             for a,b,c in self.faces:
                 triangle = np.array([
                     self.cubm[a],
-                    [[i] for i in self.cubm[b]],
-                    [[i] for i in self.cubm[c]]
+                    self.cubm[b],
+                    self.cubm[c]
                 ])
                 transtri = np.array([
                     self.trans@self.rotationz@self.rotationy@self.rotationx@self.scale@triangle[0],
-                    [self.trans@self.rotationz@self.rotationy@self.rotationx@self.scale@triangle[1]],
-                    [self.trans@self.rotationz@self.rotationy@self.rotationx@self.scale@triangle[2]]
+                    self.trans@self.rotationz@self.rotationy@self.rotationx@self.scale@triangle[1],
+                    self.trans@self.rotationz@self.rotationy@self.rotationx@self.scale@triangle[2]
                 ])
-                line1x = transtri[1][0][0][0] - transtri[0][0][0][0]
-                line1y = transtri[1][0][1][0] - transtri[0][0][1][0]
-                line1z = transtri[1][0][2][0] - transtri[0][0][2][0]
-                line2x = transtri[2][0][0][0] - transtri[0][0][0][0]
-                line2y = transtri[2][0][1][0] - transtri[0][0][1][0]
-                line2z = transtri[2][0][2][0] - transtri[0][0][2][0]
-                normalx = line1y * line2z - line1z * line2y
-                normaly = line1z * line2x - line1x * line2z
-                normalz = line1x * line2y - line1y * line2x
-                l = np.sqrt(normalx*normalx+normaly*normaly+normalz*normalz)
-                normalx /= l
-                normaly /= l
-                normalz /= l
-                if (normalx * (transtri[0][0][0][0] - self.camera[0]) +
-                    normaly * (transtri[0][0][1][0] - self.camera[1]) +
-                    normalz * (transtri[0][0][2][0] - self.camera[2]) < 0):
+                cross = np.cross((np.subtract(transtri[1], transtri[0])), (np.subtract(transtri[2], transtri[0])))
+                normal = cross/np.linalg.norm(cross)
+                if (normal[0] * (transtri[0][0] - self.camera[0]) +
+                    normal[1] * (transtri[0][1] - self.camera[1]) +
+                    normal[2] * (transtri[0][2] - self.camera[2]) < 0):
                     light = [0,0,-1]
-                    l = np.sqrt(light[0]*light[0]+light[1]*light[1]+light[2]*light[2])
-                    light[0] /= l
-                    light[1] /= l
-                    light[2] /= l
-                    dp = normalx * light[0] + normaly * light[1] + normalz * light[2]
+                    nlight = light/np.linalg.norm(light)
+                    dp = np.dot(normal, nlight)
                     color = self.get_color(dp)
                     projected = np.array([
-                        [self.prerspective@transtri[0]],
-                        [self.prerspective@transtri[1]],
-                        [self.prerspective@transtri[2]]
+                        self.prerspective@transtri[0],
+                        self.prerspective@transtri[1],
+                        self.prerspective@transtri[2]
                     ])
                     fart = [[i[0] for i in projected[0][0][0]], [i[0] for i in projected[1][0][0]], [i[0] for i in projected[2][0][0]]]
                     pygame.draw.polygon(screen, color,[(fart[0][0]+250, fart[0][1]+250), (fart[1][0]+250, fart[1][1]+250), (fart[2][0]+250, fart[2][1]+250)])
