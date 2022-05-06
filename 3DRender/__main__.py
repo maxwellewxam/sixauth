@@ -182,8 +182,7 @@ class Renderer:
                         self.prerspective@transtri[1],
                         self.prerspective@transtri[2]
                     ])
-                    fart = [[i[0] for i in projected[0][0][0]], [i[0] for i in projected[1][0][0]], [i[0] for i in projected[2][0][0]]]
-                    pygame.draw.polygon(screen, color,[(fart[0][0]+250, fart[0][1]+250), (fart[1][0]+250, fart[1][1]+250), (fart[2][0]+250, fart[2][1]+250)])
+                    pygame.draw.polygon(screen, color,np.add(projected, 250))
             screen.unlock()
             pygame.display.update()
         pygame.quit()
