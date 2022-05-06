@@ -22,7 +22,7 @@ class cube:
         self.far = 1080000
         self.a = 500/500
         self.camera = [0,0,0]
-        file = ObjLoader('3DRender/MONKEY.obj')
+        file = ObjLoader('3DRender/Cube.obj')
         self.cubm = file.vertices
         self.faces =  file.faces
     def transforms(self, pos):
@@ -112,7 +112,7 @@ class cube:
 
 class Renderer:
     def __init__(self):
-        file = ObjLoader('3DRender/MONKEY.obj')
+        file = ObjLoader('3DRender/Cube.obj')
         self.cubm = file.vertices
         self.faces = file.faces
         self.anglex = 0
@@ -126,7 +126,7 @@ class Renderer:
         self.near = .01
         self.far = 1080000
         self.a = 500/500
-        self.camera = [0,0,0,0]
+        self.camera = [0,0,0,1]
         pygame.init()
         screen = pygame.display.set_mode([500, 500])
         running = True
@@ -168,11 +168,12 @@ class Renderer:
                     self.trans@self.rotationz@self.rotationy@self.rotationx@self.scale@triangle[1],
                     self.trans@self.rotationz@self.rotationy@self.rotationx@self.scale@triangle[2]
                 ])
-                cross = np.cross((np.subtract(transtri[1], transtri[0])), (np.subtract(transtri[2], transtri[0])))
+                cross = np.cross(np.subtract(transtri[1], transtri[0])[:-1], np.subtract(transtri[2], transtri[0])[:-1])
                 normal = cross/np.linalg.norm(cross)
+                #https://stackoverflow.com/questions/11994819/how-can-i-move-the-camera-correctly-in-3d-space  #go here
                 if (normal[0] * (transtri[0][0] - self.camera[0]) +
                     normal[1] * (transtri[0][1] - self.camera[1]) +
-                    normal[2] * (transtri[0][2] - self.camera[2]) < 0):
+                    normal[2] * (transtri[0][2] - self.camera[2]) <= 0):
                     light = [0,0,-1]
                     nlight = light/np.linalg.norm(light)
                     dp = np.dot(normal, nlight)
@@ -182,12 +183,12 @@ class Renderer:
                         self.prerspective@transtri[1],
                         self.prerspective@transtri[2]
                     ])
-                    pygame.draw.polygon(screen, color,np.add(projected, 250))
+                    pygame.draw.polygon(screen, color, [i[:-2] for i in np.add(projected, 250)])
             screen.unlock()
             pygame.display.update()
         pygame.quit()
     def get_color(self, colNum):
-        rgbNum = abs(int(255 - ((1-colNum)*225.0)))
+        rgbNum = abs(int(255 - ((1-colNum)*255.0)))
         return (rgbNum,rgbNum,rgbNum)
 
 class ObjLoader(object):
