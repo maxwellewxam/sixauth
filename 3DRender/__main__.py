@@ -6,7 +6,6 @@ import sys
 import numpy as np
 import pygame
 import fpstimer
-from regex import E
 class cube:
     lines = 12
     def __init__(self, master):
@@ -160,12 +159,12 @@ class Renderer:
             screen.lock()
             for a,b,c in self.faces:
                 triangle = np.array([
-                    [[i] for i in self.cubm[a]],
+                    self.cubm[a],
                     [[i] for i in self.cubm[b]],
                     [[i] for i in self.cubm[c]]
                 ])
                 transtri = np.array([
-                    [self.trans@self.rotationz@self.rotationy@self.rotationx@self.scale@triangle[0]],
+                    self.trans@self.rotationz@self.rotationy@self.rotationx@self.scale@triangle[0],
                     [self.trans@self.rotationz@self.rotationy@self.rotationx@self.scale@triangle[1]],
                     [self.trans@self.rotationz@self.rotationy@self.rotationx@self.scale@triangle[2]]
                 ])
