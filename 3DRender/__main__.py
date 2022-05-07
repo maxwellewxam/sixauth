@@ -204,7 +204,6 @@ class Renderer:
                         prerspective@transtri[2]
                     ])
                     faces.append(((projected,color), (transtri[0][2]+transtri[1][2]+transtri[2][2])/3))
-                    #pygame.draw.polygon(screen, color, [i[:-2] for i in np.add(projected, 250)])
             screen.lock()
             faces.sort(key=self.sorttttt)
             faces.reverse()
