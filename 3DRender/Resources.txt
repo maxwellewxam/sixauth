@@ -1,2 +1,5 @@
 https://jsantell.com/matrix-transformations/
+
+https://twodee.org/blog/17560
+
 i wish this also showed a view matrix but this works ig
