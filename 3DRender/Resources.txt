@@ -2,4 +2,6 @@ https://jsantell.com/matrix-transformations/
 
 https://twodee.org/blog/17560
 
+https://www.braynzarsoft.net/viewtutorial/q16390-transformations-and-world-view-projection-space-matrices
+
 i wish this also showed a view matrix but this works ig
