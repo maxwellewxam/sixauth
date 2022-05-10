@@ -202,8 +202,27 @@ class Renderer:
             pointmat = np.linalg.inv(viewmat)
             screen.fill((0, 0, 0))
             faces = []
-            for a,b,c in self.faces:
-                triangle = np.array([
+            with concurrent. futures.TheeadPoolExecutor() as executor:
+                results = executor.map(self.math, self.faces)
+                for result in results:
+                    faces.append(result)
+            faces.sort(key=self.sorttttt)
+            faces.reverse()
+            screen.lock()
+            for (item,color),_ in faces:
+                pygame.draw.polygon(screen, color, [i[:-2] for i in np.add(item, 250).tolist()])
+            screen.unlock()
+            pygame.display.update()
+        pygame.quit()
+    def get_color(self, colNum):
+        rgbNum = abs(int(255 - ((1-colNum)*255.0)))
+        return (rgbNum,rgbNum,rgbNum)
+    def sorttttt(self, n):
+        _,z = n
+        return z
+    def math(self, face):
+        a,b,c = face
+        triangle = np.array([
                     self.cubm[a],
                     self.cubm[b],
                     self.cubm[c]
@@ -230,21 +249,7 @@ class Renderer:
                         prerspective@transtri[1],
                         prerspective@transtri[2]
                     ])
-                    faces.append(((projected,color), (transtri[0][2]+transtri[1][2]+transtri[2][2])/3))
-            screen.lock()
-            faces.sort(key=self.sorttttt)
-            faces.reverse()
-            for (item,color),_ in faces:
-                pygame.draw.polygon(screen, color, [i[:-2] for i in np.add(item, 250).tolist()])
-            screen.unlock()
-            pygame.display.update()
-        pygame.quit()
-    def get_color(self, colNum):
-        rgbNum = abs(int(255 - ((1-colNum)*255.0)))
-        return (rgbNum,rgbNum,rgbNum)
-    def sorttttt(self, n):
-        _,z = n
-        return z
+                    return (((projected,color), (transtri[0][2]+transtri[1][2]+transtri[2][2])/3))
 class ObjLoader(object):
     def __init__(self, fileName):
         self.vertices = []
