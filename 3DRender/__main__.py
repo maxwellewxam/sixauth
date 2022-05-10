@@ -1,4 +1,4 @@
-import pickle
+import concurrent.futures
 from MaxMods.Matrix import *
 from MaxMods.Canvas import *
 import keyboard as key
@@ -120,21 +120,18 @@ class Renderer:
         self.anglex = 0
         self.angley = 0
         self.anglez = 0
-        self.sca = 2
+        self.sca = 1
         self.transx = 0
         self.transy = 0
-        self.transz = 6
+        self.transz = 2
         self.fov = 90
         self.near = .01
         self.far = 1080000
-        self.top = 250
-        self.right = 250
-        self.w = self.near / self.right
-        self.h = self.near / self.top
-        self.a = (self.far+self.near) / (self.near - self.far)
-        self.b = (2*self.far*self.near) / (self.near - self.far)
+        self.f = 1/(np.tan((self.fov*.5)/(180*np.pi)))
+        self.a = 500/500
         self.camera = [0,0,0]
-        self.lookdir = [0,0,1]
+        self.lookdir = [0,0,-1]
+        self.matUpdate()
         pygame.init()
         screen = pygame.display.set_mode([500, 500])
         running = True
@@ -146,66 +143,41 @@ class Renderer:
                     running = False
             if key.is_pressed('w') is True:
                 self.anglex -= .1
+                self.matUpdate()
             if key.is_pressed('a') is True:
                 self.angley += .1
+                self.matUpdate()
             if key.is_pressed('s') is True:
                 self.anglex += .1
+                self.matUpdate()
             if key.is_pressed('d') is True:
                 self.angley -= .1
+                self.matUpdate()
             if key.is_pressed('e') is True:
                 self.anglez += .1
+                self.matUpdate()
             if key.is_pressed('q') is True:
                 self.anglez -= .1
+                self.matUpdate()
             if key.is_pressed('up') is True:
                 self.camera[1] += 1
+                self.matUpdate()
             if key.is_pressed('down') is True:
                 self.camera[1] -= 1
+                self.matUpdate()
             if key.is_pressed('right') is True:
                 self.camera[0] -= 1
+                self.matUpdate()
             if key.is_pressed('left') is True:
                 self.camera[0] += 1
-            prerspective = np.array([[self.w, 0, 0, 0],
-                            [0, self.h, 0, 0],
-                            [0, 0, self.a, self.b],
-                            [0, 0, -1, 0]])
-            scale = np.array([[self.sca,0,0,0], 
-                            [0,self.sca,0,0], 
-                            [0,0,self.sca,0], 
-                            [0,0,0,1]])
-            translation = np.array([[1, 0, 0, self.transx],
-                            [0, 1, 0, self.transy],
-                            [0, 0, 1, self.transz],
-                            [0, 0, 0, 1]])
-            rotationx = np.array([[1, 0, 0, 0],
-                            [0, np.cos(self.anglex), -np.sin(self.anglex), 0],
-                            [0, np.sin(self.anglex), np.cos(self.anglex), 0],
-                            [0, 0, 0, 1]])
-            rotationy = np.array([[np.cos(self.angley), 0, np.sin(self.angley), 0],
-                            [0, 1, 0, 0],
-                            [-np.sin(self.angley), 0, np.cos(self.angley), 0],
-                            [0, 0, 0, 1]])
-            rotationz = np.array([[np.cos(self.anglez), -np.sin(self.anglez), 0, 0],
-                            [np.sin(self.anglez),  np.cos(self.anglez), 0, 0],
-                            [0, 0, 1, 0],
-                            [0, 0, 0, 1]])
-            self.up = np.array([0,-1,0])
-            target = np.add(np.array(self.camera), np.array(self.lookdir))
-            forward = np.subtract(np.array(target), np.array(self.camera))
-            nforward = forward/np.linalg.norm(forward)
-            up = np.subtract(self.up, np.multiply(nforward, np.dot(self.up, nforward)))
-            nup = up/np.linalg.norm(up)
-            nright = np.cross(nup, nforward)
-            viewmat = np.array([[nright[0], nup[0], nforward[0], target[0]],
-                            [nright[1], nup[1], nforward[1], target[1]],
-                            [nright[2], nup[2], nforward[2], target[2]],
-                            [0, 0, 0, 1]])
-            pointmat = np.linalg.inv(viewmat)
+                self.matUpdate()
             screen.fill((0, 0, 0))
             faces = []
-            with concurrent. futures.TheeadPoolExecutor() as executor:
+            with concurrent.futures.ThreadPoolExecutor() as executor:
                 results = executor.map(self.math, self.faces)
                 for result in results:
-                    faces.append(result)
+                    if result is not None:
+                        faces.append(result)
             faces.sort(key=self.sorttttt)
             faces.reverse()
             screen.lock()
@@ -220,36 +192,73 @@ class Renderer:
     def sorttttt(self, n):
         _,z = n
         return z
+    def matUpdate(self):
+        self.prerspective = np.array([
+            [self.a*self.f,0,0,0],
+            [0,self.f,0,0],[0,0,(self.far/(self.far-self.near)),(self.far*self.near)/(self.far-self.near)], 
+            [0,0,-1,0]])
+        self.scale = np.array([[self.sca,0,0,0], 
+            [0,self.sca,0,0], 
+            [0,0,self.sca,0], 
+            [0,0,0,1]])
+        self.translation = np.array([[1, 0, 0, self.transx],
+            [0, 1, 0, self.transy],
+            [0, 0, 1, self.transz],
+            [0, 0, 0, 1]])
+        self.rotationx = np.array([[1, 0, 0, 0],
+            [0, np.cos(self.anglex), -np.sin(self.anglex), 0],
+            [0, np.sin(self.anglex), np.cos(self.anglex), 0],
+            [0, 0, 0, 1]])
+        self.rotationy = np.array([[np.cos(self.angley), 0, np.sin(self.angley), 0],
+            [0, 1, 0, 0],
+            [-np.sin(self.angley), 0, np.cos(self.angley), 0],
+            [0, 0, 0, 1]])
+        self.rotationz = np.array([[np.cos(self.anglez), -np.sin(self.anglez), 0, 0],
+            [np.sin(self.anglez),  np.cos(self.anglez), 0, 0],
+            [0, 0, 1, 0],
+            [0, 0, 0, 1]])
+        self.up = np.array([0,-1,0])
+        self.target = np.add(np.array(self.camera), np.array(self.lookdir))
+        forward = np.subtract(np.array(self.target), np.array(self.camera))
+        self.nforward = forward/np.linalg.norm(forward)
+        up = np.subtract(self.up, np.multiply(self.nforward, np.dot(self.up, self.nforward)))
+        nup = up/np.linalg.norm(up)
+        nright = np.cross(nup, self.nforward)
+        self.viewmat = np.array([[nright[0], nup[0], self.nforward[0], self.target[0]],
+                        [nright[1], nup[1], self.nforward[1], self.target[1]],
+                        [nright[2], nup[2], self.nforward[2], self.target[2]],
+                        [0, 0, 0, 1]])
+        self.pointmat = np.linalg.inv(self.viewmat)
     def math(self, face):
         a,b,c = face
         triangle = np.array([
-                    self.cubm[a],
-                    self.cubm[b],
-                    self.cubm[c]
-                ])
-                transtri = np.array([
-                    translation@rotationz@rotationy@rotationx@scale@triangle[0],
-                    translation@rotationz@rotationy@rotationx@scale@triangle[1],
-                    translation@rotationz@rotationy@rotationx@scale@triangle[2]
-                    # triangle[0]@scale@rotationx@rotationy@rotationz@trans@viewmat,
-                    # triangle[1]@scale@rotationx@rotationy@rotationz@trans@viewmat,
-                    # triangle[2]@scale@rotationx@rotationy@rotationz@trans@viewmat
-                ])
-                cross = np.cross(np.subtract(transtri[1], transtri[0])[:-1], np.subtract(transtri[2], transtri[0])[:-1])
-                normal = cross/np.linalg.norm(cross)
-                if (normal[0] * (transtri[0][0] - self.camera[0]) +
-                    normal[1] * (transtri[0][1] - self.camera[1]) +
-                    normal[2] * (transtri[0][2] - self.camera[2]) <= 0):
-                    light = [0,0,1]
-                    nlight = np.array(light)/np.linalg.norm(np.array(light))
-                    dp = np.dot(normal, nlight)
-                    color = self.get_color(dp)
-                    projected = np.array([
-                        prerspective@transtri[0],
-                        prerspective@transtri[1],
-                        prerspective@transtri[2]
-                    ])
-                    return (((projected,color), (transtri[0][2]+transtri[1][2]+transtri[2][2])/3))
+            self.cubm[a],
+            self.cubm[b],
+            self.cubm[c]
+        ])
+        transtri = np.array([
+            self.viewmat@self.translation@self.rotationz@self.rotationy@self.rotationx@self.scale@triangle[0],
+            self.viewmat@self.translation@self.rotationz@self.rotationy@self.rotationx@self.scale@triangle[1],
+            self.viewmat@self.translation@self.rotationz@self.rotationy@self.rotationx@self.scale@triangle[2]
+        ])
+        cross = np.cross(np.subtract(transtri[1], transtri[0])[:-1], np.subtract(transtri[2], transtri[0])[:-1])
+        normal = cross/np.linalg.norm(cross)
+        lol = (normal[0] * (transtri[1][0] - self.camera[0]) +
+            normal[1] * (transtri[1][1] - self.camera[1]) +
+            normal[2] * (transtri[1][2] - self.camera[2]))
+        if (normal[0] * (transtri[1][0] - self.camera[0]) +
+            normal[1] * (transtri[1][1] - self.camera[1]) +
+            normal[2] * (transtri[1][2] - self.camera[2]) < 0):
+            light = [0,0,1]
+            nlight = np.array(light)/np.linalg.norm(np.array(light))
+            dp = np.dot(normal, nlight)
+            color = self.get_color(dp)
+            projected = np.array([
+                self.prerspective@transtri[0],
+                self.prerspective@transtri[1],
+                self.prerspective@transtri[2]
+            ])
+            return (((projected,color), (transtri[0][2]+transtri[1][2]+transtri[2][2])/3))
 class ObjLoader(object):
     def __init__(self, fileName):
         self.vertices = []
