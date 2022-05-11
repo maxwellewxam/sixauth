@@ -126,7 +126,6 @@ class Renderer:
         self.transz = 2
         self.camera = np.array([0,0,0], dtype=np.dtype('float64'))
         self.lookdir = np.array([0,0,-1])
-        self.matUpdate()
         pygame.init()
         screen = pygame.display.set_mode([500, 500])
         pygame.mouse.set_visible(False)
@@ -142,8 +141,7 @@ class Renderer:
                         running = False
                 elif event.type == pygame.MOUSEMOTION:
                     mouse_move = event.rel
-                    self.looksomewhere('y', (mouse_move[0]/1000))
-                    self.looksomewhere('x', (mouse_move[1]/1000))
+                    self.looksomewhere(mouse_move)
             pygame.mouse.set_pos(250,250)
             pygame.event.set_grab(True)
             if key.is_pressed('w') is True:
@@ -167,7 +165,7 @@ class Renderer:
                 up = AHH.subtract(self.up, AHH.multiply(self.nforward, AHH.dot(self.up, self.nforward)))
                 nup = up/AHH.linalg.norm(up)
                 nright = AHH.cross(nup, self.nforward)
-                self.camera += (np.divide(nright,10)
+                self.camera += (np.divide(nright,10))
             if key.is_pressed('space'):
                 self.up = AHH.array([0,-1,0])
                 self.target = AHH.add(AHH.array(self.camera), AHH.array(self.lookdir))
@@ -253,7 +251,9 @@ class Renderer:
             screen.unlock()
             pygame.display.update()
         pygame.quit()
-    def looksomewhere(self, dir, amount):
+    def looksomewhere(self, mouse):
+        x,y = mouse
+        y = -y
         if dir == 'x':
             rot = AHH.array([
                 [1, 0, 0],
@@ -266,6 +266,11 @@ class Renderer:
                 [0, 1, 0],
                 [-AHH.sin(amount), 0, AHH.cos(amount)]
                 ])
+        elif dir == 'z':
+            rot = AHH.array([
+                [AHH.cos(amount), -AHH.sin(amount), 0],
+                [AHH.sin(amount),  AHH.cos(amount), 0],
+                [0, 0, 1]])
         self.lookdir = rot@self.lookdir
             
     def get_color(self, colNum):
@@ -291,7 +296,7 @@ class Renderer:
         cross = np.cross(np.subtract(transtri[1], transtri[0])[:-1], np.subtract(transtri[2], transtri[0])[:-1])
         normal = cross/np.linalg.norm(cross)
         ncam = self.camera/np.linalg.norm(self.camera)
-        if (np.dot(normal, ncam) < 0):
+        if (-np.dot(normal, ncam) < 0):
             light = [0,0,1]
             nlight = np.array(light)/np.linalg.norm(np.array(light))
             dp = np.dot(normal, nlight)
