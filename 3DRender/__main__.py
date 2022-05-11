@@ -124,52 +124,72 @@ class Renderer:
         self.transx = 0
         self.transy = 0
         self.transz = 2
-        self.fov = 90
-        self.near = .01
-        self.far = 1080000
-        self.f = 1/(np.tan((self.fov*.5)/(180*np.pi)))
-        self.a = 500/500
-        self.camera = [0,0,0]
-        self.lookdir = [0,0,-1]
+        self.camera = np.array([0,0,0], dtype=np.dtype('float64'))
+        self.lookdir = np.array([0,0,-1])
         self.matUpdate()
         pygame.init()
         screen = pygame.display.set_mode([500, 500])
+        pygame.mouse.set_visible(False)
         running = True
         timer = fpstimer.FPSTimer(60)
         while running:
-            timer.sleep()
+            timer.sleep()            
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        running = False
+                elif event.type == pygame.MOUSEMOTION:
+                    mouse_move = event.rel
+                    self.looksomewhere('y', (mouse_move[0]/1000))
+                    self.looksomewhere('x', (mouse_move[1]/1000))
+                    self.matUpdate()
+            pygame.mouse.set_pos(250,250)
+            pygame.event.set_grab(True)
             if key.is_pressed('w') is True:
-                self.anglex -= .1
+                self.camera -= (np.divide(self.lookdir,10))
                 self.matUpdate()
             if key.is_pressed('a') is True:
-                self.angley += .1
+                self.up = AHH.array([0,-1,0])
+                self.target = AHH.add(AHH.array(self.camera), AHH.array(self.lookdir))
+                forward = AHH.subtract(AHH.array(self.target), AHH.array(self.camera))
+                self.nforward = forward/AHH.linalg.norm(forward)
+                up = AHH.subtract(self.up, AHH.multiply(self.nforward, AHH.dot(self.up, self.nforward)))
+                nup = up/AHH.linalg.norm(up)
+                nright = AHH.cross(nup, self.nforward)
+                self.camera -= (np.divide(nright,10))
                 self.matUpdate()
             if key.is_pressed('s') is True:
-                self.anglex += .1
+                self.camera += (np.divide(self.lookdir,10))
                 self.matUpdate()
             if key.is_pressed('d') is True:
-                self.angley -= .1
+                self.up = AHH.array([0,-1,0])
+                self.target = AHH.add(AHH.array(self.camera), AHH.array(self.lookdir))
+                forward = AHH.subtract(AHH.array(self.target), AHH.array(self.camera))
+                self.nforward = forward/AHH.linalg.norm(forward)
+                up = AHH.subtract(self.up, AHH.multiply(self.nforward, AHH.dot(self.up, self.nforward)))
+                nup = up/AHH.linalg.norm(up)
+                nright = AHH.cross(nup, self.nforward)
+                self.camera += (np.divide(nright,10))
                 self.matUpdate()
-            if key.is_pressed('e') is True:
-                self.anglez += .1
+            if key.is_pressed('space'):
+                self.up = AHH.array([0,-1,0])
+                self.target = AHH.add(AHH.array(self.camera), AHH.array(self.lookdir))
+                forward = AHH.subtract(AHH.array(self.target), AHH.array(self.camera))
+                self.nforward = forward/AHH.linalg.norm(forward)
+                up = AHH.subtract(self.up, AHH.multiply(self.nforward, AHH.dot(self.up, self.nforward)))
+                nup = up/AHH.linalg.norm(up)
+                self.camera -= (np.divide(nup,10))
                 self.matUpdate()
-            if key.is_pressed('q') is True:
-                self.anglez -= .1
-                self.matUpdate()
-            if key.is_pressed('up') is True:
-                self.camera[1] += 1
-                self.matUpdate()
-            if key.is_pressed('down') is True:
-                self.camera[1] -= 1
-                self.matUpdate()
-            if key.is_pressed('right') is True:
-                self.camera[0] -= 1
-                self.matUpdate()
-            if key.is_pressed('left') is True:
-                self.camera[0] += 1
+            if key.is_pressed('ctrl'):
+                self.up = AHH.array([0,-1,0])
+                self.target = AHH.add(AHH.array(self.camera), AHH.array(self.lookdir))
+                forward = AHH.subtract(AHH.array(self.target), AHH.array(self.camera))
+                self.nforward = forward/AHH.linalg.norm(forward)
+                up = AHH.subtract(self.up, AHH.multiply(self.nforward, AHH.dot(self.up, self.nforward)))
+                nup = up/AHH.linalg.norm(up)
+                self.camera += (np.divide(nup,10))
                 self.matUpdate()
             screen.fill((0, 0, 0))
             faces = []
@@ -179,56 +199,120 @@ class Renderer:
                     if result is not None:
                         faces.append(result)
             faces.sort(key=self.sorttttt)
-            faces.reverse()
+            #faces.reverse()
             screen.lock()
             for (item,color),_ in faces:
                 pygame.draw.polygon(screen, color, [i[:-2] for i in np.add(item, 250).tolist()])
             screen.unlock()
             pygame.display.update()
         pygame.quit()
+    def looksomewhere(self, dir, amount):
+        if dir == 'x':
+            rot = AHH.array([
+                [1, 0, 0],
+                [0, AHH.cos(amount), -AHH.sin(amount)],
+                [0, AHH.sin(amount), AHH.cos(amount)]
+                ])
+        elif dir == 'y':
+            rot = AHH.array([
+                [AHH.cos(amount), 0, AHH.sin(amount)],
+                [0, 1, 0],
+                [-AHH.sin(amount), 0, AHH.cos(amount)]
+                ])
+        self.lookdir = rot@self.lookdir
+            
     def get_color(self, colNum):
-        rgbNum = abs(int(255 - ((1-colNum)*255.0)))
+        rgbNum =  abs(int(265 - ((1-colNum)*255.0)))
+        if rgbNum > 255:
+            rgbNum = 255
         return (rgbNum,rgbNum,rgbNum)
     def sorttttt(self, n):
         _,z = n
         return z
+    def presME(self, Fov, AspectRatio, FarZ, NearZ):
+        M = [
+            [0,0,0,0], 
+            [0,0,0,0], 
+            [0,0,0,0], 
+            [0,0,0,0]]
+        Height = np.cos(Fov) / np.sin(Fov)
+        Width = Height / AspectRatio
+        fRange = FarZ / (FarZ-NearZ)
+        M[0][0] = Width
+        M[0][1] = 0.0
+        M[0][2] = 0.0
+        M[0][3] = 0.0
+
+        M[1][0] = 0.0
+        M[1][1] = Height
+        M[1][2] = 0.0
+        M[1][3] = 0.0
+
+        M[2][0] = 0.0
+        M[2][1] = 0.0
+        M[2][2] = fRange
+        M[2][3] = 1.0
+
+        M[3][0] = 0.0
+        M[3][1] = 0.0
+        M[3][2] = -fRange * NearZ
+        M[3][3] = 0.0
+        return M
     def matUpdate(self):
-        self.prerspective = np.array([
-            [self.a*self.f,0,0,0],
-            [0,self.f,0,0],[0,0,(self.far/(self.far-self.near)),(self.far*self.near)/(self.far-self.near)], 
-            [0,0,-1,0]])
-        self.scale = np.array([[self.sca,0,0,0], 
+        self.up = AHH.array([0,-1,0])
+        self.target = AHH.add(self.camera, self.lookdir)
+        forward = AHH.subtract(self.target, self.camera)
+        self.nforward = forward/AHH.linalg.norm(forward)
+        up = AHH.subtract(self.up, AHH.multiply(self.nforward, AHH.dot(self.up, self.nforward)))
+        nup = up/AHH.linalg.norm(up)
+        nright = AHH.cross(nup, self.nforward)
+        near = .01
+        far = 1080000
+        fov = 120
+        a = 500/500
+        f = 1/AHH.tan(fov/2)
+        q = far/(far-near)
+        self.prerspective = AHH.array([
+            [a*f,0,0,0],
+            [0,f,0,0],
+            [0,0,q,1], 
+            [0,0,-near*q,0]])
+        #self.prerspective = np._core.core.array(self.prerspective1)
+        self.scale = np.array([
+            [self.sca,0,0,0], 
             [0,self.sca,0,0], 
             [0,0,self.sca,0], 
             [0,0,0,1]])
-        self.translation = np.array([[1, 0, 0, self.transx],
+        self.translation = np.array([
+            [1, 0, 0, self.transx],
             [0, 1, 0, self.transy],
             [0, 0, 1, self.transz],
             [0, 0, 0, 1]])
-        self.rotationx = np.array([[1, 0, 0, 0],
-            [0, np.cos(self.anglex), -np.sin(self.anglex), 0],
-            [0, np.sin(self.anglex), np.cos(self.anglex), 0],
+        self.rotationx = AHH.array([
+            [1, 0, 0, 0],
+            [0, AHH.cos(self.anglex), -AHH.sin(self.anglex), 0],
+            [0, AHH.sin(self.anglex), AHH.cos(self.anglex), 0],
             [0, 0, 0, 1]])
-        self.rotationy = np.array([[np.cos(self.angley), 0, np.sin(self.angley), 0],
+        #self.rotationx = np._core.core.array(self.rotationx1)
+        self.rotationy = AHH.array([
+            [AHH.cos(self.angley), 0, AHH.sin(self.angley), 0],
             [0, 1, 0, 0],
-            [-np.sin(self.angley), 0, np.cos(self.angley), 0],
+            [-AHH.sin(self.angley), 0, AHH.cos(self.angley), 0],
             [0, 0, 0, 1]])
-        self.rotationz = np.array([[np.cos(self.anglez), -np.sin(self.anglez), 0, 0],
-            [np.sin(self.anglez),  np.cos(self.anglez), 0, 0],
+        #self.rotationy = np._core.core.array(self.rotationy1)
+        self.rotationz = AHH.array([
+            [AHH.cos(self.anglez), -AHH.sin(self.anglez), 0, 0],
+            [AHH.sin(self.anglez),  AHH.cos(self.anglez), 0, 0],
             [0, 0, 1, 0],
             [0, 0, 0, 1]])
-        self.up = np.array([0,-1,0])
-        self.target = np.add(np.array(self.camera), np.array(self.lookdir))
-        forward = np.subtract(np.array(self.target), np.array(self.camera))
-        self.nforward = forward/np.linalg.norm(forward)
-        up = np.subtract(self.up, np.multiply(self.nforward, np.dot(self.up, self.nforward)))
-        nup = up/np.linalg.norm(up)
-        nright = np.cross(nup, self.nforward)
-        self.viewmat = np.array([[nright[0], nup[0], self.nforward[0], self.target[0]],
-                        [nright[1], nup[1], self.nforward[1], self.target[1]],
-                        [nright[2], nup[2], self.nforward[2], self.target[2]],
-                        [0, 0, 0, 1]])
-        self.pointmat = np.linalg.inv(self.viewmat)
+        #self.rotationz = np._core.core.array(self.rotationz1)
+        self.pointmat = AHH.array([
+            [nright[0], nup[0], self.nforward[0], self.target[0]],
+            [nright[1], nup[1], self.nforward[1], self.target[1]],
+            [nright[2], nup[2], self.nforward[2], self.target[2]],
+            [0, 0, 0, 1]])
+        #self.viewmat = np._core.core.array(self.viewmat1)
+        self.viewmat = np.linalg.inv(self.pointmat)
     def math(self, face):
         a,b,c = face
         triangle = np.array([
@@ -243,20 +327,18 @@ class Renderer:
         ])
         cross = np.cross(np.subtract(transtri[1], transtri[0])[:-1], np.subtract(transtri[2], transtri[0])[:-1])
         normal = cross/np.linalg.norm(cross)
-        lol = (normal[0] * (transtri[1][0] - self.camera[0]) +
-            normal[1] * (transtri[1][1] - self.camera[1]) +
-            normal[2] * (transtri[1][2] - self.camera[2]))
-        if (normal[0] * (transtri[1][0] - self.camera[0]) +
-            normal[1] * (transtri[1][1] - self.camera[1]) +
-            normal[2] * (transtri[1][2] - self.camera[2]) < 0):
+        if (normal[0] * (transtri[0][0] - self.camera[0]) +
+            normal[1] * (transtri[0][1] - self.camera[1]) +
+            normal[2] * (transtri[0][2] - self.camera[2]) < 0):
             light = [0,0,1]
             nlight = np.array(light)/np.linalg.norm(np.array(light))
             dp = np.dot(normal, nlight)
             color = self.get_color(dp)
+            self.prerspective@transtri[0]
             projected = np.array([
-                self.prerspective@transtri[0],
-                self.prerspective@transtri[1],
-                self.prerspective@transtri[2]
+                (self.prerspective@transtri[0]/(self.prerspective@transtri[0])[3]),
+                (self.prerspective@transtri[1]/(self.prerspective@transtri[1])[3]),
+                (self.prerspective@transtri[2]/(self.prerspective@transtri[2])[3])
             ])
             return (((projected,color), (transtri[0][2]+transtri[1][2]+transtri[2][2])/3))
 class ObjLoader(object):
