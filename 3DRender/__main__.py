@@ -229,35 +229,6 @@ class Renderer:
     def sorttttt(self, n):
         _,z = n
         return z
-    def presME(self, Fov, AspectRatio, FarZ, NearZ):
-        M = [
-            [0,0,0,0], 
-            [0,0,0,0], 
-            [0,0,0,0], 
-            [0,0,0,0]]
-        Height = np.cos(Fov) / np.sin(Fov)
-        Width = Height / AspectRatio
-        fRange = FarZ / (FarZ-NearZ)
-        M[0][0] = Width
-        M[0][1] = 0.0
-        M[0][2] = 0.0
-        M[0][3] = 0.0
-
-        M[1][0] = 0.0
-        M[1][1] = Height
-        M[1][2] = 0.0
-        M[1][3] = 0.0
-
-        M[2][0] = 0.0
-        M[2][1] = 0.0
-        M[2][2] = fRange
-        M[2][3] = 1.0
-
-        M[3][0] = 0.0
-        M[3][1] = 0.0
-        M[3][2] = -fRange * NearZ
-        M[3][3] = 0.0
-        return M
     def matUpdate(self):
         self.up = AHH.array([0,-1,0])
         self.target = AHH.add(self.camera, self.lookdir)
@@ -327,9 +298,8 @@ class Renderer:
         ])
         cross = np.cross(np.subtract(transtri[1], transtri[0])[:-1], np.subtract(transtri[2], transtri[0])[:-1])
         normal = cross/np.linalg.norm(cross)
-        if (normal[0] * (transtri[0][0] - self.camera[0]) +
-            normal[1] * (transtri[0][1] - self.camera[1]) +
-            normal[2] * (transtri[0][2] - self.camera[2]) < 0):
+        ncam = self.camera/np.linalg.norm(self.camera)
+        if (np.dot(normal, ncam) < 0):
             light = [0,0,1]
             nlight = np.array(light)/np.linalg.norm(np.array(light))
             dp = np.dot(normal, nlight)
