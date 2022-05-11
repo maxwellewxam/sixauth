@@ -144,12 +144,10 @@ class Renderer:
                     mouse_move = event.rel
                     self.looksomewhere('y', (mouse_move[0]/1000))
                     self.looksomewhere('x', (mouse_move[1]/1000))
-                    self.matUpdate()
             pygame.mouse.set_pos(250,250)
             pygame.event.set_grab(True)
             if key.is_pressed('w') is True:
                 self.camera -= (np.divide(self.lookdir,10))
-                self.matUpdate()
             if key.is_pressed('a') is True:
                 self.up = AHH.array([0,-1,0])
                 self.target = AHH.add(AHH.array(self.camera), AHH.array(self.lookdir))
@@ -159,10 +157,8 @@ class Renderer:
                 nup = up/AHH.linalg.norm(up)
                 nright = AHH.cross(nup, self.nforward)
                 self.camera -= (np.divide(nright,10))
-                self.matUpdate()
             if key.is_pressed('s') is True:
                 self.camera += (np.divide(self.lookdir,10))
-                self.matUpdate()
             if key.is_pressed('d') is True:
                 self.up = AHH.array([0,-1,0])
                 self.target = AHH.add(AHH.array(self.camera), AHH.array(self.lookdir))
@@ -171,8 +167,7 @@ class Renderer:
                 up = AHH.subtract(self.up, AHH.multiply(self.nforward, AHH.dot(self.up, self.nforward)))
                 nup = up/AHH.linalg.norm(up)
                 nright = AHH.cross(nup, self.nforward)
-                self.camera += (np.divide(nright,10))
-                self.matUpdate()
+                self.camera += (np.divide(nright,10)
             if key.is_pressed('space'):
                 self.up = AHH.array([0,-1,0])
                 self.target = AHH.add(AHH.array(self.camera), AHH.array(self.lookdir))
@@ -181,7 +176,6 @@ class Renderer:
                 up = AHH.subtract(self.up, AHH.multiply(self.nforward, AHH.dot(self.up, self.nforward)))
                 nup = up/AHH.linalg.norm(up)
                 self.camera -= (np.divide(nup,10))
-                self.matUpdate()
             if key.is_pressed('ctrl'):
                 self.up = AHH.array([0,-1,0])
                 self.target = AHH.add(AHH.array(self.camera), AHH.array(self.lookdir))
@@ -190,7 +184,60 @@ class Renderer:
                 up = AHH.subtract(self.up, AHH.multiply(self.nforward, AHH.dot(self.up, self.nforward)))
                 nup = up/AHH.linalg.norm(up)
                 self.camera += (np.divide(nup,10))
-                self.matUpdate()
+            self.up = AHH.array([0,-1,0])
+            self.target = AHH.add(self.camera, self.lookdir)
+            forward = AHH.subtract(self.target, self.camera)
+            self.nforward = forward/AHH.linalg.norm(forward)
+            up = AHH.subtract(self.up, AHH.multiply(self.nforward, AHH.dot(self.up, self.nforward)))
+            nup = up/AHH.linalg.norm(up)
+            nright = AHH.cross(nup, self.nforward)
+            near = .01
+            far = 1080000
+            fov = 120
+            a = 500/500
+            f = 1/AHH.tan(fov/2)
+            q = far/(far-near)
+            self.prerspective = AHH.array([
+                [a*f,0,0,0],
+                [0,f,0,0],
+                [0,0,q,1], 
+                [0,0,-near*q,0]])
+            #self.prerspective = np._core.core.array(self.prerspective1)
+            self.scale = np.array([
+                [self.sca,0,0,0], 
+                [0,self.sca,0,0], 
+                [0,0,self.sca,0], 
+                [0,0,0,1]])
+            self.translation = np.array([
+                [1, 0, 0, self.transx],
+                [0, 1, 0, self.transy],
+                [0, 0, 1, self.transz],
+                [0, 0, 0, 1]])
+            self.rotationx = AHH.array([
+                [1, 0, 0, 0],
+                [0, AHH.cos(self.anglex), -AHH.sin(self.anglex), 0],
+                [0, AHH.sin(self.anglex), AHH.cos(self.anglex), 0],
+                [0, 0, 0, 1]])
+            #self.rotationx = np._core.core.array(self.rotationx1)
+            self.rotationy = AHH.array([
+                [AHH.cos(self.angley), 0, AHH.sin(self.angley), 0],
+                [0, 1, 0, 0],
+                [-AHH.sin(self.angley), 0, AHH.cos(self.angley), 0],
+                [0, 0, 0, 1]])
+            #self.rotationy = np._core.core.array(self.rotationy1)
+            self.rotationz = AHH.array([
+                [AHH.cos(self.anglez), -AHH.sin(self.anglez), 0, 0],
+                [AHH.sin(self.anglez),  AHH.cos(self.anglez), 0, 0],
+                [0, 0, 1, 0],
+                [0, 0, 0, 1]])
+            #self.rotationz = np._core.core.array(self.rotationz1)
+            self.pointmat = AHH.array([
+                [nright[0], nup[0], self.nforward[0], self.target[0]],
+                [nright[1], nup[1], self.nforward[1], self.target[1]],
+                [nright[2], nup[2], self.nforward[2], self.target[2]],
+                [0, 0, 0, 1]])
+            #self.viewmat = np._core.core.array(self.viewmat1)
+            self.viewmat = np.linalg.inv(self.pointmat)
             screen.fill((0, 0, 0))
             faces = []
             with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -229,61 +276,6 @@ class Renderer:
     def sorttttt(self, n):
         _,z = n
         return z
-    def matUpdate(self):
-        self.up = AHH.array([0,-1,0])
-        self.target = AHH.add(self.camera, self.lookdir)
-        forward = AHH.subtract(self.target, self.camera)
-        self.nforward = forward/AHH.linalg.norm(forward)
-        up = AHH.subtract(self.up, AHH.multiply(self.nforward, AHH.dot(self.up, self.nforward)))
-        nup = up/AHH.linalg.norm(up)
-        nright = AHH.cross(nup, self.nforward)
-        near = .01
-        far = 1080000
-        fov = 120
-        a = 500/500
-        f = 1/AHH.tan(fov/2)
-        q = far/(far-near)
-        self.prerspective = AHH.array([
-            [a*f,0,0,0],
-            [0,f,0,0],
-            [0,0,q,1], 
-            [0,0,-near*q,0]])
-        #self.prerspective = np._core.core.array(self.prerspective1)
-        self.scale = np.array([
-            [self.sca,0,0,0], 
-            [0,self.sca,0,0], 
-            [0,0,self.sca,0], 
-            [0,0,0,1]])
-        self.translation = np.array([
-            [1, 0, 0, self.transx],
-            [0, 1, 0, self.transy],
-            [0, 0, 1, self.transz],
-            [0, 0, 0, 1]])
-        self.rotationx = AHH.array([
-            [1, 0, 0, 0],
-            [0, AHH.cos(self.anglex), -AHH.sin(self.anglex), 0],
-            [0, AHH.sin(self.anglex), AHH.cos(self.anglex), 0],
-            [0, 0, 0, 1]])
-        #self.rotationx = np._core.core.array(self.rotationx1)
-        self.rotationy = AHH.array([
-            [AHH.cos(self.angley), 0, AHH.sin(self.angley), 0],
-            [0, 1, 0, 0],
-            [-AHH.sin(self.angley), 0, AHH.cos(self.angley), 0],
-            [0, 0, 0, 1]])
-        #self.rotationy = np._core.core.array(self.rotationy1)
-        self.rotationz = AHH.array([
-            [AHH.cos(self.anglez), -AHH.sin(self.anglez), 0, 0],
-            [AHH.sin(self.anglez),  AHH.cos(self.anglez), 0, 0],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]])
-        #self.rotationz = np._core.core.array(self.rotationz1)
-        self.pointmat = AHH.array([
-            [nright[0], nup[0], self.nforward[0], self.target[0]],
-            [nright[1], nup[1], self.nforward[1], self.target[1]],
-            [nright[2], nup[2], self.nforward[2], self.target[2]],
-            [0, 0, 0, 1]])
-        #self.viewmat = np._core.core.array(self.viewmat1)
-        self.viewmat = np.linalg.inv(self.pointmat)
     def math(self, face):
         a,b,c = face
         triangle = np.array([
