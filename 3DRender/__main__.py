@@ -114,7 +114,7 @@ class cube:
 
 class Renderer:
     def __init__(self):
-        file = ObjLoader('3DRender/MONKEY.obj')
+        file = ObjLoader('3DRender/Cube.obj')
         self.cubm = file.vertices
         self.faces = file.faces
         self.anglex = 0
@@ -130,7 +130,7 @@ class Renderer:
         screen = pygame.display.set_mode([500, 500])
         pygame.mouse.set_visible(False)
         running = True
-        timer = fpstimer.FPSTimer(60)
+        timer = fpstimer.FPSTimer(15)
         while running:
             timer.sleep()            
             for event in pygame.event.get():
@@ -294,25 +294,31 @@ class Renderer:
             self.cubm[c]
         ])
         transtri = np.array([
-            self.viewmat@self.translation@self.rotationz@self.rotationy@self.rotationx@self.scale@triangle[0],
-            self.viewmat@self.translation@self.rotationz@self.rotationy@self.rotationx@self.scale@triangle[1],
-            self.viewmat@self.translation@self.rotationz@self.rotationy@self.rotationx@self.scale@triangle[2]
+            self.translation@self.rotationz@self.rotationy@self.rotationx@self.scale@triangle[0],
+            self.translation@self.rotationz@self.rotationy@self.rotationx@self.scale@triangle[1],
+            self.translation@self.rotationz@self.rotationy@self.rotationx@self.scale@triangle[2]
         ])
-        cross = np.cross(np.subtract(transtri[1], transtri[0])[:-1], np.subtract(transtri[2], transtri[0])[:-1])
+        viewtri = np.array([
+            self.viewmat@transtri[0],
+            self.viewmat@transtri[1],
+            self.viewmat@transtri[2]
+        ])
+        cross = np.cross(np.subtract(viewtri[1], viewtri[0])[:-1], np.subtract(viewtri[2], viewtri[0])[:-1])
         normal = cross/np.linalg.norm(cross)
-        ncam = self.camera/np.linalg.norm(self.camera)
-        if (np.dot(normal, ncam) < 0):
-            light = [0,0,1]
-            nlight = np.array(light)/np.linalg.norm(np.array(light))
-            dp = np.dot(normal, nlight)
-            color = self.get_color(dp)
-            self.prerspective@transtri[0]
-            projected = np.array([
-                (self.prerspective@transtri[0]/(self.prerspective@transtri[0])[3]),
-                (self.prerspective@transtri[1]/(self.prerspective@transtri[1])[3]),
-                (self.prerspective@transtri[2]/(self.prerspective@transtri[2])[3])
-            ])
-            return (((projected,color), (transtri[0][2]+transtri[1][2]+transtri[2][2])/3))
+        ncam = np.divide(self.camera,np.linalg.norm(self.camera))
+        #if (np.dot(normal, ncam) < 0):
+        licross = np.cross(np.subtract(transtri[1], transtri[0])[:-1], np.subtract(transtri[2], transtri[0])[:-1])
+        linormal = licross/np.linalg.norm(licross)
+        light = [0,0,1]
+        nlight = np.array(light)/np.linalg.norm(np.array(light))
+        dp = np.dot(linormal, nlight)
+        color = self.get_color(dp)
+        projected = np.array([
+            (self.prerspective@viewtri[0]/(self.prerspective@viewtri[0])[3]),
+            (self.prerspective@viewtri[1]/(self.prerspective@viewtri[1])[3]),
+            (self.prerspective@viewtri[2]/(self.prerspective@viewtri[2])[3])
+        ])
+        return (((projected,color), (viewtri[0][2]+viewtri[1][2]+viewtri[2][2])/3))
 class ObjLoader(object):
     def __init__(self, fileName):
         self.vertices = []
