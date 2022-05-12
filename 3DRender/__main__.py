@@ -114,7 +114,7 @@ class cube:
 
 class Renderer:
     def __init__(self):
-        file = ObjLoader('3DRender/Cube.obj')
+        file = ObjLoader('3DRender/MONKEY.obj')
         self.cubm = file.vertices
         self.faces = file.faces
         self.anglex = 0
@@ -123,7 +123,7 @@ class Renderer:
         self.sca = 1
         self.transx = 0
         self.transy = 0
-        self.transz = 2
+        self.transz = 3
         self.camera = np.array([0,0,0], dtype=np.dtype('float64'))
         self.lookdir = np.array([0,0,-1])
         pygame.init()
@@ -167,21 +167,9 @@ class Renderer:
                 nright = AHH.cross(nup, self.nforward)
                 self.camera += (np.divide(nright,10))
             if key.is_pressed('space'):
-                self.up = AHH.array([0,-1,0])
-                self.target = AHH.add(AHH.array(self.camera), AHH.array(self.lookdir))
-                forward = AHH.subtract(AHH.array(self.target), AHH.array(self.camera))
-                self.nforward = forward/AHH.linalg.norm(forward)
-                up = AHH.subtract(self.up, AHH.multiply(self.nforward, AHH.dot(self.up, self.nforward)))
-                nup = up/AHH.linalg.norm(up)
-                self.camera -= (np.divide(nup,10))
+                self.camera -= (np.divide([0,-1,0],10))
             if key.is_pressed('ctrl'):
-                self.up = AHH.array([0,-1,0])
-                self.target = AHH.add(AHH.array(self.camera), AHH.array(self.lookdir))
-                forward = AHH.subtract(AHH.array(self.target), AHH.array(self.camera))
-                self.nforward = forward/AHH.linalg.norm(forward)
-                up = AHH.subtract(self.up, AHH.multiply(self.nforward, AHH.dot(self.up, self.nforward)))
-                nup = up/AHH.linalg.norm(up)
-                self.camera += (np.divide(nup,10))
+                self.camera += (np.divide([0,-1,0],10))
             self.up = AHH.array([0,-1,0])
             self.target = AHH.add(self.camera, self.lookdir)
             forward = AHH.subtract(self.target, self.camera)
@@ -252,26 +240,43 @@ class Renderer:
             pygame.display.update()
         pygame.quit()
     def looksomewhere(self, mouse):
-        x,y = mouse
-        y = -y
-        if dir == 'x':
-            rot = AHH.array([
-                [1, 0, 0],
-                [0, AHH.cos(amount), -AHH.sin(amount)],
-                [0, AHH.sin(amount), AHH.cos(amount)]
-                ])
-        elif dir == 'y':
-            rot = AHH.array([
-                [AHH.cos(amount), 0, AHH.sin(amount)],
-                [0, 1, 0],
-                [-AHH.sin(amount), 0, AHH.cos(amount)]
-                ])
-        elif dir == 'z':
-            rot = AHH.array([
-                [AHH.cos(amount), -AHH.sin(amount), 0],
-                [AHH.sin(amount),  AHH.cos(amount), 0],
-                [0, 0, 1]])
-        self.lookdir = rot@self.lookdir
+        x,y = np.divide(mouse,1000)
+        xa = 0
+        ya = 0
+        za = 0
+        rotx = AHH.array([
+            [1, 0, 0],
+            [0, AHH.cos(y), -AHH.sin(y)],
+            [0, AHH.sin(y), AHH.cos(y)]
+            ])
+        rotz = AHH.array([
+            [AHH.cos(za), -AHH.sin(za), 0],
+            [AHH.sin(za),  AHH.cos(za), 0],
+            [0, 0, 1]])
+        temp1 = rotx@self.lookdir
+        temp2 = rotz@self.lookdir
+        
+        if (temp1[1] < .90 and temp1[1] > -.90) and (temp2[1] < .90 and temp2[1] > -.90):
+            xa = -y*self.lookdir[2]
+            za = y*self.lookdir[0]
+        ya = x
+
+        
+        rotx = AHH.array([
+            [1, 0, 0],
+            [0, AHH.cos(xa), -AHH.sin(xa)],
+            [0, AHH.sin(xa), AHH.cos(xa)]
+            ])
+        roty = AHH.array([
+            [AHH.cos(ya), 0, AHH.sin(ya)],
+            [0, 1, 0],
+            [-AHH.sin(ya), 0, AHH.cos(ya)]
+            ])
+        rotz = AHH.array([
+            [AHH.cos(za), -AHH.sin(za), 0],
+            [AHH.sin(za),  AHH.cos(za), 0],
+            [0, 0, 1]])
+        self.lookdir = rotx@roty@rotz@self.lookdir
             
     def get_color(self, colNum):
         rgbNum =  abs(int(265 - ((1-colNum)*255.0)))
@@ -296,7 +301,7 @@ class Renderer:
         cross = np.cross(np.subtract(transtri[1], transtri[0])[:-1], np.subtract(transtri[2], transtri[0])[:-1])
         normal = cross/np.linalg.norm(cross)
         ncam = self.camera/np.linalg.norm(self.camera)
-        if (-np.dot(normal, ncam) < 0):
+        if (np.dot(normal, ncam) < 0):
             light = [0,0,1]
             nlight = np.array(light)/np.linalg.norm(np.array(light))
             dp = np.dot(normal, nlight)
