@@ -394,6 +394,7 @@ def Simple_Syntax():
             self.Menu.update_item(1, 'Login', self.Login, 1)
             self.Menu.update_item(2, 'Signup', self.Login, 2)
             self.Menu.remove_item(3)
+            self.Menu.Title = 'Auth Menu'
     menu = AuthMenu().MainMenu()
     menu.Run()
     
