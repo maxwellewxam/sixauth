@@ -192,13 +192,9 @@ class Signup(Resource):
 class Greet(Resource):
 
     def post(self):#greeting
-        with open('ca-private-key.pem') as f:
-            priv = f.read()
-        with open('ca-public-key.pem') as f:
-            pub = f.read()
         with open('server-public-key.pem') as f:
             serv = f.read()
-        return {'Code':101, 'Private':priv, 'Public':pub, 'Server': serv}
+        return {'Code':101, 'Server': serv}
 
 class Leave(Resource):
 

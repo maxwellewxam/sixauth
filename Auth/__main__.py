@@ -40,7 +40,7 @@ class AuthSesh:
             app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
             app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
             db = SQLAlchemy(app)
-            
+
             def Encrypt(Data, password, username):
                 Data1 = jjson.dumps(Data)
                 kdf = PBKDF2HMAC(
@@ -249,15 +249,9 @@ class AuthSesh:
     def __del__(self, HandshakeData = None):
         self.__sesh.post(self.__Path+'Leave', HandshakeData, verify=True).json()
     
-    def __cert_adder(self, public, private, server):
-        with open('ca-public-key.pem', 'wb') as f:
-            f.write(bytes(public.encode()))
-        #with open('ca-private-key.pem', 'wb') as f:
-            #f.write(bytes(private.encode()))
+    def __cert_adder(self, server):
         with open('cacerts.pem', 'wb') as f:
             f.write(bytes(server.encode()))
-        self.__sesh = requests.Session()
-        self.__sesh.cert = ('ca-public-key.pem', 'ca-private-key.pem')
         self.__sesh.verify = 'cacerts.pem'
         
     @property
@@ -346,7 +340,7 @@ class AuthSesh:
             raise LocationError(request['err'])
 
         elif request['Code'] == 101:
-            self.__cert_adder(request['Public'], request['Private'], request['Server'])
+            self.__cert_adder(request['Server'])
 
 def Simple_Syntax():        
     from MaxMods import Menu
