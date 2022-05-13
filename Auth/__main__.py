@@ -252,8 +252,8 @@ class AuthSesh:
     def __cert_adder(self, public, private, server):
         with open('ca-public-key.pem', 'wb') as f:
             f.write(bytes(public.encode()))
-        with open('ca-private-key.pem', 'wb') as f:
-            f.write(bytes(private.encode()))
+        #with open('ca-private-key.pem', 'wb') as f:
+            #f.write(bytes(private.encode()))
         with open('cacerts.pem', 'wb') as f:
             f.write(bytes(server.encode()))
         self.__sesh = requests.Session()
