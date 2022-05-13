@@ -313,7 +313,7 @@ class AuthSesh:
     
     def __requestHandle(self, request):
         if request['Code'] == 200:
-            return True
+            return self
         
         elif request['Code'] == 202:
             return request['Data']
