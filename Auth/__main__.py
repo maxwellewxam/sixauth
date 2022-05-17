@@ -151,6 +151,42 @@ class AuthSesh:
                             db.session.commit()
                             return {'Code':200}
                         
+                    elif location == 'Delete':
+                        if data['Username'] == '':
+                            return {'Code':423}
+                        
+                        if data['Username'].isalnum() == False:
+                            return {'Code':423}
+                        
+                        fromdat = DataMod.query.filter_by(Username=data['Username']).first()
+                        if not fromdat:
+                            return {'Code':423}
+                        
+                        datPass = marshal(fromdat, passfields)['Password']
+                        userPass = hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest()
+                        if userPass == datPass:
+                            new = Decrypt(marshal(fromdat, datfields)['Data'], data['Username'], data['Password'])
+                            try:
+                                yes = jsonpath_ng.parse(data['Location'].replace('/', '.').replace(' ', '-').replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')).find(new)
+                                print(yes.full_path)
+                                new.pop(yes.path)
+                            except TypeError as err:
+                                if err == '\'str\' object does not support item assignment':
+                                    return {'Code':422, 'err': str(err)}
+                                else:
+                                    raise TypeError(err)
+
+                            except AttributeError as err:
+                                if err == '\'NoneType\' object has no attribute \'lineno\'':
+                                    return {'Code':422, 'err': str(err2)}
+                                else:
+                                    raise AttributeError(err)
+                            
+                            db.session.delete(fromdat)
+                            db.session.add(DataMod(Username=data['Username'], Password=hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt(new, data['Username'], data['Password'])))
+                            db.session.commit()
+                            return {'Code':200}
+
                         else:
                             return {'Code':423}
                         
@@ -287,6 +323,14 @@ class AuthSesh:
         '''
         return self.__requestHandle(self.__sesh.post(self.__Path+'Load', json={'Username':self.__Name, 'Password':self.__Pass, 'Location':Location}, verify=True).json())
     
+    def Delete(self, Location: str):
+        '''
+        Deletes data at specified location. Raises an exception if location doesn't exist.
+
+        Auth.Delete('Loc1/Loc2/Loc3') Deletes data in Loc1/Loc2/Loc3/
+        '''
+        return self.__requestHandle(self.__sesh.post(self.__Path+'Delete', json={'Username':self.__Name, 'Password':self.__Pass, 'Location':Location}, verify=True).json())
+
     def Login(self):
         '''
         Attempts to login with specified Auth.Name and Auth.Pass values
@@ -363,8 +407,17 @@ def Simple_Syntax():
                 self.Menu.remove_item(2)
                 self.Menu.add_item(2, 'Load', self.Load)
                 self.Menu.add_item(3, 'Save', self.Save)
+                self.Menu.add_item(4, 'Delete', self.Delete)
                 self.Menu.Title = f'Welcome {self.Auth.Name}'
             except AuthenticationError as err:
+                print(err)
+                input('Press enter')
+        def Delete(self):
+            Loc = str(input('From where: '))
+            try:
+                print(self.Auth.Delete(Loc))
+                input('Press enter')
+            except LocationError as err:
                 print(err)
                 input('Press enter')
         def Load(self):
@@ -388,6 +441,7 @@ def Simple_Syntax():
             self.Menu.update_item(1, 'Login', self.Login, 1)
             self.Menu.update_item(2, 'Signup', self.Login, 2)
             self.Menu.remove_item(3)
+            self.Menu.remove_item(4)
             self.Menu.Title = 'Auth Menu'
     menu = AuthMenu().MainMenu()
     menu.Run()
