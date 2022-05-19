@@ -15,8 +15,8 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.backends import default_backend
 from cryptography.fernet import Fernet
 
-class LocationError(Exception): ...
-class AuthenticationError(Exception): ...
+class LocationError(BaseException): ...
+class AuthenticationError(BaseException): ...
 class UsernameError(AuthenticationError): ...
 class PasswordError(AuthenticationError): ...
 
@@ -150,7 +150,10 @@ class AuthSesh:
                             db.session.add(DataMod(Username=data['Username'], Password=hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt(new, data['Username'], data['Password'])))
                             db.session.commit()
                             return {'Code':200}
-                        
+
+                        else:
+                            return {'Code':423}
+
                     elif location == 'Delete':
                         if data['Username'] == '':
                             return {'Code':423}
@@ -168,8 +171,7 @@ class AuthSesh:
                             new = Decrypt(marshal(fromdat, datfields)['Data'], data['Username'], data['Password'])
                             try:
                                 yes = jsonpath_ng.parse(data['Location'].replace('/', '.').replace(' ', '-').replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')).find(new)
-                                print(yes.full_path)
-                                new.pop(yes.path)
+                                del [match.context for match in yes][0].value[str([match.path for match in yes][0])]
                             except TypeError as err:
                                 if err == '\'str\' object does not support item assignment':
                                     return {'Code':422, 'err': str(err)}
@@ -178,9 +180,12 @@ class AuthSesh:
 
                             except AttributeError as err:
                                 if err == '\'NoneType\' object has no attribute \'lineno\'':
-                                    return {'Code':422, 'err': str(err2)}
+                                    return {'Code':422, 'err': str(err)}
                                 else:
                                     raise AttributeError(err)
+                            except IndexError as err:
+                                if str(err) == 'list index out of range':
+                                    return {'Code':416}
                             
                             db.session.delete(fromdat)
                             db.session.add(DataMod(Username=data['Username'], Password=hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt(new, data['Username'], data['Password'])))
@@ -415,10 +420,10 @@ def Simple_Syntax():
         def Delete(self):
             Loc = str(input('From where: '))
             try:
-                print(self.Auth.Delete(Loc))
+                self.Auth.Delete(Loc)
                 input('Press enter')
             except LocationError as err:
-                print(err)
+                raise err
                 input('Press enter')
         def Load(self):
             Loc = str(input('From where: '))
@@ -432,7 +437,7 @@ def Simple_Syntax():
             Loc = str(input('To where: '))
             Dat = str(input('What to save: '))
             try:
-                print(self.Auth.Save(Loc, Dat))
+                self.Auth.Save(Loc, Dat)
                 input('Press enter')
             except LocationError as err:
                 print(err)
