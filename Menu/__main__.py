@@ -1,5 +1,6 @@
 import os
-class CallerError(Exception): ...
+class CallerError(BaseException): ...
+class MenuException(BaseException): ...
 class Base:
     def __init__(self, Title = None, Class = None, Item = None, inText = 'Selection: '):
         '''
@@ -80,7 +81,7 @@ class Base:
                     return
             self.__Refresh()
             self.Run()
-        except Exception as err:
+        except MenuException as err:
             print(err)
             input()
             self.__Refresh()
