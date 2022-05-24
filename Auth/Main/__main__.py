@@ -131,20 +131,24 @@ class AuthSesh:
                         if userPass == datPass:
                             new = Decrypt(marshal(fromdat, datfields)['Data'], data['Username'], data['Password'])
                             try:
-                                jsonpath_ng.parse(data['Location'].replace('/', '.').replace(' ', '-').replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')).update_or_create(new, data['Data'])
+                                hmm = jjson.loads(data['Data'])
+                                jsonpath_ng.parse(data['Location'].replace('/', '.').replace(' ', '-').replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')).update_or_create(new, hmm)
+                            except:
+                                try:
+                                    jsonpath_ng.parse(data['Location'].replace('/', '.').replace(' ', '-').replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')).update_or_create(new, data['Data'])
+                                    
+                                except TypeError as err:
+                                    raise TypeError(err)
                                 
-                            except TypeError as err:
-                                if err == '\'str\' object does not support item assignment':
-                                    return {'Code':422, 'err': str(err)}
-                            
-                            except AttributeError as err:
-                                if str(err) == '\'NoneType\' object has no attribute \'lineno\'':
-                                    try:
-                                        new = jjson.loads(data['Data'])
-                                    except Exception as err2:
-                                        return {'Code':422, 'err': str(err2)}
-                                else:
-                                    raise AttributeError(err)
+                                except AttributeError as err:
+                                    if str(err) == '\'NoneType\' object has no attribute \'lineno\'':
+                                        try:
+                                            new = jjson.loads(data['Data'])
+                                        except Exception as err2:
+                                            return {'Code':422, 'err':'No location specified or data was not a dict'}
+
+                                    else:
+                                        raise AttributeError(err)
                             
                             db.session.delete(fromdat)
                             db.session.add(DataMod(Username=data['Username'], Password=hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt(new, data['Username'], data['Password'])))
@@ -173,15 +177,9 @@ class AuthSesh:
                                 yes = jsonpath_ng.parse(data['Location'].replace('/', '.').replace(' ', '-').replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')).find(new)
                                 del [match.context for match in yes][0].value[str([match.path for match in yes][0])]
                             except TypeError as err:
-                                if err == '\'str\' object does not support item assignment':
-                                    return {'Code':422, 'err': str(err)}
-                                else:
                                     raise TypeError(err)
 
                             except AttributeError as err:
-                                if err == '\'NoneType\' object has no attribute \'lineno\'':
-                                    return {'Code':422, 'err': str(err)}
-                                else:
                                     raise AttributeError(err)
                             except IndexError as err:
                                 if str(err) == 'list index out of range':
@@ -313,12 +311,16 @@ class AuthSesh:
     
     def Save(self, Location: str, Data):
         '''
-        Saves specified data to specified location. Creates location if it doesn't exist
+        Saves data to the specified location. Creates location if it doesn't exist
 
-        Auth.Save('Loc1/Loc2/Loc3', Data1) Saves Data1 to Loc1/Loc2/Loc3/
+        If no location is specified and the data is a Dict, it will replace everythin with the Dict
+
+        rasies LocationError if it fails
+
+        Auth.Save('Loc1/Loc2/Loc3', 'Data') 
         '''
-        if type(Data) == dict:
-            Data = jjson.dumps(Data) 
+        # if type(Data) == dict:
+        #     Data = jjson.dumps(Data) 
         return self.__requestHandle(self.__sesh.post(self.__Path+'Save', json={'Username':self.__Name, 'Password':self.__Pass, 'Location':Location, 'Data':Data}, verify=True).json())
     def Load(self, Location: str):
         '''

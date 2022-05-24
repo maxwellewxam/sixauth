@@ -51,6 +51,7 @@ class Base:
         
         Handles all exceptions and prints them to screen
         '''
+        self.__Refresh()
         text = f'{self.Title}\n'
         self.Item.sort(key=lambda x:x[0])
         for i, item in enumerate(self.Item):
@@ -79,12 +80,10 @@ class Base:
                         return
                 elif '' == choice and Caller == 1:
                     return
-            self.__Refresh()
             self.Run()
         except MenuException as err:
             print(err)
             input()
-            self.__Refresh()
             self.Run()
 class basicMenu(Base):
     def __init__(self, Title: str):
