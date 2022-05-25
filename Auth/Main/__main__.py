@@ -301,7 +301,7 @@ class AuthSesh:
     def Name(self):
         return self.__Name
     
-    def get_vals(self, Name: str, Pass:str):
+    def set_vals(self, Name: str, Pass:str):
         '''
         Sets the desired username and password 
         '''
