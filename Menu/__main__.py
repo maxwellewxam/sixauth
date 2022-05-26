@@ -49,7 +49,7 @@ class Base:
         '''
         Creates the menu and Runs it
         
-        Handles all exceptions and prints them to screen
+        Handles Menu exceptions and prints them to screen
         '''
         self.__Refresh()
         text = f'{self.Title}\n'
@@ -97,7 +97,7 @@ class basicMenu(Base):
         '''
         Adds an item to the menu at the specified Caller
         
-        Raises an exception if the position is already occupied
+        Raises an exception if the Caller is already occupied
         '''
         super().add_item(Caller, Text, Func, *args, **kwargs)
     def update_item(self, Caller: int, Text: str, Func: object, *args, **kwargs):
@@ -142,7 +142,8 @@ class infoMenu(Base):
         
         Handles all exceptions and prints them to screen
         '''
-        super().Run(Caller=1, inText='Enter to Continue')
+        self.inText='Enter to Continue'
+        super().Run(Caller=1)
 class settingsMenu(Base):
     def __init__(self, Title: str, Class: object):
         '''
