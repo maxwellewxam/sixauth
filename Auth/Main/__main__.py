@@ -1,19 +1,6 @@
 '''An all-in-one user authenticator and data manager'''
-import requests
-import hashlib
-import jsonpath_ng
-import os
-import json as jjson
-import base64
-import warnings
 
-from flask_sqlalchemy import SQLAlchemy
-from flask import Flask
-from flask_restful import fields, marshal
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.backends import default_backend
-from cryptography.fernet import Fernet
+from MaxMods.Imports.AuthImports import *
 
 class LocationError(BaseException): ...
 class AuthenticationError(BaseException): ...
@@ -404,7 +391,7 @@ def Simple_Syntax():
         def Login(self, val):
             Name = str(input('Username: '))
             Pass = str(input('Password: '))
-            self.Auth = AuthSesh().get_vals(Name, Pass)
+            self.Auth = AuthSesh().set_vals(Name, Pass)
             try:
                 if val == 1:
                     self.Auth.Login()
