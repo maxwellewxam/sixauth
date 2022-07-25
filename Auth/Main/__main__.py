@@ -391,7 +391,7 @@ def Simple_Syntax():
         def Login(self, val):
             Name = str(input('Username: '))
             Pass = str(input('Password: '))
-            self.Auth = AuthSesh().set_vals(Name, Pass)
+            self.Auth = AuthSesh('https://ldums.com:5678/').set_vals(Name, Pass)
             try:
                 if val == 1:
                     self.Auth.Login()
@@ -401,7 +401,7 @@ def Simple_Syntax():
                 self.Menu.remove_item(2)
                 self.Menu.add_item(2, 'Load', self.Load)
                 self.Menu.add_item(3, 'Save', self.Save)
-                self.Menu.add_item(4, 'Delete', self.Delete)
+                #self.Menu.add_item(4, 'Delete', self.Delete)
                 self.Menu.Title = f'Welcome {self.Auth.Name}'
             except AuthenticationError as err:
                 print(err)
