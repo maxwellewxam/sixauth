@@ -107,13 +107,7 @@ class basicMenu(Base):
         Raises an exception if the Caller does not exist
         '''
         super().update_item(Caller, Text, Func, *args, **kwargs)
-    def Run(self):
-        '''
-        Creates the menu and Runs it
         
-        Handles all exceptions and prints them to screen
-        '''
-        super().Run()
 class infoMenu(Base):
     def __init__(self, Title: str, Class: object):
         '''
