@@ -13,18 +13,24 @@ class AuthSesh:
     
     AuthSesh() connects to database internally
     
-    AuthSesh(Path) connects to backend Auth server at address in path
+    AuthSesh(Address) connects to backend Auth server at address in path
+
+    AuthSesh(Path) connects to database internally to database at Path location
 
     repr(AuthSesh) returns the current username
     '''
     
-    def __init__(self, Path: str = None, HandshakeData = None):
+    def __init__(self, Address: str = None, Path: str = None, HandshakeData = None):
         self.__Path = Path
-        if self.__Path == None:
+        self.__Address = Address
+        if self.__Address == None:
             
             self.__Path = ''
             app = Flask(__name__)
-            app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.getcwd()}/database.db'
+            if self.__Path == None:
+                app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.getcwd()}/database.db'
+            else:
+                app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{self.__Path}/database.db'
             app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
             db = SQLAlchemy(app)
 
@@ -92,14 +98,19 @@ class AuthSesh:
                         if data['Username'].isalnum() == False:
                             return {'Code':406}
                         
-                        fromdat = DataMod.query.filter_by(Username=data['Username']).first()
+                        with app.app_context():
+                            fromdat = DataMod.query.filter_by(Username=data['Username']).first()
+                        
                         if fromdat:
                             return {'Code':409}
                         
                         else:
-                            inf = DataMod(Username=data['Username'], Password=hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt({}, data['Username'], data['Password']))
-                            db.session.add(inf)
-                            db.session.commit()
+                            
+                            with app.app_context():
+                                inf = DataMod(Username=data['Username'], Password=hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt({}, data['Username'], data['Password']))
+                                db.session.add(inf)
+                                db.session.commit()
+                            
                             return {'Code':200}
                         
                     elif location == 'Save':
@@ -109,7 +120,9 @@ class AuthSesh:
                         if data['Username'].isalnum() == False:
                             return {'Code':423}
                         
-                        fromdat = DataMod.query.filter_by(Username=data['Username']).first()
+                        with app.app_context():
+                            fromdat = DataMod.query.filter_by(Username=data['Username']).first()
+                        
                         if not fromdat:
                             return {'Code':423}
                         
@@ -152,12 +165,15 @@ class AuthSesh:
                         if data['Username'].isalnum() == False:
                             return {'Code':423}
                         
-                        fromdat = DataMod.query.filter_by(Username=data['Username']).first()
+                        with app.app_context():
+                            fromdat = DataMod.query.filter_by(Username=data['Username']).first()
+                        
                         if not fromdat:
                             return {'Code':423}
                         
                         datPass = marshal(fromdat, passfields)['Password']
                         userPass = hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest()
+                        
                         if userPass == datPass:
                             new = Decrypt(marshal(fromdat, datfields)['Data'], data['Username'], data['Password'])
                             try:
@@ -172,9 +188,11 @@ class AuthSesh:
                                 if str(err) == 'list index out of range':
                                     return {'Code':416}
                             
-                            db.session.delete(fromdat)
-                            db.session.add(DataMod(Username=data['Username'], Password=hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt(new, data['Username'], data['Password'])))
-                            db.session.commit()
+                            with app.app_context():
+                                db.session.delete(fromdat)
+                                db.session.add(DataMod(Username=data['Username'], Password=hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt(new, data['Username'], data['Password'])))
+                                db.session.commit()
+                            
                             return {'Code':200}
 
                         else:
@@ -186,17 +204,24 @@ class AuthSesh:
                     elif location == 'Remove':
                         if data['Username'] == '':
                             return {'Code':423}
+                        
                         if data['Username'].isalnum() == False:
                             return {'Code':423}
-                        fromdat = DataMod.query.filter_by(Username=data['Username']).first()
+                        
+                        with app.app_context():
+                            fromdat = DataMod.query.filter_by(Username=data['Username']).first()
+                        
                         if not fromdat:
                             return {'Code':423}
+                        
                         datPass = marshal(fromdat, passfields)['Password']
                         userPass = hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest()
+                        
                         if userPass == datPass:
                             db.session.delete(fromdat)
                             db.session.commit()
                             return {'Code':200}
+                        
                         else:
                             return {'Code':423}
                     
@@ -206,6 +231,7 @@ class AuthSesh:
                         
                         if data['Username'].isalnum() == False:
                             return {'Code':406}
+                        
                         with app.app_context():
                             fromdat = DataMod.query.filter_by(Username=data['Username']).first()
                     
@@ -214,6 +240,7 @@ class AuthSesh:
                         
                         datPass = marshal(fromdat, passfields)['Password']
                         userPass = hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest()
+                        
                         if userPass == datPass:
                             return {'Code':200}
                         
@@ -227,12 +254,15 @@ class AuthSesh:
                         if data['Username'].isalnum() == False:
                             return {'Code':423}
                         
-                        fromdat = DataMod.query.filter_by(Username=data['Username']).first()
+                        with app.app_context():
+                            fromdat = DataMod.query.filter_by(Username=data['Username']).first()
+                        
                         if not fromdat:
                             return {'Code':423}
                         
                         datPass = marshal(fromdat, passfields)['Password']
                         userPass = hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest()
+                        
                         if userPass == datPass:
                             farter = Decrypt(marshal(fromdat, datfields)['Data'], data['Username'], data['Password'])
                             try:
@@ -262,7 +292,7 @@ class AuthSesh:
             self.__sesh = datHandle()
         else:
             self.__sesh = requests.Session()
-            
+            self.__Path = self.__Address
         try:
             warnings.filterwarnings('ignore')
             self.__requestHandle(self.__sesh.post(self.__Path + 'Greet', HandshakeData, verify=False).json())
@@ -271,7 +301,7 @@ class AuthSesh:
             raise LocationError('Couldn\'t connect to backend server\nMessage:\n' + str(err))
 
     def __repr__(self):
-        return f'AuthSesh({self.__Path}).get_vals({self.__Name}, {self.__Pass})'
+        return f'AuthSesh({self.__Path}).set_vals({self.__Name}, {self.__Pass})'
     
     def __del__(self, HandshakeData = None):
         self.__sesh.post(self.__Path+'Leave', HandshakeData, verify=True).json()
@@ -392,7 +422,7 @@ def Simple_Syntax():
         def Login(self, val):
             Name = str(input('Username: '))
             Pass = str(input('Password: '))
-            self.Auth = AuthSesh().set_vals(Name, Pass)
+            self.Auth = AuthSesh(Path='https://127.0.0.1:5678/').set_vals(Name, Pass)
             try:
                 if val == 1:
                     self.Auth.Login()
@@ -438,6 +468,7 @@ def Simple_Syntax():
             self.Menu.remove_item(3)
             self.Menu.remove_item(4)
             self.Menu.Title = 'Auth Menu'
+            del(self.Auth)
     menu = AuthMenu().MainMenu()
     menu.Run()
     

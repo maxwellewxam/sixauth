@@ -14,7 +14,7 @@ import json
 
 app = Flask(__name__)
 api = Api(app)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.getcwd()}/database.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
@@ -54,7 +54,8 @@ class DataMod(db.Model):
         self.Data = Data
 
 if os.path.isfile('database.db') is False:
-    db.create_all()
+    with app.app_context():
+        db.create_all()
 
 Dataargs = reqparse.RequestParser()
 Dataargs.add_argument('Location', type=str)
@@ -149,6 +150,7 @@ class Remove(Resource):
         userPass = hashlib.sha512((Args['Password'] + Args['Username']).encode("UTF-8")).hexdigest()
         if userPass == datPass:
             db.session.delete(fromdat)
+            
             db.session.commit()
             return {'Code':200}
         else:
@@ -171,7 +173,7 @@ class Login(Resource):
             return {'Code':200}
         else:
             return {'Code':401}
-         
+        
 class Signup(Resource):
 
     def post(slef):#signup
@@ -201,6 +203,49 @@ class Leave(Resource):
     def post(self):#goodbyes
         return {'Code':200}
 
+class Delete(Resource):
+    
+    def post(self):
+        Args = Auth1.parse_args()
+        DataArgs = Dataargs.parse_args()
+        if Args['Username'] == '':
+            return {'Code':423}
+
+        if Args['Username'].isalnum() == False:
+            return {'Code':423}
+        
+        with app.app_context():
+            fromdat = DataMod.query.filter_by(Username=Args['Username']).first()
+        
+        if not fromdat:
+            return {'Code':423}
+        
+        datPass = marshal(fromdat, passfields)['Password']
+        userPass = hashlib.sha512((Args['Password'] + Args['Username']).encode("UTF-8")).hexdigest()
+        
+        if userPass == datPass:
+            new = Decrypt(marshal(fromdat, datfields)['Data'], Args['Username'], Args['Password'])
+            try:
+                yes = jsonpath_ng.parse(DataArgs['Location'].replace('/', '.').replace(' ', '-').replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')).find(new)
+                del [match.context for match in yes][0].value[str([match.path for match in yes][0])]
+            except TypeError as err:
+                    raise TypeError(err)
+
+            except AttributeError as err:
+                    raise AttributeError(err)
+            except IndexError as err:
+                if str(err) == 'list index out of range':
+                    return {'Code':416}
+            
+            with app.app_context():
+                db.session.delete(fromdat)
+                db.session.add(DataMod(Username=Args['Username'], Password=hashlib.sha512((Args['Password'] + Args['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt(new, Args['Username'], Args['Password'])))
+                db.session.commit()
+            return {'Code':200}
+
+        else:
+            return {'Code':423}
+
 api.add_resource(Login, '/Login')
 api.add_resource(Signup, '/Signup')
 api.add_resource(Greet, '/Greet')
@@ -208,10 +253,12 @@ api.add_resource(Leave, '/Leave')
 api.add_resource(Load, '/Load')
 api.add_resource(Save, '/Save')
 api.add_resource(Remove, '/Remove')
+api.add_resource(Delete, '/Delete')
 
-if __name__ == '__main__':
-    if not os.path.isfile('server-public-key.pem') or not os.path.isfile('server-private-key.pem'):
-        import __cert_maker__
-    app.run(host='0.0.0.0', port=5678, ssl_context=('server-public-key.pem', 'server-private-key.pem'))
+class RunServer:
+    def __init__(self, host = None, port = None):
+        if not os.path.isfile('server-public-key.pem') or not os.path.isfile('server-private-key.pem'):
+            from MaxMods.Auth.AuthBackend import __cert_maker__
+        app.run(host=host, port=port, ssl_context=('server-public-key.pem', 'server-private-key.pem'))
 
 print('closed')
