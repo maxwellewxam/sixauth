@@ -68,9 +68,21 @@ class AuthSesh:
                     self.Username = Username
                     self.Password = Password
                     self.Data = Data
-                    
-            if os.path.isfile('database.db') is False:
+            
+            # if self.__Path == None:        
+            #     if os.path.isfile(f'{os.getcwd()}/database.db') is False:
+            #         with app.app_context():
+            #             db.create_all()
+            #             db.session.commit()
+            # else:
+            #     if os.path.isfile(f'{self.__Path}/database.db') is False:
+            #         with app.app_context():
+            #             db.create_all()
+            #             db.session.commit()
+            
+            with app.app_context():
                 db.create_all()
+                db.session.commit()
                 
             datfields = {'Data': fields.Raw}
             passfields = {'Password': fields.String}
@@ -337,8 +349,6 @@ class AuthSesh:
 
         Auth.Save('Loc1/Loc2/Loc3', 'Data') 
         '''
-        # if type(Data) == dict:
-        #     Data = jjson.dumps(Data) 
         return self.__requestHandle(self.__sesh.post(self.__Path+'Save', json={'Username':self.__Name, 'Password':self.__Pass, 'Location':Location, 'Data':Data}, verify=True).json())
     def Load(self, Location: str):
         '''
@@ -422,7 +432,7 @@ def Simple_Syntax():
         def Login(self, val):
             Name = str(input('Username: '))
             Pass = str(input('Password: '))
-            self.Auth = AuthSesh(Path='https://127.0.0.1:5678/').set_vals(Name, Pass)
+            self.Auth = AuthSesh(Address='https://ldums.com:5678/').set_vals(Name, Pass)
             try:
                 if val == 1:
                     self.Auth.Login()
