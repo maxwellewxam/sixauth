@@ -25,7 +25,6 @@ class AuthSesh:
         self.__Address = Address
         if self.__Address == None:
             
-            self.__Path = ''
             app = Flask(__name__)
             if self.__Path == None:
                 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.getcwd()}/database.db'
@@ -69,20 +68,15 @@ class AuthSesh:
                     self.Password = Password
                     self.Data = Data
             
-            # if self.__Path == None:        
-            #     if os.path.isfile(f'{os.getcwd()}/database.db') is False:
-            #         with app.app_context():
-            #             db.create_all()
-            #             db.session.commit()
-            # else:
-            #     if os.path.isfile(f'{self.__Path}/database.db') is False:
-            #         with app.app_context():
-            #             db.create_all()
-            #             db.session.commit()
-            
-            with app.app_context():
-                db.create_all()
-                db.session.commit()
+            if self.__Path == None:        
+                if os.path.isfile(f'{os.getcwd()}/database.db') is False:
+                    with app.app_context():
+                        db.create_all()
+
+            else:
+                if os.path.isfile(f'{self.__Path}/database.db') is False:
+                    with app.app_context():
+                        db.create_all()
                 
             datfields = {'Data': fields.Raw}
             passfields = {'Password': fields.String}
@@ -302,6 +296,7 @@ class AuthSesh:
                         return {'Code':200}
                 
             self.__sesh = datHandle()
+            self.__Path = ''
         else:
             self.__sesh = requests.Session()
             self.__Path = self.__Address
