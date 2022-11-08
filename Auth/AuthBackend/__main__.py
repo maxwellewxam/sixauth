@@ -46,7 +46,7 @@ def Decrypt(Data, password, username):
 class DataMod(db.Model):
     Username = db.Column(db.String, nullable=False, primary_key = True)
     Password = db.Column(db.String, nullable=False)
-    Data = db.Column(db.JSON)
+    Data = db.Column(db.String)
 
     def __init__(self, Username, Password, Data):
         self.Username = Username
@@ -260,5 +260,6 @@ class RunServer:
         if not os.path.isfile('server-public-key.pem') or not os.path.isfile('server-private-key.pem'):
             from MaxMods.Auth.AuthBackend import __cert_maker__
         app.run(host=host, port=port, ssl_context=('server-public-key.pem', 'server-private-key.pem'))
-
+if __name__ == '__main__':
+    RunServer('0.0.0.0', 5678)
 print('closed')

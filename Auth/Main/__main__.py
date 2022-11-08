@@ -61,7 +61,8 @@ class AuthSesh:
             class DataMod(db.Model):
                 Username = db.Column(db.String, nullable=False, primary_key = True)
                 Password = db.Column(db.String, nullable=False)
-                Data = db.Column(db.JSON)
+                #Data = db.Column(db.JSON)
+                Data = db.Column(db.String)
 
                 def __init__(self, Username, Password, Data):
                     self.Username = Username
@@ -155,10 +156,10 @@ class AuthSesh:
 
                                     else:
                                         raise AttributeError(err)
-                            
-                            db.session.delete(fromdat)
-                            db.session.add(DataMod(Username=data['Username'], Password=hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt(new, data['Username'], data['Password'])))
-                            db.session.commit()
+                            with app.app_context():
+                                db.session.delete(fromdat)
+                                db.session.add(DataMod(Username=data['Username'], Password=hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt(new, data['Username'], data['Password'])))
+                                db.session.commit()
                             return {'Code':200}
 
                         else:
@@ -224,8 +225,9 @@ class AuthSesh:
                         userPass = hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest()
                         
                         if userPass == datPass:
-                            db.session.delete(fromdat)
-                            db.session.commit()
+                            with app.app_context():
+                                db.session.delete(fromdat)
+                                db.session.commit()
                             return {'Code':200}
                         
                         else:
@@ -427,7 +429,7 @@ def Simple_Syntax():
         def Login(self, val):
             Name = str(input('Username: '))
             Pass = str(input('Password: '))
-            self.Auth = AuthSesh(Address='https://ldums.com:5678/').set_vals(Name, Pass)
+            self.Auth = AuthSesh().set_vals(Name, Pass)
             try:
                 if val == 1:
                     self.Auth.Login()
