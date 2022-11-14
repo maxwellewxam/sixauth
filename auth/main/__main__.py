@@ -418,7 +418,7 @@ class AuthSesh:
             self.__cert_adder(request['Server'])
 
 def simple_syntax():        
-    from MaxMods import menu as Menu
+    from maxmods import menu as Menu
     class AuthMenu:
         def MainMenu(self):
             self.Menu = Menu.BasicMenu('Auth Menu')
