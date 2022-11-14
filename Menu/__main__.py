@@ -45,7 +45,7 @@ class Base:
         raise CallerError('Defined Caller does not exist')
     def __Refresh(self):
         os.system('cls')
-    def Run(self, Caller = 0):
+    def run(self, Caller = 0):
         '''
         Creates the menu and Runs it
         
@@ -85,7 +85,7 @@ class Base:
             print(err)
             input()
             self.Run()
-class basicMenu(Base):
+class BasicMenu(Base):
     def __init__(self, Title: str):
         '''
         Creates a menu object
@@ -108,7 +108,7 @@ class basicMenu(Base):
         '''
         super().update_item(Caller, Text, Func, *args, **kwargs)
         
-class infoMenu(Base):
+class InfoMenu(Base):
     def __init__(self, Title: str, Class: object):
         '''
         Creates a menu object that does not except a user input
@@ -130,7 +130,7 @@ class infoMenu(Base):
         Raises an exception if the Caller does not exist
         '''
         super().update_item(Caller, Text, Attr)
-    def Run(self):
+    def run(self):
         '''
         Creates the menu and Runs it
         
@@ -138,7 +138,7 @@ class infoMenu(Base):
         '''
         self.inText='Enter to Continue'
         super().Run(Caller=1)
-class settingsMenu(Base):
+class SettingsMenu(Base):
     def __init__(self, Title: str, Class: object):
         '''
         Creats a menu object
@@ -160,7 +160,7 @@ class settingsMenu(Base):
         Raises an exception if the Caller does not exist
         '''
         super().update_item(Caller, Text, self.__ChangeVal, Attr)
-    def Run(self):
+    def run(self):
         '''
         Creates the menu and Runs it
         

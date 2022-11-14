@@ -1,6 +1,6 @@
 '''An all-in-one user authenticator and data manager'''
 
-from MaxMods.Imports.AuthImports import *
+from MaxMods.imports.authimports import *
 
 class LocationError(BaseException): ...
 class AuthenticationError(BaseException): ...
@@ -61,7 +61,6 @@ class AuthSesh:
             class DataMod(db.Model):
                 Username = db.Column(db.String, nullable=False, primary_key = True)
                 Password = db.Column(db.String, nullable=False)
-                #Data = db.Column(db.JSON)
                 Data = db.Column(db.String)
 
                 def __init__(self, Username, Password, Data):
@@ -336,7 +335,7 @@ class AuthSesh:
         self.__Pass = Pass
         return self
     
-    def Save(self, Location: str, Data):
+    def save(self, Location: str, Data):
         '''
         Saves data to the specified location. Creates location if it doesn't exist
 
@@ -347,7 +346,7 @@ class AuthSesh:
         Auth.Save('Loc1/Loc2/Loc3', 'Data') 
         '''
         return self.__requestHandle(self.__sesh.post(self.__Path+'Save', json={'Username':self.__Name, 'Password':self.__Pass, 'Location':Location, 'Data':Data}, verify=True).json())
-    def Load(self, Location: str):
+    def load(self, Location: str):
         '''
         Loads data at specified location. Raises an exception if location doesn't exist
 
@@ -355,7 +354,7 @@ class AuthSesh:
         '''
         return self.__requestHandle(self.__sesh.post(self.__Path+'Load', json={'Username':self.__Name, 'Password':self.__Pass, 'Location':Location}, verify=True).json())
     
-    def Delete(self, Location: str):
+    def delete(self, Location: str):
         '''
         Deletes data at specified location. Raises an exception if location doesn't exist.
 
@@ -363,7 +362,7 @@ class AuthSesh:
         '''
         return self.__requestHandle(self.__sesh.post(self.__Path+'Delete', json={'Username':self.__Name, 'Password':self.__Pass, 'Location':Location}, verify=True).json())
 
-    def Login(self):
+    def login(self):
         '''
         Attempts to login with specified Auth.Name and Auth.Pass values
         
@@ -371,7 +370,7 @@ class AuthSesh:
         '''
         return self.__requestHandle(self.__sesh.post(self.__Path+'Login', json={'Username':self.__Name, 'Password':self.__Pass}, verify=True).json())
         
-    def Signup(self):
+    def signup(self):
         '''
         Attempts to signup with specified Auth.Name and Auth.Pass values
         
@@ -379,7 +378,7 @@ class AuthSesh:
         '''
         return self.__requestHandle(self.__sesh.post(self.__Path+'Signup', json={'Username':self.__Name, 'Password':self.__Pass}, verify=True).json())
     
-    def Remove_User(self):
+    def remove_User(self):
         '''
         Attempts to remove the user with specified Auth.Name and Auth.Pass values
         
@@ -418,11 +417,11 @@ class AuthSesh:
         elif request['Code'] == 101:
             self.__cert_adder(request['Server'])
 
-def Simple_Syntax():        
+def simple_syntax():        
     from MaxMods import Menu
     class AuthMenu:
         def MainMenu(self):
-            self.Menu = Menu.basicMenu('Auth Menu')
+            self.Menu = Menu.BasicMenu('Auth Menu')
             self.Menu.add_item(1, 'Login', self.Login, 1)
             self.Menu.add_item(2, 'Signup', self.Login, 2)
             return self.Menu
@@ -447,7 +446,7 @@ def Simple_Syntax():
         def Delete(self):
             Loc = str(input('From where: '))
             try:
-                self.Auth.Delete(Loc)
+                self.Auth.delete(Loc)
                 input('Press enter')
             except LocationError as err:
                 raise err
@@ -455,7 +454,7 @@ def Simple_Syntax():
         def Load(self):
             Loc = str(input('From where: '))
             try:
-                print(self.Auth.Load(Loc))
+                print(self.Auth.load(Loc))
                 input('Press enter')
             except LocationError as err:
                 print(err)
@@ -464,7 +463,7 @@ def Simple_Syntax():
             Loc = str(input('To where: '))
             Dat = str(input('What to save: '))
             try:
-                self.Auth.Save(Loc, Dat)
+                self.Auth.save(Loc, Dat)
                 input('Press enter')
             except LocationError as err:
                 print(err)
@@ -477,7 +476,7 @@ def Simple_Syntax():
             self.Menu.Title = 'Auth Menu'
             del(self.Auth)
     menu = AuthMenu().MainMenu()
-    menu.Run()
+    menu.run()
     
 if __name__ == '__main__':
-    Simple_Syntax()
+    simple_syntax()

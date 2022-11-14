@@ -1,6 +1,0 @@
-requests
-jsonpath-ng
-flask
-flask-sqlalchemy
-flask-restful
-cryptography
