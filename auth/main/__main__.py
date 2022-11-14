@@ -1,6 +1,6 @@
 '''An all-in-one user authenticator and data manager'''
 
-from MaxMods.imports.authimports import *
+from maxmods.imports.authimports import *
 
 class LocationError(BaseException): ...
 class AuthenticationError(BaseException): ...
@@ -418,7 +418,7 @@ class AuthSesh:
             self.__cert_adder(request['Server'])
 
 def simple_syntax():        
-    from MaxMods import Menu
+    from MaxMods import menu as Menu
     class AuthMenu:
         def MainMenu(self):
             self.Menu = Menu.BasicMenu('Auth Menu')

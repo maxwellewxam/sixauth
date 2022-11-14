@@ -255,11 +255,11 @@ api.add_resource(Save, '/Save')
 api.add_resource(Remove, '/Remove')
 api.add_resource(Delete, '/Delete')
 
-class RunServer:
-    def __init__(self, host = None, port = None):
-        if not os.path.isfile('server-public-key.pem') or not os.path.isfile('server-private-key.pem'):
-            from MaxMods.Auth.AuthBackend import __cert_maker__
-        app.run(host=host, port=port, ssl_context=('server-public-key.pem', 'server-private-key.pem'))
+
+def start_server(self, host = None, port = None):
+    if not os.path.isfile('server-public-key.pem') or not os.path.isfile('server-private-key.pem'):
+        from . import __cert_maker__
+    app.run(host=host, port=port, ssl_context=('server-public-key.pem', 'server-private-key.pem'))
 if __name__ == '__main__':
-    RunServer('0.0.0.0', 5678)
+    start_server('0.0.0.0', 5678)
 print('closed')
