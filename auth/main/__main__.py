@@ -151,7 +151,9 @@ class AuthSesh:
                                         try:
                                             new = jjson.loads(data['Data'])
                                         except Exception as err2:
+                                            raise err2
                                             return {'Code':422, 'err':'No location specified or data was not a dict'}
+                                            
 
                                     else:
                                         raise AttributeError(err)
@@ -345,6 +347,8 @@ class AuthSesh:
 
         Auth.Save('Loc1/Loc2/Loc3', 'Data') 
         '''
+        Data = jjson.dumps(Data)
+        
         return self.__requestHandle(self.__sesh.post(self.__Path+'Save', json={'Username':self.__Name, 'Password':self.__Pass, 'Location':Location, 'Data':Data}, verify=True).json())
     def load(self, Location: str):
         '''
@@ -378,7 +382,7 @@ class AuthSesh:
         '''
         return self.__requestHandle(self.__sesh.post(self.__Path+'Signup', json={'Username':self.__Name, 'Password':self.__Pass}, verify=True).json())
     
-    def remove_User(self):
+    def remove(self):
         '''
         Attempts to remove the user with specified Auth.Name and Auth.Pass values
         

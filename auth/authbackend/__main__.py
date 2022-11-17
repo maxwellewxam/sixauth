@@ -256,9 +256,9 @@ api.add_resource(Remove, '/Remove')
 api.add_resource(Delete, '/Delete')
 
 
-def start_server(self, host = None, port = None):
+def start_server(host = None, port = None):
     if not os.path.isfile('server-public-key.pem') or not os.path.isfile('server-private-key.pem'):
-        from . import __cert_maker__
+        from maxmods.auth.authbackend import __cert_maker__
     app.run(host=host, port=port, ssl_context=('server-public-key.pem', 'server-private-key.pem'))
 if __name__ == '__main__':
     start_server('0.0.0.0', 5678)
