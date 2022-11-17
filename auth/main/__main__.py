@@ -139,24 +139,20 @@ class AuthSesh:
                             try:
                                 hmm = jjson.loads(data['Data'])
                                 jsonpath_ng.parse(data['Location'].replace('/', '.').replace(' ', '-').replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')).update_or_create(new, hmm)
-                            except:
-                                try:
-                                    jsonpath_ng.parse(data['Location'].replace('/', '.').replace(' ', '-').replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')).update_or_create(new, data['Data'])
+   
+                            except TypeError as err:
+                                raise TypeError(err)
+                            
+                            except AttributeError as err:
+                                if str(err) == '\'NoneType\' object has no attribute \'lineno\'':
+                                    try:
+                                        new = jjson.loads(data['Data'])
                                     
-                                except TypeError as err:
-                                    raise TypeError(err)
-                                
-                                except AttributeError as err:
-                                    if str(err) == '\'NoneType\' object has no attribute \'lineno\'':
-                                        try:
-                                            new = jjson.loads(data['Data'])
-                                        except Exception as err2:
-                                            raise err2
-                                            return {'Code':422, 'err':'No location specified or data was not a dict'}
-                                            
-
-                                    else:
-                                        raise AttributeError(err)
+                                    except Exception as err2:
+                                        return {'Code':422, 'err':'No location specified or data was not a dict'}
+                                        
+                                else:
+                                    raise AttributeError(err)
                             with app.app_context():
                                 db.session.delete(fromdat)
                                 db.session.add(DataMod(Username=data['Username'], Password=hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt(new, data['Username'], data['Password'])))

@@ -115,7 +115,8 @@ class Save(Resource):
         if userPass == datPass:
             new = Decrypt(marshal(fromdat, datfields)['Data'], Args['Username'], Args['Password'])
             try:
-                jsonpath_ng.parse(DataArgs['Location'].replace('/', '.').replace(' ', '-').replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')).update_or_create(new, DataArgs['Data'])
+                hmm = json.loads(DataArgs['Data'])
+                jsonpath_ng.parse(DataArgs['Location'].replace('/', '.').replace(' ', '-').replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')).update_or_create(new, hmm)
             except TypeError as err:
                 return {'Code':422, 'err': str(err)}
             except AttributeError as err:
@@ -258,7 +259,7 @@ api.add_resource(Delete, '/Delete')
 
 def start_server(host = None, port = None):
     if not os.path.isfile('server-public-key.pem') or not os.path.isfile('server-private-key.pem'):
-        from maxmods.auth.authbackend import __cert_maker__
+        from maxmods.auth.auth_backend import __cert_maker__
     app.run(host=host, port=port, ssl_context=('server-public-key.pem', 'server-private-key.pem'))
 if __name__ == '__main__':
     start_server('0.0.0.0', 5678)

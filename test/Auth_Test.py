@@ -89,14 +89,14 @@ class testAuth(unittest.TestCase):
         the_exception = cm.exception
         self.assertEqual(str(the_exception), 'Invalid username')
     
-    def test_213_login_server_side_bad_pass(self):
-        self.user2.set_vals('max', 'test')
+    def test_221_login_server_side_bad_pass(self):
+        self.user2.set_vals('test', 'max')
         with self.assertRaises(AuthenticationError) as cm:
             self.user2.login()
         the_exception = cm.exception
         self.assertEqual(str(the_exception), 'Incorrect password')
     
-    def test_221_signup_server_side_success(self):
+    def test_213_signup_server_side_success(self):
         self.user2.set_vals('test', 'test')
         self.assertTrue(self.user2.signup())
     
