@@ -346,7 +346,7 @@ class AuthSesh:
         Data = jjson.dumps(Data)
         
         return self.__requestHandle(self.__sesh.post(self.__Path+'Save', json={'Username':self.__Name, 'Password':self.__Pass, 'Location':Location, 'Data':Data}, verify=True).json())
-    def load(self, Location: str):
+    def load(self, Location = ''):
         '''
         Loads data at specified location. Raises an exception if location doesn't exist
 
@@ -431,9 +431,9 @@ def simple_syntax():
             self.Auth = AuthSesh().set_vals(Name, Pass)
             try:
                 if val == 1:
-                    self.Auth.Login()
+                    self.Auth.login()
                 elif val == 2:
-                    self.Auth.Signup()
+                    self.Auth.signup()
                 self.Menu.update_item(1, 'Logout', self.Logout)
                 self.Menu.remove_item(2)
                 self.Menu.add_item(2, 'Load', self.Load)

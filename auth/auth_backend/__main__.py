@@ -263,4 +263,3 @@ def start_server(host = None, port = None):
     app.run(host=host, port=port, ssl_context=('server-public-key.pem', 'server-private-key.pem'))
 if __name__ == '__main__':
     start_server('0.0.0.0', 5678)
-print('closed')

@@ -66,11 +66,8 @@ class testAuth(unittest.TestCase):
     
     def test_136_save_client_side_str(self):
         self.user1.set_vals('test', 'test')
-        with self.assertRaises(LocationError) as cm:
-            self.user1.save('', 'comma')
-        the_exception = cm.exception
-        self.assertEqual(str(the_exception), 'Expecting value: line 1 column 1 (char 0)')
-    
+        self.assertTrue(self.user1.save('', 'comma'))
+
     def test_199_remove_client_side_success(self):
         self.user1.set_vals('test', 'test')
         self.assertTrue(self.user1.remove())
@@ -136,10 +133,7 @@ class testAuth(unittest.TestCase):
     
     def test_236_save_server_side_str(self):
         self.user2.set_vals('test', 'test')
-        with self.assertRaises(LocationError) as cm:
-            self.user2.save('', 'comma')
-        the_exception = cm.exception
-        self.assertEqual(str(the_exception), 'Expecting value: line 1 column 1 (char 0)')
+        self.assertTrue(self.user2.save('', 'comma'))
     
     def test_299_remove_server_side_success(self):
         self.user2.set_vals('test', 'test')
