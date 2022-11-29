@@ -23,6 +23,7 @@ class AuthSesh:
     def __init__(self, Address: str = None, Path: str = None, HandshakeData = None):
         self.__Path = Path
         self.__Address = Address
+        self.__active = True
         if self.__Address == None:
             
             app = Flask(__name__)
@@ -309,9 +310,13 @@ class AuthSesh:
     def __repr__(self):
         return f'AuthSesh({self.__Path}).set_vals({self.__Name}, {self.__Pass})'
     
-    def __del__(self, HandshakeData = None):
-        self.__sesh.post(self.__Path+'Leave', HandshakeData, verify=True).json()
+    def __del(self):
+        self.__sesh.post(self.__Path+'Leave', None, verify=True).json()
     
+    def __del__(self):
+        if not self.__active:
+            self.__del()
+        
     def __cert_adder(self, server):
         with open('cacerts.pem', 'wb') as f:
             f.write(bytes(server.encode()))
