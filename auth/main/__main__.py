@@ -456,7 +456,7 @@ class AuthSeshContextManager:
     def __exit__(self, type, val, trace):
         self.ash.kill()
 
-def simplesyntax():        
+def simple_syntax():        
     from maxmods import menu as Menu
     class AuthMenu:
         def MainMenu(self):
@@ -518,4 +518,4 @@ def simplesyntax():
     menu.run()
     
 if __name__ == '__main__':
-    simplesyntax()
+    simple_syntax()
