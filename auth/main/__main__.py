@@ -314,7 +314,7 @@ class AuthSesh:
          if self._active:
              self.kill()
     
-    def __certadder(self, server):
+    def _certadder(self, server):
         with open('cacerts.pem', 'wb') as f:
             f.write(bytes(server.encode()))
         self._sesh.verify = 'cacerts.pem'
@@ -431,7 +431,7 @@ class AuthSesh:
             raise LocationError(request['err'])
 
         elif request['Code'] == 101:
-            self.__certadder(request['Server'])
+            self._certadder(request['Server'])
 
 class AuthSeshContextManager:
     
