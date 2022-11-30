@@ -79,7 +79,12 @@ class AuthSesh:
             
             class usercache:
                 def __init__(self):
-                    self.users = None
+                    self.users = {}
+                    
+                def add(self, id):
+                    hash = hashlib.sha512((id).encode("UTF-8")).hexdigest()
+                    jsonpath_ng.parse(hash).update_or_create(self.users, [])
+                    
             class jsonHandle:
                 def __init__(self, Code):
                     self.Code = Code
@@ -92,7 +97,30 @@ class AuthSesh:
                         return jsonHandle(func(*args, **kwargs))
                 return Wrapper
             
+            def num_to_str(text):
+                return text.replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')
+            
+            class usercache:
+                def __init__(self):
+                    self.users = {}
+                    
+                def add(self, id):
+                    hash = hashlib.sha512((f'{id}{datetime.now()}').encode("UTF-8")).hexdigest()
+                    jsonpath_ng.parse(num_to_str(hash)).update_or_create(self.users, [None,(None,None)])
+                    return hash
+                    
+                def find(self, hash):
+                    return [match.value for match in jsonpath_ng.parse(num_to_str(hash)).find(self.users)][0]
+                
+                def update(self, hash, dbdat):
+                    jsonpath_ng.parse(num_to_str(hash)).update_or_create(self.users, dbdat)
+                    
+                def delete(self, hash):
+                    yes = jsonpath_ng.parse(num_to_str(hash)).find(self.users)
+                    del [match.context for match in yes][0].value[str([match.path for match in yes][0])]
+            
             class datHandle:
+                cache = usercache()
                 @HandleWrapper
                 def post(self, location, json, **_):
                     data = json
@@ -119,25 +147,14 @@ class AuthSesh:
                             return {'Code':200}
                         
                     elif location == 'Save':
-                        if data['Username'] == '':
-                            return {'Code':423}
+
+                        userdat = self.cache.find(data['Hash'])[0]
+                        userinfo = self.cache.find(data['Hash'])[1]
                         
-                        if data['Username'].isalnum() == False:
-                            return {'Code':423}
-                        
-                        with app.app_context():
-                            fromdat = DataMod.query.filter_by(Username=data['Username']).first()
-                        
-                        if not fromdat:
-                            return {'Code':423}
-                        
-                        datPass = marshal(fromdat, passfields)['Password']
-                        userPass = hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest()
-                        if userPass == datPass:
-                            new = Decrypt(marshal(fromdat, datfields)['Data'], data['Username'], data['Password'])
+                        if userdat != None:
                             try:
                                 hmm = jjson.loads(data['Data'])
-                                jsonpath_ng.parse(data['Location'].replace('/', '.').replace(' ', '-').replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')).update_or_create(new, hmm)
+                                jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).update_or_create(userdat, hmm)
    
                             except TypeError as err:
                                 raise TypeError(err)
@@ -145,85 +162,95 @@ class AuthSesh:
                             except AttributeError as err:
                                 if str(err) == '\'NoneType\' object has no attribute \'lineno\'':
                                     try:
-                                        new = jjson.loads(data['Data'])
+                                        userdat = jjson.loads(data['Data'])
                                     
                                     except Exception as err2:
                                         return {'Code':422, 'err':'No location specified or data was not a dict'}
                                         
                                 else:
                                     raise AttributeError(err)
-                            with app.app_context():
-                                db.session.delete(fromdat)
-                                db.session.add(DataMod(Username=data['Username'], Password=hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt(new, data['Username'], data['Password'])))
-                                db.session.commit()
+                            
+                            self.cache.update(data['Hash'], [userdat, userinfo])
+
                             return {'Code':200}
 
                         else:
                             return {'Code':423}
 
                     elif location == 'Delete':
-                        if data['Username'] == '':
-                            return {'Code':423}
                         
-                        if data['Username'].isalnum() == False:
-                            return {'Code':423}
+                        userdat = self.cache.find(data['Hash'])[0]
+                        userinfo = self.cache.find(data['Hash'])[1]
                         
-                        with app.app_context():
-                            fromdat = DataMod.query.filter_by(Username=data['Username']).first()
-                        
-                        if not fromdat:
-                            return {'Code':423}
-                        
-                        datPass = marshal(fromdat, passfields)['Password']
-                        userPass = hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest()
-                        
-                        if userPass == datPass:
-                            new = Decrypt(marshal(fromdat, datfields)['Data'], data['Username'], data['Password'])
+                        if userdat != None:
                             try:
-                                yes = jsonpath_ng.parse(data['Location'].replace('/', '.').replace(' ', '-').replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')).find(new)
+                                yes = jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).find(userdat)
                                 del [match.context for match in yes][0].value[str([match.path for match in yes][0])]
                             except TypeError as err:
                                     raise TypeError(err)
 
                             except AttributeError as err:
                                     raise AttributeError(err)
+                                
                             except IndexError as err:
                                 if str(err) == 'list index out of range':
                                     return {'Code':416}
                             
-                            with app.app_context():
-                                db.session.delete(fromdat)
-                                db.session.add(DataMod(Username=data['Username'], Password=hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt(new, data['Username'], data['Password'])))
-                                db.session.commit()
-                            
+                            self.cache.update(data['Hash'], [userdat, userinfo])
+
                             return {'Code':200}
 
                         else:
                             return {'Code':423}
                         
                     elif location == 'Leave':
-                        return {'Code':200}
+                        
+                        userdat = self.cache.find(data['Hash'])[0]
+                        username, password = self.cache.find(data['Hash'])[1]
+
+                        with app.app_context():
+                            fromdat = DataMod.query.filter_by(Username=username).first()
+                        
+                        if not fromdat:
+                            return {'Code':202, 'Data':'skdjfksdjfh'}
+                        
+                        datPass = marshal(fromdat, passfields)['Password']
+                        userPass = hashlib.sha512((password + username).encode("UTF-8")).hexdigest()
+                        
+                        if userPass == datPass:
+                            
+                            with app.app_context():
+                                 db.session.delete(fromdat)
+                                 db.session.add(DataMod(Username=username, Password=hashlib.sha512((password + username).encode("UTF-8")).hexdigest(), Data=Encrypt(userdat, username, password)))
+                                 db.session.commit()
+                            
+                            self.cache.delete(data['Hash'])
+                            
+                            return {'Code':200}
+                        
+                        else:
+                            return {'Code':423}
 
                     elif location == 'Remove':
-                        if data['Username'] == '':
-                            return {'Code':423}
-                        
-                        if data['Username'].isalnum() == False:
-                            return {'Code':423}
+
+                        username, password = self.cache.find(data['Hash'])[1]
                         
                         with app.app_context():
-                            fromdat = DataMod.query.filter_by(Username=data['Username']).first()
+                            fromdat = DataMod.query.filter_by(Username=username).first()
                         
                         if not fromdat:
                             return {'Code':423}
+
                         
                         datPass = marshal(fromdat, passfields)['Password']
-                        userPass = hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest()
+                        userPass = hashlib.sha512((password + username).encode("UTF-8")).hexdigest()
                         
                         if userPass == datPass:
+                            
                             with app.app_context():
                                 db.session.delete(fromdat)
                                 db.session.commit()
+                            
                             return {'Code':200}
                         
                         else:
@@ -247,7 +274,7 @@ class AuthSesh:
                         
                         if userPass == datPass:
                             
-                            self._user_data = Decrypt(marshal(fromdat, datfields)['Data'], data['Username'], data['Password'])
+                            self.cache.update(data['Hash'], [Decrypt(marshal(fromdat, datfields)['Data'], data['Username'], data['Password']), (data['Password'], data['Username'])]) 
                             
                             return {'Code':200}
                         
@@ -255,25 +282,12 @@ class AuthSesh:
                             return {'Code':401}
                         
                     elif location == 'Load':
-                        if data['Username'] == '':
-                            return {'Code':423}
+
+                        userdat = self.cache.find(data['Hash'])[0]
                         
-                        if data['Username'].isalnum() == False:
-                            return {'Code':423}
-                        
-                        with app.app_context():
-                            fromdat = DataMod.query.filter_by(Username=data['Username']).first()
-                        
-                        if not fromdat:
-                            return {'Code':423}
-                        
-                        datPass = marshal(fromdat, passfields)['Password']
-                        userPass = hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest()
-                        
-                        if userPass == datPass:
-                            farter = Decrypt(marshal(fromdat, datfields)['Data'], data['Username'], data['Password'])
+                        if userdat != None:
                             try:
-                                jsonpath_expr = [match.value for match in jsonpath_ng.parse(data['Location'].replace('/', '.').replace(' ', '-').replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')).find(farter)][0]
+                                jsonpath_expr = [match.value for match in jsonpath_ng.parse(data['Location'].replace('/', '.').replace(' ', '-').replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')).find(userdat)][0]
                                 
                             except IndexError as err:
                                 if str(err) == 'list index out of range':
@@ -284,7 +298,7 @@ class AuthSesh:
                                 
                             except AttributeError as err:
                                 if str(err) == '\'NoneType\' object has no attribute \'lineno\'':
-                                    return {'Data':farter, 'Code':202}
+                                    return {'Data':userdat, 'Code':202}
                                 else:
                                     raise AttributeError(err)
                                 
@@ -294,6 +308,11 @@ class AuthSesh:
                             return {'Code':423}
                         
                     elif location == 'Greet':
+                        
+                        user = self.cache.add(data['Id'])
+                        return {'Code':101, 'Hash':user}
+                    
+                    elif location == 'Cert':
                         return {'Code':200}
                 
             self._sesh = datHandle()
@@ -303,7 +322,7 @@ class AuthSesh:
             self._Path = self._Address
         try:
             warnings.filterwarnings('ignore')
-            self._requestHandle(self._sesh.post(self._Path + 'Greet', None, verify=False).json())
+            self._requestHandle(self._sesh.post(self._Path + 'Greet', json={'Id':random.randint(100000, 999999)}, verify=False).json())
             
         except requests.ConnectionError as err:
             raise LocationError('Couldn\'t connect to backend server\nMessage:\n' + str(err))
@@ -311,14 +330,9 @@ class AuthSesh:
     def __repr__(self):
         return f'AuthSesh({self._Path}).set_vals({self._Name}, {self._Pass})'        
     
-    def kill(self):
-        if self._active:
-            self._sesh.post(self._Path+'Leave', None, verify=True).json()
-        self._active = False
-    
     def __del__(self):
          if self._active:
-             self.kill()
+             self.terminate()
     
     def _certadder(self, server):
         with open('cacerts.pem', 'wb') as f:
@@ -353,14 +367,14 @@ class AuthSesh:
         '''
         Data = jjson.dumps(Data)
         
-        return self._requestHandle(self._sesh.post(self._Path+'Save', json={'Username':self._Name, 'Password':self._Pass, 'Location':Location, 'Data':Data}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'Save', json={'Location':Location, 'Data':Data, 'Hash':self._Hash}, verify=True).json())
     def load(self, Location = ''):
         '''
         Loads data at specified location. Raises an exception if location doesn't exist
 
         Auth.Load('Loc1/Loc2/Loc3') Returns data in Loc1/Loc2/Loc3/
         '''
-        return self._requestHandle(self._sesh.post(self._Path+'Load', json={'Username':self._Name, 'Password':self._Pass, 'Location':Location}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'Load', json={'Location':Location, 'Hash':self._Hash}, verify=True).json())
     
     def delete(self, Location: str):
         '''
@@ -368,7 +382,7 @@ class AuthSesh:
 
         Auth.Delete('Loc1/Loc2/Loc3') Deletes data in Loc1/Loc2/Loc3/
         '''
-        return self._requestHandle(self._sesh.post(self._Path+'Delete', json={'Username':self._Name, 'Password':self._Pass, 'Location':Location}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'Delete', json={'Location':Location, 'Hash':self._Hash}, verify=True).json())
 
     def login(self):
         '''
@@ -376,7 +390,7 @@ class AuthSesh:
         
         Raises an exception if it fails
         '''
-        return self._requestHandle(self._sesh.post(self._Path+'Login', json={'Username':self._Name, 'Password':self._Pass}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'Login', json={'Username':self._Name, 'Password':self._Pass, 'Hash':self._Hash}, verify=True).json())
         
     def signup(self):
         '''
@@ -392,7 +406,15 @@ class AuthSesh:
         
         Raises an exception if it fails
         '''
-        return self._requestHandle(self._sesh.post(self._Path+'Remove', json={'Username':self._Name, 'Password':self._Pass}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'Remove', json={'Hash':self._Hash}, verify=True).json())
+    
+    def terminate(self):
+        '''
+        Closes connection to backend and saves cache
+        '''
+        if self._active:
+            self._sesh.post(self._Path+'Leave', json={'Hash':self._Hash}, verify=True).json()
+        self._active = False
     
     def _requestHandle(self, request, should_kill=True):
         if request['Code'] == 200:
@@ -403,40 +425,43 @@ class AuthSesh:
         
         elif request['Code'] == 416:
             if should_kill:
-                self.kill()
+                self.terminate()
             raise LocationError('Loaction does not exist')
         
         elif request['Code'] == 401:
             if should_kill:
-                self.kill()
+                self.terminate()
             raise PasswordError('Incorrect password')
         
         elif request['Code'] == 404:
             if should_kill:
-                self.kill()
+                self.terminate()
             raise UsernameError('Username does not exist')
         
         elif request['Code'] == 406:
             if should_kill:
-                self.kill()
+                self.terminate()
             raise UsernameError('Invalid username')
         
         elif request['Code'] == 409:
             if should_kill:
-                self.kill()
+                self.terminate()
             raise UsernameError('Username already exists')
         
         elif request['Code'] == 423:
             if should_kill:
-                self.kill()
+                self.terminate()
             raise AuthenticationError('Failed to authenticate user')
         
         elif request['Code'] == 422:
             if should_kill:
-                self.kill()
+                self.terminate()
             raise LocationError(request['err'])
 
         elif request['Code'] == 101:
+            self._Hash = request['Hash']
+        
+        elif request['Code'] == 102:
             self._certadder(request['Server'])
 
 class AuthSeshContextManager:
