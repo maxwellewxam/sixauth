@@ -77,6 +77,9 @@ class AuthSesh:
             datfields = {'Data': fields.Raw}
             passfields = {'Password': fields.String}
             
+            class usercache:
+                def __init__(self):
+                    self.users = None
             class jsonHandle:
                 def __init__(self, Code):
                     self.Code = Code
@@ -244,7 +247,7 @@ class AuthSesh:
                         
                         if userPass == datPass:
                             
-                            self._user = []
+                            self._user_data = Decrypt(marshal(fromdat, datfields)['Data'], data['Username'], data['Password'])
                             
                             return {'Code':200}
                         
