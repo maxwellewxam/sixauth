@@ -27,8 +27,8 @@ class AuthSesh:
             else:
                 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{self._Path}/database.db'
             app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-            db = SQLAlchemy(app)
-
+            db = SQLAlchemy(app)            
+            
             def Encrypt(Data, password, username):
                 Data1 = jjson.dumps(Data)
                 kdf = PBKDF2HMAC(
@@ -243,6 +243,9 @@ class AuthSesh:
                         userPass = hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest()
                         
                         if userPass == datPass:
+                            
+                            self._user = []
+                            
                             return {'Code':200}
                         
                         else:
@@ -434,7 +437,11 @@ class AuthSesh:
             self._certadder(request['Server'])
 
 class AuthSeshContextManager:
+    '''
+    Context Manager wrapper for AuthSesh
     
+    
+    '''
     class AuthWrap(AuthSesh):
         
         def __del__(self):
