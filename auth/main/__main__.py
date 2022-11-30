@@ -2,10 +2,10 @@
 
 from maxmods.imports.authimports import *
 
-class LocationError(BaseException): ...
-class AuthenticationError(BaseException): ...
-class UsernameError(AuthenticationError): ...
-class PasswordError(AuthenticationError): ...
+# class LocationError(BaseException): ...
+# class AuthenticationError(BaseException): ...
+# class UsernameError(AuthenticationError): ...
+# class PasswordError(AuthenticationError): ...
 
 class AuthSesh:
     '''
@@ -310,12 +310,13 @@ class AuthSesh:
     def __repr__(self):
         return f'AuthSesh({self.__Path}).set_vals({self.__Name}, {self.__Pass})'
     
-    def __del(self):
+    def kill(self):
+        self._active = False
         self.__sesh.post(self.__Path+'Leave', None, verify=True).json()
     
     def __del__(self):
-        if not self.__active:
-            self.__del()
+        if self.__active:
+            self.kill()
         
     def __cert_adder(self, server):
         with open('cacerts.pem', 'wb') as f:
@@ -399,24 +400,31 @@ class AuthSesh:
             return request['Data']
         
         elif request['Code'] == 416:
+            self.kill()
             raise LocationError('Loaction does not exist')
         
         elif request['Code'] == 401:
+            self.kill()
             raise PasswordError('Incorrect password')
         
         elif request['Code'] == 404:
+            self.kill()
             raise UsernameError('Username does not exist')
         
         elif request['Code'] == 406:
+            self.kill()
             raise UsernameError('Invalid username')
         
         elif request['Code'] == 409:
+            self.kill()
             raise UsernameError('Username already exists')
         
         elif request['Code'] == 423:
+            self.kill()
             raise AuthenticationError('Failed to authenticate user')
         
         elif request['Code'] == 422:
+            self.kill()
             raise LocationError(request['err'])
 
         elif request['Code'] == 101:
