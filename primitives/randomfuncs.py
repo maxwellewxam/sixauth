@@ -18,3 +18,4 @@ class Timer:
             return val
         else:
             raise Exception("function not callable")
+        

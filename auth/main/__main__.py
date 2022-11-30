@@ -2,11 +2,6 @@
 
 from maxmods.imports.authimports import *
 
-# class LocationError(BaseException): ...
-# class AuthenticationError(BaseException): ...
-# class UsernameError(AuthenticationError): ...
-# class PasswordError(AuthenticationError): ...
-
 class AuthSesh:
     '''
     Main class of the Auth module
@@ -20,17 +15,17 @@ class AuthSesh:
     repr(AuthSesh) returns the current username
     '''
     
-    def __init__(self, Address: str = None, Path: str = None, HandshakeData = None):
-        self.__Path = Path
-        self.__Address = Address
-        self.__active = True
-        if self.__Address == None:
+    def __init__(self, Address: str = None, Path: str = None):
+        self._Path = Path
+        self._Address = Address
+        self._active = True
+        if self._Address == None:
             
             app = Flask(__name__)
-            if self.__Path == None:
+            if self._Path == None:
                 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.getcwd()}/database.db'
             else:
-                app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{self.__Path}/database.db'
+                app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{self._Path}/database.db'
             app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
             db = SQLAlchemy(app)
 
@@ -69,15 +64,15 @@ class AuthSesh:
                     self.Password = Password
                     self.Data = Data
             
-            if self.__Path == None:        
+            if self._Path == None:        
                 if os.path.isfile(f'{os.getcwd()}/database.db') is False:
                     with app.app_context():
-                        db.create_all()
+                        db.createall()
 
             else:
-                if os.path.isfile(f'{self.__Path}/database.db') is False:
+                if os.path.isfile(f'{self._Path}/database.db') is False:
                     with app.app_context():
-                        db.create_all()
+                        db.createall()
                 
             datfields = {'Data': fields.Raw}
             passfields = {'Password': fields.String}
@@ -295,48 +290,49 @@ class AuthSesh:
                     elif location == 'Greet':
                         return {'Code':200}
                 
-            self.__sesh = datHandle()
-            self.__Path = ''
+            self._sesh = datHandle()
+            self._Path = ''
         else:
-            self.__sesh = requests.Session()
-            self.__Path = self.__Address
+            self._sesh = requests.Session()
+            self._Path = self._Address
         try:
             warnings.filterwarnings('ignore')
-            self.__requestHandle(self.__sesh.post(self.__Path + 'Greet', HandshakeData, verify=False).json())
+            self._requestHandle(self._sesh.post(self._Path + 'Greet', None, verify=False).json())
             
         except requests.ConnectionError as err:
             raise LocationError('Couldn\'t connect to backend server\nMessage:\n' + str(err))
 
     def __repr__(self):
-        return f'AuthSesh({self.__Path}).set_vals({self.__Name}, {self.__Pass})'
+        return f'AuthSesh({self._Path}).set_vals({self._Name}, {self._Pass})'        
     
     def kill(self):
+        if self._active:
+            self._sesh.post(self._Path+'Leave', None, verify=True).json()
         self._active = False
-        self.__sesh.post(self.__Path+'Leave', None, verify=True).json()
     
     def __del__(self):
-        if self.__active:
-            self.kill()
-        
-    def __cert_adder(self, server):
+         if self._active:
+             self.kill()
+    
+    def __certadder(self, server):
         with open('cacerts.pem', 'wb') as f:
             f.write(bytes(server.encode()))
-        self.__sesh.verify = 'cacerts.pem'
+        self._sesh.verify = 'cacerts.pem'
         
     @property
     def Pass(self):
-        return self.__Pass
+        return self._Pass
     
     @property
     def Name(self):
-        return self.__Name
+        return self._Name
     
     def set_vals(self, Name: str, Pass:str):
         '''
         Sets the desired username and password 
         '''
-        self.__Name = Name
-        self.__Pass = Pass
+        self._Name = Name
+        self._Pass = Pass
         return self
     
     def save(self, Location: str, Data):
@@ -351,14 +347,14 @@ class AuthSesh:
         '''
         Data = jjson.dumps(Data)
         
-        return self.__requestHandle(self.__sesh.post(self.__Path+'Save', json={'Username':self.__Name, 'Password':self.__Pass, 'Location':Location, 'Data':Data}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'Save', json={'Username':self._Name, 'Password':self._Pass, 'Location':Location, 'Data':Data}, verify=True).json())
     def load(self, Location = ''):
         '''
         Loads data at specified location. Raises an exception if location doesn't exist
 
         Auth.Load('Loc1/Loc2/Loc3') Returns data in Loc1/Loc2/Loc3/
         '''
-        return self.__requestHandle(self.__sesh.post(self.__Path+'Load', json={'Username':self.__Name, 'Password':self.__Pass, 'Location':Location}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'Load', json={'Username':self._Name, 'Password':self._Pass, 'Location':Location}, verify=True).json())
     
     def delete(self, Location: str):
         '''
@@ -366,7 +362,7 @@ class AuthSesh:
 
         Auth.Delete('Loc1/Loc2/Loc3') Deletes data in Loc1/Loc2/Loc3/
         '''
-        return self.__requestHandle(self.__sesh.post(self.__Path+'Delete', json={'Username':self.__Name, 'Password':self.__Pass, 'Location':Location}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'Delete', json={'Username':self._Name, 'Password':self._Pass, 'Location':Location}, verify=True).json())
 
     def login(self):
         '''
@@ -374,7 +370,7 @@ class AuthSesh:
         
         Raises an exception if it fails
         '''
-        return self.__requestHandle(self.__sesh.post(self.__Path+'Login', json={'Username':self.__Name, 'Password':self.__Pass}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'Login', json={'Username':self._Name, 'Password':self._Pass}, verify=True).json())
         
     def signup(self):
         '''
@@ -382,7 +378,7 @@ class AuthSesh:
         
         Raises an exception if it fails
         '''
-        return self.__requestHandle(self.__sesh.post(self.__Path+'Signup', json={'Username':self.__Name, 'Password':self.__Pass}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'Signup', json={'Username':self._Name, 'Password':self._Pass}, verify=True).json())
     
     def remove(self):
         '''
@@ -390,9 +386,9 @@ class AuthSesh:
         
         Raises an exception if it fails
         '''
-        return self.__requestHandle(self.__sesh.post(self.__Path+'Remove', json={'Username':self.__Name, 'Password':self.__Pass}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'Remove', json={'Username':self._Name, 'Password':self._Pass}, verify=True).json())
     
-    def __requestHandle(self, request):
+    def _requestHandle(self, request, should_kill=True):
         if request['Code'] == 200:
             return self
         
@@ -400,37 +396,67 @@ class AuthSesh:
             return request['Data']
         
         elif request['Code'] == 416:
-            self.kill()
+            if should_kill:
+                self.kill()
             raise LocationError('Loaction does not exist')
         
         elif request['Code'] == 401:
-            self.kill()
+            if should_kill:
+                self.kill()
             raise PasswordError('Incorrect password')
         
         elif request['Code'] == 404:
-            self.kill()
+            if should_kill:
+                self.kill()
             raise UsernameError('Username does not exist')
         
         elif request['Code'] == 406:
-            self.kill()
+            if should_kill:
+                self.kill()
             raise UsernameError('Invalid username')
         
         elif request['Code'] == 409:
-            self.kill()
+            if should_kill:
+                self.kill()
             raise UsernameError('Username already exists')
         
         elif request['Code'] == 423:
-            self.kill()
+            if should_kill:
+                self.kill()
             raise AuthenticationError('Failed to authenticate user')
         
         elif request['Code'] == 422:
-            self.kill()
+            if should_kill:
+                self.kill()
             raise LocationError(request['err'])
 
         elif request['Code'] == 101:
-            self.__cert_adder(request['Server'])
+            self.__certadder(request['Server'])
 
-def simple_syntax():        
+class AuthSeshContextManager:
+    
+    class AuthWrap(AuthSesh):
+        
+        def __del__(self):
+            pass
+        
+        def _requestHandle(self, request):
+            
+            super()._requestHandle(request, should_kill=False)
+                
+    def __init__(self,  Address: str = None, Path: str = None):
+        self.Address = Address
+        self.Path = Path
+        
+    def __enter__(self):
+        self.ash = self.AuthWrap(self.Address, self.Path)
+        
+        return self.ash
+    
+    def __exit__(self, type, val, trace):
+        self.ash.kill()
+
+def simplesyntax():        
     from maxmods import menu as Menu
     class AuthMenu:
         def MainMenu(self):
@@ -492,4 +518,4 @@ def simple_syntax():
     menu.run()
     
 if __name__ == '__main__':
-    simple_syntax()
+    simplesyntax()

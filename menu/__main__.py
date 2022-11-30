@@ -137,7 +137,7 @@ class InfoMenu(Base):
         Handles all exceptions and prints them to screen
         '''
         self.inText='Enter to Continue'
-        super().Run(Caller=1)
+        super().run(Caller=1)
 class SettingsMenu(Base):
     def __init__(self, Title: str, Class: object):
         '''
@@ -166,7 +166,7 @@ class SettingsMenu(Base):
         
         Handles all exceptions and prints them to screen
         '''
-        super().Run(Caller=2)
+        super().run(Caller=2)
     def __ChangeVal(self, attr):
         new = input('New Value: ')
         setattr(self.Class, attr, new)
