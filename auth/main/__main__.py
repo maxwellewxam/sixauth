@@ -166,6 +166,7 @@ class AuthSesh:
                                         
                                 else:
                                     raise AttributeError(err)
+                                    #return {'Code':202, 'Data':userdat}
                             
                             self.cache.update(data['Hash'], [userdat, userinfo])
 
@@ -331,10 +332,14 @@ class AuthSesh:
     def __repr__(self):
         return f'AuthSesh({self._Path}).set_vals({self._Name}, {self._Pass})'        
     
-    def __del__(self):
-         if self._active:
-             self.terminate()
+    def __enter__(self):
+        return self
     
+    def __exit__(self, type, val, trace):
+        if str(val) != 'Username does not exist':
+            self.terminate()
+        
+
     def _certadder(self, server):
         with open('cacerts.pem', 'wb') as f:
             f.write(bytes(server.encode()))
@@ -418,11 +423,10 @@ class AuthSesh:
         '''
         if self._active:
             self._requestHandle(self._sesh.post(self._Path+ 'Logout', None, {'Hash':self._Hash}, verify=True).json())
-            ret = self._requestHandle(self._sesh.post(self._Path+'Leave', None, {'Hash':self._Hash}, verify=True).json())
+            self._requestHandle(self._sesh.post(self._Path+'Leave', None, {'Hash':self._Hash}, verify=True).json())
             self._active = False
-            return ret
     
-    def _requestHandle(self, request, should_kill=True):
+    def _requestHandle(self, request):
         if request['Code'] == 200:
             return self
         
@@ -430,38 +434,24 @@ class AuthSesh:
             return request['Data']
         
         elif request['Code'] == 416:
-            if should_kill:
-                self.terminate()
             raise LocationError('Loaction does not exist')
         
         elif request['Code'] == 401:
-            if should_kill:
-                self.terminate()
             raise PasswordError('Incorrect password')
         
         elif request['Code'] == 404:
-            if should_kill:
-                self.terminate()
             raise UsernameError('Username does not exist')
         
         elif request['Code'] == 406:
-            if should_kill:
-                self.terminate()
             raise UsernameError('Invalid username')
         
         elif request['Code'] == 409:
-            if should_kill:
-                self.terminate()
             raise UsernameError('Username already exists')
         
         elif request['Code'] == 423:
-            if should_kill:
-                self.terminate()
             raise AuthenticationError('Failed to authenticate user')
         
         elif request['Code'] == 422:
-            if should_kill:
-                self.terminate()
             raise LocationError(request['err'])
 
         elif request['Code'] == 101:
@@ -478,32 +468,6 @@ class AuthSesh:
                 raise SaveError('couldnt find user in database and user was not removed')
             else:
                 self._removed = False
-
-class AuthSeshContextManager:
-    '''
-    Context Manager wrapper for AuthSesh
-    '''
-    class AuthWrap(AuthSesh):
-        
-        def __del__(self):
-            pass
-        
-        def _requestHandle(self, request):
-            
-            return super()._requestHandle(request, should_kill=False)
-                
-    def __init__(self,  Address: str = None, Path: str = None):
-        self.Address = Address
-        self.Path = Path
-        
-    def __enter__(self):
-        self.ash = self.AuthWrap(self.Address, self.Path)
-        
-        return self.ash
-    
-    def __exit__(self, type, val, trace):
-        self._removed = True
-        self.ash.terminate()
 
 def simple_syntax():        
     from maxmods import menu as Menu

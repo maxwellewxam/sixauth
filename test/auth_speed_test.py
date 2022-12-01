@@ -1,11 +1,10 @@
 from maxmods.primitives.randomfuncs import Timer
 from maxmods.auth import AuthSesh as ash
-from maxmods.auth import AuthSeshContextManager as ascm
 from maxmods.imports.authimports import *
 
 t = Timer()
 def main():
-    with ascm() as server:
+    with ash('https://127.0.0.1:5678/') as server:
         server.set_vals('max', 'max')
         server.login()
         server.save('sdfsfg/sdfg/dfgdfg/dfgdsdgjdguomfbxgh/cgyicxvsZEF', {'URMOM':'test'})
