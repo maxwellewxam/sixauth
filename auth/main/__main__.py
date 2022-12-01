@@ -19,6 +19,7 @@ class AuthSesh:
         self._Path = Path
         self._Address = Address
         self._active = True
+        self._removed = True
         if self._Address == None:
             
             app = Flask(__name__)
@@ -155,14 +156,12 @@ class AuthSesh:
                             try:
                                 hmm = jjson.loads(data['Data'])
                                 jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).update_or_create(userdat, hmm)
-   
-                            except TypeError as err:
-                                raise TypeError(err)
                             
                             except AttributeError as err:
                                 if str(err) == '\'NoneType\' object has no attribute \'lineno\'':
                                     try:
-                                        userdat = jjson.loads(data['Data'])
+                                        #userdat = jjson.loads(data['Data'])
+                                        pass
                                     
                                     except Exception as err2:
                                         return {'Code':422, 'err':'No location specified or data was not a dict'}
@@ -172,7 +171,7 @@ class AuthSesh:
                             
                             self.cache.update(data['Hash'], [userdat, userinfo])
 
-                            return {'Code':200}
+                            return {'Code':200, 'Data':userdat}
 
                         else:
                             return {'Code':423}
@@ -203,7 +202,7 @@ class AuthSesh:
                         else:
                             return {'Code':423}
                         
-                    elif location == 'Leave':
+                    elif location == 'Logout':
                         
                         userdat = self.cache.find(data['Hash'])[0]
                         username, password = self.cache.find(data['Hash'])[1]
@@ -212,7 +211,7 @@ class AuthSesh:
                             fromdat = DataMod.query.filter_by(Username=username).first()
                         
                         if not fromdat:
-                            return {'Code':202, 'Data':'skdjfksdjfh'}
+                            return {'Code':420}
                         
                         datPass = marshal(fromdat, passfields)['Password']
                         userPass = hashlib.sha512((password + username).encode("UTF-8")).hexdigest()
@@ -223,8 +222,6 @@ class AuthSesh:
                                  db.session.delete(fromdat)
                                  db.session.add(DataMod(Username=username, Password=hashlib.sha512((password + username).encode("UTF-8")).hexdigest(), Data=Encrypt(userdat, username, password)))
                                  db.session.commit()
-                            
-                            self.cache.delete(data['Hash'])
                             
                             return {'Code':200}
                         
@@ -251,7 +248,7 @@ class AuthSesh:
                                 db.session.delete(fromdat)
                                 db.session.commit()
                             
-                            return {'Code':200}
+                            return {'Code':204}
                         
                         else:
                             return {'Code':423}
@@ -315,6 +312,11 @@ class AuthSesh:
                     elif location == 'Cert':
                         return {'Code':200}
                 
+                    elif location == 'Leave':
+                        self.cache.delete(data['Hash'])
+
+                        return {'Code':200}
+                
             self._sesh = datHandle()
             self._Path = ''
         else:
@@ -322,7 +324,8 @@ class AuthSesh:
             self._Path = self._Address
         try:
             warnings.filterwarnings('ignore')
-            self._requestHandle(self._sesh.post(self._Path + 'Greet', json={'Id':random.randint(100000, 999999)}, verify=False).json())
+            self._requestHandle(self._sesh.post(self._Path + 'Cert', json={}, verify=False).json())
+            self._requestHandle(self._sesh.post(self._Path + 'Greet', json={'Id':random.randint(100000, 999999)}, verify=True).json())
             
         except requests.ConnectionError as err:
             raise LocationError('Couldn\'t connect to backend server\nMessage:\n' + str(err))
@@ -390,6 +393,7 @@ class AuthSesh:
         
         Raises an exception if it fails
         '''
+        self._requestHandle(self._sesh.post(self._Path+ 'Logout', json={'Hash':self._Hash}, verify=True).json())
         return self._requestHandle(self._sesh.post(self._Path+'Login', json={'Username':self._Name, 'Password':self._Pass, 'Hash':self._Hash}, verify=True).json())
         
     def signup(self):
@@ -411,10 +415,14 @@ class AuthSesh:
     def terminate(self):
         '''
         Closes connection to backend and saves cache
+        
+        if you do not manually call this, you are at the mercy of the garbage collector (unless you are using the context manager!)
         '''
         if self._active:
-            self._sesh.post(self._Path+'Leave', json={'Hash':self._Hash}, verify=True).json()
-        self._active = False
+            self._requestHandle(self._sesh.post(self._Path+ 'Logout', json={'Hash':self._Hash}, verify=True).json())
+            ret = self._requestHandle(self._sesh.post(self._Path+'Leave', json={'Hash':self._Hash}, verify=True).json())
+            self._active = False
+            return ret
     
     def _requestHandle(self, request, should_kill=True):
         if request['Code'] == 200:
@@ -463,12 +471,19 @@ class AuthSesh:
         
         elif request['Code'] == 102:
             self._certadder(request['Server'])
+            
+        elif request['Code'] == 204:
+            self._removed = True
+            
+        elif request['Code'] == 420:
+            if not self._removed:
+                raise SaveError('couldnt find user in database and user was not removed')
+            else:
+                self._removed = False
 
 class AuthSeshContextManager:
     '''
     Context Manager wrapper for AuthSesh
-    
-    
     '''
     class AuthWrap(AuthSesh):
         
@@ -477,7 +492,7 @@ class AuthSeshContextManager:
         
         def _requestHandle(self, request):
             
-            super()._requestHandle(request, should_kill=False)
+            return super()._requestHandle(request, should_kill=False)
                 
     def __init__(self,  Address: str = None, Path: str = None):
         self.Address = Address
@@ -489,7 +504,7 @@ class AuthSeshContextManager:
         return self.ash
     
     def __exit__(self, type, val, trace):
-        self.ash.kill()
+        self.ash.terminate()
 
 def simple_syntax():        
     from maxmods import menu as Menu
