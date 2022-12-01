@@ -2,7 +2,7 @@ import requests
 import hashlib
 import jsonpath_ng
 import os
-import json as jjson
+import json
 import base64
 import warnings
 import random

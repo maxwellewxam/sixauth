@@ -31,7 +31,7 @@ class AuthSesh:
             db = SQLAlchemy(app)            
             
             def Encrypt(Data, password, username):
-                Data1 = jjson.dumps(Data)
+                Data1 = json.dumps(Data)
                 kdf = PBKDF2HMAC(
                     algorithm=hashes.SHA256(),
                     length=32,
@@ -53,7 +53,7 @@ class AuthSesh:
                     )
                 key = base64.urlsafe_b64encode(kdf.derive(bytes(password.encode())))
                 fernet = Fernet(key)
-                return jjson.loads(fernet.decrypt(Data.encode()).decode())
+                return json.loads(fernet.decrypt(Data.encode()).decode())
     
             class DataMod(db.Model):
                 Username = db.Column(db.String, nullable=False, primary_key = True)
@@ -123,8 +123,7 @@ class AuthSesh:
             class datHandle:
                 cache = usercache()
                 @HandleWrapper
-                def post(self, location, json, **_):
-                    data = json
+                def post(self, location, a ,data, **_):
                     if location == 'Signup':
                         if data['Username'] == '':
                             return {'Code':406}
@@ -154,14 +153,13 @@ class AuthSesh:
                         
                         if userdat != None:
                             try:
-                                hmm = jjson.loads(data['Data'])
+                                hmm = json.loads(data['Data'])
                                 jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).update_or_create(userdat, hmm)
                             
                             except AttributeError as err:
                                 if str(err) == '\'NoneType\' object has no attribute \'lineno\'':
                                     try:
-                                        #userdat = jjson.loads(data['Data'])
-                                        pass
+                                        userdat = json.loads(data['Data'])
                                     
                                     except Exception as err2:
                                         return {'Code':422, 'err':'No location specified or data was not a dict'}
@@ -284,7 +282,7 @@ class AuthSesh:
                         
                         if userdat != None:
                             try:
-                                jsonpath_expr = [match.value for match in jsonpath_ng.parse(data['Location'].replace('/', '.').replace(' ', '-').replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')).find(userdat)][0]
+                                jsonpath_expr = [match.value for match in jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).find(userdat)][0]
                                 
                             except IndexError as err:
                                 if str(err) == 'list index out of range':
@@ -324,8 +322,8 @@ class AuthSesh:
             self._Path = self._Address
         try:
             warnings.filterwarnings('ignore')
-            self._requestHandle(self._sesh.post(self._Path + 'Cert', json={}, verify=False).json())
-            self._requestHandle(self._sesh.post(self._Path + 'Greet', json={'Id':random.randint(100000, 999999)}, verify=True).json())
+            self._requestHandle(self._sesh.post(self._Path + 'Cert', None, {}, verify=False).json())
+            self._requestHandle(self._sesh.post(self._Path + 'Greet', None, {'Id':random.randint(100000, 999999)}, verify=True).json())
             
         except requests.ConnectionError as err:
             raise LocationError('Couldn\'t connect to backend server\nMessage:\n' + str(err))
@@ -368,16 +366,16 @@ class AuthSesh:
 
         Auth.Save('Loc1/Loc2/Loc3', 'Data') 
         '''
-        Data = jjson.dumps(Data)
+        Data = json.dumps(Data)
         
-        return self._requestHandle(self._sesh.post(self._Path+'Save', json={'Location':Location, 'Data':Data, 'Hash':self._Hash}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'Save', None, {'Location':Location, 'Data':Data, 'Hash':self._Hash}, verify=True).json())
     def load(self, Location = ''):
         '''
         Loads data at specified location. Raises an exception if location doesn't exist
 
         Auth.Load('Loc1/Loc2/Loc3') Returns data in Loc1/Loc2/Loc3/
         '''
-        return self._requestHandle(self._sesh.post(self._Path+'Load', json={'Location':Location, 'Hash':self._Hash}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'Load', None, {'Location':Location, 'Hash':self._Hash}, verify=True).json())
     
     def delete(self, Location: str):
         '''
@@ -385,7 +383,7 @@ class AuthSesh:
 
         Auth.Delete('Loc1/Loc2/Loc3') Deletes data in Loc1/Loc2/Loc3/
         '''
-        return self._requestHandle(self._sesh.post(self._Path+'Delete', json={'Location':Location, 'Hash':self._Hash}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'Delete', None, {'Location':Location, 'Hash':self._Hash}, verify=True).json())
 
     def login(self):
         '''
@@ -393,8 +391,8 @@ class AuthSesh:
         
         Raises an exception if it fails
         '''
-        self._requestHandle(self._sesh.post(self._Path+ 'Logout', json={'Hash':self._Hash}, verify=True).json())
-        return self._requestHandle(self._sesh.post(self._Path+'Login', json={'Username':self._Name, 'Password':self._Pass, 'Hash':self._Hash}, verify=True).json())
+        self._requestHandle(self._sesh.post(self._Path+ 'Logout', None, {'Hash':self._Hash}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'Login', None, {'Username':self._Name, 'Password':self._Pass, 'Hash':self._Hash}, verify=True).json())
         
     def signup(self):
         '''
@@ -402,7 +400,7 @@ class AuthSesh:
         
         Raises an exception if it fails
         '''
-        return self._requestHandle(self._sesh.post(self._Path+'Signup', json={'Username':self._Name, 'Password':self._Pass}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'Signup', None, {'Username':self._Name, 'Password':self._Pass}, verify=True).json())
     
     def remove(self):
         '''
@@ -410,7 +408,7 @@ class AuthSesh:
         
         Raises an exception if it fails
         '''
-        return self._requestHandle(self._sesh.post(self._Path+'Remove', json={'Hash':self._Hash}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'Remove', None, {'Hash':self._Hash}, verify=True).json())
     
     def terminate(self):
         '''
@@ -419,8 +417,8 @@ class AuthSesh:
         if you do not manually call this, you are at the mercy of the garbage collector (unless you are using the context manager!)
         '''
         if self._active:
-            self._requestHandle(self._sesh.post(self._Path+ 'Logout', json={'Hash':self._Hash}, verify=True).json())
-            ret = self._requestHandle(self._sesh.post(self._Path+'Leave', json={'Hash':self._Hash}, verify=True).json())
+            self._requestHandle(self._sesh.post(self._Path+ 'Logout', None, {'Hash':self._Hash}, verify=True).json())
+            ret = self._requestHandle(self._sesh.post(self._Path+'Leave', None, {'Hash':self._Hash}, verify=True).json())
             self._active = False
             return ret
     

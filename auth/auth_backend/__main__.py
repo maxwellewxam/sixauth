@@ -5,6 +5,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.backends import default_backend
 from cryptography.fernet import Fernet
+from datetime import datetime
 
 import os
 import jsonpath_ng
@@ -60,192 +61,255 @@ if os.path.isfile('database.db') is False:
 Dataargs = reqparse.RequestParser()
 Dataargs.add_argument('Location', type=str)
 Dataargs.add_argument('Data', type=str)
-Auth1 = reqparse.RequestParser()
-Auth1.add_argument('Username', type=str, required=True)
-Auth1.add_argument('Password', type=str, required=True)
+Dataargs.add_argument('Username', type=str)
+Dataargs.add_argument('Password', type=str)
+Dataargs.add_argument('Hash', type=str)
+Dataargs.add_argument('Id', type=int)
 datfields = {'Data': fields.Raw}
 passfields = {'Password': fields.String}
 
+def num_to_str(text):
+    return text.replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')
+
+class usercache:
+    def __init__(self):
+        self.users = {}
+        
+    def add(self, id):
+        hash = hashlib.sha512((f'{id}{datetime.now()}').encode("UTF-8")).hexdigest()
+        jsonpath_ng.parse(num_to_str(hash)).update_or_create(self.users, [None,(None,None)])
+        return hash
+        
+    def find(self, hash):
+        return [match.value for match in jsonpath_ng.parse(num_to_str(hash)).find(self.users)][0]
+    
+    def update(self, hash, dbdat):
+        jsonpath_ng.parse(num_to_str(hash)).update_or_create(self.users, dbdat)
+        
+    def delete(self, hash):
+        yes = jsonpath_ng.parse(num_to_str(hash)).find(self.users)
+        del [match.context for match in yes][0].value[str([match.path for match in yes][0])]
+        
+cache = usercache()
+        
 class Load(Resource):
     
     def post(self):#load data
-        Args = Auth1.parse_args()
-        DataArgs = Dataargs.parse_args()
-        if Args['Username'] == '':
-            return {'Code':423}
-        if Args['Username'].isalnum() == False:
-            return {'Code':423}
-        fromdat = DataMod.query.filter_by(Username=Args['Username']).first()
-        if not fromdat:
-            return {'Code':423}
-        datPass = marshal(fromdat, passfields)['Password']
-        userPass = hashlib.sha512((Args['Password'] + Args['Username']).encode("UTF-8")).hexdigest()
-        if userPass == datPass:
-            farter = Decrypt(marshal(fromdat, datfields)['Data'], Args['Username'], Args['Password'])
+        data = Dataargs.parse_args()
+        
+        userdat = cache.find(data['Hash'])[0]
+                        
+        if userdat != None:
             try:
-                jsonpath_expr = [match.value for match in jsonpath_ng.parse(DataArgs['Location'].replace('/', '.').replace(' ', '-').replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')).find(farter)][0]
+                jsonpath_expr = [match.value for match in jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).find(userdat)][0]
+                
             except IndexError as err:
                 if str(err) == 'list index out of range':
                     return {'Code':416}
+                
                 else: 
                     raise IndexError(err)
+                
             except AttributeError as err:
                 if str(err) == '\'NoneType\' object has no attribute \'lineno\'':
-                    return {'Data':farter, 'Code':202}
+                    return {'Data':userdat, 'Code':202}
                 else:
                     raise AttributeError(err)
+                
             return {'Data':jsonpath_expr, 'Code':202}
+        
         else:
             return {'Code':423}
 
 class Save(Resource):
 
     def post(self):#save data
-        Args = Auth1.parse_args()
-        DataArgs = Dataargs.parse_args()
-        if Args['Username'] == '':
-            return {'Code':423}
-        if Args['Username'].isalnum() == False:
-            return {'Code':423}
-        fromdat = DataMod.query.filter_by(Username=Args['Username']).first()
-        if not fromdat:
-            return {'Code':423}
-        datPass = marshal(fromdat, passfields)['Password']
-        userPass = hashlib.sha512((Args['Password'] + Args['Username']).encode("UTF-8")).hexdigest()
-        if userPass == datPass:
-            new = Decrypt(marshal(fromdat, datfields)['Data'], Args['Username'], Args['Password'])
+        data = Dataargs.parse_args()
+        userdat = cache.find(data['Hash'])[0]
+        userinfo = cache.find(data['Hash'])[1]
+        
+        if userdat != None:
             try:
-                hmm = json.loads(DataArgs['Data'])
-                jsonpath_ng.parse(DataArgs['Location'].replace('/', '.').replace(' ', '-').replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')).update_or_create(new, hmm)
-            except TypeError as err:
-                return {'Code':422, 'err': str(err)}
+                hmm = json.loads(data['Data'])
+                jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).update_or_create(userdat, hmm)
+            
             except AttributeError as err:
                 if str(err) == '\'NoneType\' object has no attribute \'lineno\'':
                     try:
-                        new = json.loads(DataArgs['Data'])
+                        userdat = json.loads(data['Data'])
+                    
                     except Exception as err2:
-                        return {'Code':422, 'err': str(err2)}
+                        return {'Code':422, 'err':'No location specified or data was not a dict'}
+                        
                 else:
                     raise AttributeError(err)
-            except Exception as err:
-                return {'Code':422, 'err': str(err)}
-            db.session.delete(fromdat)
-            db.session.add(DataMod(Username=Args['Username'], Password=hashlib.sha512((Args['Password'] + Args['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt(new, Args['Username'], Args['Password'])))
-            db.session.commit()
-            return {'Code':200}
+            
+            cache.update(data['Hash'], [userdat, userinfo])
+
+            return {'Code':200, 'Data':userdat}
+
         else:
             return {'Code':423}
 
 class Remove(Resource):
 
     def post(self):#remove user
-        Args = Auth1.parse_args()
-        if Args['Username'] == '':
-            return {'Code':423}
-        if Args['Username'].isalnum() == False:
-            return {'Code':423}
-        fromdat = DataMod.query.filter_by(Username=Args['Username']).first()
+        data = Dataargs.parse_args()
+        username, password = cache.find(data['Hash'])[1]
+                        
+        with app.app_context():
+            fromdat = DataMod.query.filter_by(Username=username).first()
+        
         if not fromdat:
             return {'Code':423}
+
+        
         datPass = marshal(fromdat, passfields)['Password']
-        userPass = hashlib.sha512((Args['Password'] + Args['Username']).encode("UTF-8")).hexdigest()
+        userPass = hashlib.sha512((password + username).encode("UTF-8")).hexdigest()
+        
         if userPass == datPass:
-            db.session.delete(fromdat)
             
-            db.session.commit()
-            return {'Code':200}
+            with app.app_context():
+                db.session.delete(fromdat)
+                db.session.commit()
+            
+            return {'Code':204}
+        
         else:
             return {'Code':423}
 
 class Login(Resource):
     
     def post(self):#login
-        Args = Auth1.parse_args()
-        if Args['Username'] == '':
+        data = Dataargs.parse_args()
+        if data['Username'] == '':
             return {'Code':406}
-        if Args['Username'].isalnum() == False:
+        
+        if data['Username'].isalnum() == False:
             return {'Code':406}
-        fromdat = DataMod.query.filter_by(Username=Args['Username']).first()
+        
+        with app.app_context():
+            fromdat = DataMod.query.filter_by(Username=data['Username']).first()
+    
         if not fromdat:
             return {'Code':404}
+        
         datPass = marshal(fromdat, passfields)['Password']
-        userPass = hashlib.sha512((Args['Password'] + Args['Username']).encode("UTF-8")).hexdigest()
+        userPass = hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest()
+        
         if userPass == datPass:
+            
+            cache.update(data['Hash'], [Decrypt(marshal(fromdat, datfields)['Data'], data['Username'], data['Password']), (data['Password'], data['Username'])]) 
+            
             return {'Code':200}
+        
         else:
             return {'Code':401}
         
 class Signup(Resource):
 
     def post(slef):#signup
-        Args = Auth1.parse_args()
-        if Args['Username'] == '':
+        data = Dataargs.parse_args()
+        if data['Username'] == '':
             return {'Code':406}
-        if Args['Username'].isalnum() == False:
+        
+        if data['Username'].isalnum() == False:
             return {'Code':406}
-        fromdat = DataMod.query.filter_by(Username=Args['Username']).first()
+        
+        with app.app_context():
+            fromdat = DataMod.query.filter_by(Username=data['Username']).first()
+        
         if fromdat:
             return {'Code':409}
+        
         else:
-            inf = DataMod(Username=Args['Username'], Password=hashlib.sha512((Args['Password'] + Args['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt({}, Args['Username'], Args['Password']))
-            db.session.add(inf)
-            db.session.commit()
+            
+            with app.app_context():
+                inf = DataMod(Username=data['Username'], Password=hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt({}, data['Username'], data['Password']))
+                db.session.add(inf)
+                db.session.commit()
+            
             return {'Code':200}
 
 class Greet(Resource):
 
     def post(self):#greeting
-        with open('server-public-key.pem') as f:
-            serv = f.read()
-        return {'Code':101, 'Server': serv}
+        data = Dataargs.parse_args()
+        user = cache.add(data['Id'])
+        return {'Code':101, 'Hash':user}
 
 class Leave(Resource):
 
     def post(self):#goodbyes
+        data = Dataargs.parse_args()
+        cache.delete(data['Hash'])
+
         return {'Code':200}
 
 class Delete(Resource):
     
     def post(self):
-        Args = Auth1.parse_args()
-        DataArgs = Dataargs.parse_args()
-        if Args['Username'] == '':
-            return {'Code':423}
-
-        if Args['Username'].isalnum() == False:
-            return {'Code':423}
+        data = Dataargs.parse_args()
+        userdat = cache.find(data['Hash'])[0]
+        userinfo = cache.find(data['Hash'])[1]
         
-        with app.app_context():
-            fromdat = DataMod.query.filter_by(Username=Args['Username']).first()
-        
-        if not fromdat:
-            return {'Code':423}
-        
-        datPass = marshal(fromdat, passfields)['Password']
-        userPass = hashlib.sha512((Args['Password'] + Args['Username']).encode("UTF-8")).hexdigest()
-        
-        if userPass == datPass:
-            new = Decrypt(marshal(fromdat, datfields)['Data'], Args['Username'], Args['Password'])
+        if userdat != None:
             try:
-                yes = jsonpath_ng.parse(DataArgs['Location'].replace('/', '.').replace(' ', '-').replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')).find(new)
+                yes = jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).find(userdat)
                 del [match.context for match in yes][0].value[str([match.path for match in yes][0])]
             except TypeError as err:
                     raise TypeError(err)
 
             except AttributeError as err:
                     raise AttributeError(err)
+                
             except IndexError as err:
                 if str(err) == 'list index out of range':
                     return {'Code':416}
             
-            with app.app_context():
-                db.session.delete(fromdat)
-                db.session.add(DataMod(Username=Args['Username'], Password=hashlib.sha512((Args['Password'] + Args['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt(new, Args['Username'], Args['Password'])))
-                db.session.commit()
+            cache.update(data['Hash'], [userdat, userinfo])
+
             return {'Code':200}
 
         else:
             return {'Code':423}
+
+class Cert(Resource):
+    def post(slef):
+        with open('server-public-key.pem') as f:
+            serv = f.read()
+        return {'Code':102, 'Server': serv}
+
+class Logout(Resource):
+    def post(self):
+        data = Dataargs.parse_args()
+        userdat = cache.find(data['Hash'])[0]
+        username, password = cache.find(data['Hash'])[1]
+
+        with app.app_context():
+            fromdat = DataMod.query.filter_by(Username=username).first()
+        
+        if not fromdat:
+            return {'Code':420}
+        
+        datPass = marshal(fromdat, passfields)['Password']
+        userPass = hashlib.sha512((password + username).encode("UTF-8")).hexdigest()
+        
+        if userPass == datPass:
+            
+            with app.app_context():
+                    db.session.delete(fromdat)
+                    db.session.add(DataMod(Username=username, Password=hashlib.sha512((password + username).encode("UTF-8")).hexdigest(), Data=Encrypt(userdat, username, password)))
+                    db.session.commit()
+            
+            return {'Code':200}
+        
+        else:
+            return {'Code':423}
+
+class cahce(Resource):
+    def post(self):
+        return {'Code': 202, 'Data': cache.users}
 
 api.add_resource(Login, '/Login')
 api.add_resource(Signup, '/Signup')
@@ -255,7 +319,8 @@ api.add_resource(Load, '/Load')
 api.add_resource(Save, '/Save')
 api.add_resource(Remove, '/Remove')
 api.add_resource(Delete, '/Delete')
-
+api.add_resource(Cert, '/Cert')
+api.add_resource(Logout, '/Logout')
 
 def start_server(host = None, port = None):
     if not os.path.isfile('server-public-key.pem') or not os.path.isfile('server-private-key.pem'):
