@@ -4,7 +4,7 @@ import unittest
 
 class testAuth(unittest.TestCase):
     user1 = AuthSesh()
-    user2 = AuthSesh('https://localhost:5678/')
+    user2 = AuthSesh('https://127.0.0.1:5678/')
     def test_111_login_client_side_wrong_username(self):
         self.user1.set_vals('test', 'test')
         with self.assertRaises(AuthenticationError) as cm:

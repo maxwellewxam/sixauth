@@ -5,7 +5,7 @@ from maxmods.imports.authimports import *
 
 t = Timer()
 def main():
-    with ascm('https://127.0.0.1:5678/') as server:
+    with ascm() as server:
         server.set_vals('max', 'max')
         server.login()
         server.save('sdfsfg/sdfg/dfgdfg/dfgdsdgjdguomfbxgh/cgyicxvsZEF', {'URMOM':'test'})

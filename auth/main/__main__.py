@@ -68,12 +68,12 @@ class AuthSesh:
             if self._Path == None:        
                 if os.path.isfile(f'{os.getcwd()}/database.db') is False:
                     with app.app_context():
-                        db.createall()
+                        db.create_all()
 
             else:
                 if os.path.isfile(f'{self._Path}/database.db') is False:
                     with app.app_context():
-                        db.createall()
+                        db.create_all()
                 
             datfields = {'Data': fields.Raw}
             passfields = {'Password': fields.String}
@@ -502,6 +502,7 @@ class AuthSeshContextManager:
         return self.ash
     
     def __exit__(self, type, val, trace):
+        self._removed = True
         self.ash.terminate()
 
 def simple_syntax():        
