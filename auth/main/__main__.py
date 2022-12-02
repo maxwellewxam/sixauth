@@ -206,27 +206,31 @@ class AuthSesh:
                         userdat = self.cache.find(data['Hash'])[0]
                         username, password = self.cache.find(data['Hash'])[1]
 
-                        with app.app_context():
-                            fromdat = DataMod.query.filter_by(Username=username).first()
-                        
-                        if not fromdat:
-                            return {'Code':420}
-                        
-                        datPass = marshal(fromdat, passfields)['Password']
-                        userPass = hashlib.sha512((password + username).encode("UTF-8")).hexdigest()
-                        
-                        if userPass == datPass:
-                            
+                        if userdat is not None:
                             with app.app_context():
-                                 db.session.delete(fromdat)
-                                 db.session.add(DataMod(Username=username, Password=hashlib.sha512((password + username).encode("UTF-8")).hexdigest(), Data=Encrypt(userdat, username, password)))
-                                 db.session.commit()
+                                fromdat = DataMod.query.filter_by(Username=username).first()
                             
+                            if not fromdat:
+                                return {'Code':420, 'Data':json.dumps(userdat)}
+                            
+                            datPass = marshal(fromdat, passfields)['Password']
+                            userPass = hashlib.sha512((password + username).encode("UTF-8")).hexdigest()
+                            
+                            if userPass == datPass:
+                                
+                                with app.app_context():
+                                    db.session.delete(fromdat)
+                                    db.session.add(DataMod(Username=username, Password=hashlib.sha512((password + username).encode("UTF-8")).hexdigest(), Data=Encrypt(userdat, username, password)))
+                                    db.session.commit()
+                                
+                                return {'Code':200}
+                            
+                            else:
+                                return {'Code':423}
+
+                        else:
                             return {'Code':200}
                         
-                        else:
-                            return {'Code':423}
-
                     elif location == 'Remove':
 
                         username, password = self.cache.find(data['Hash'])[1]
@@ -246,8 +250,10 @@ class AuthSesh:
                             with app.app_context():
                                 db.session.delete(fromdat)
                                 db.session.commit()
+                                
+                            self.cache.update(data['Hash'], [None,(None,None)])
                             
-                            return {'Code':204}
+                            return {'Code':200}
                         
                         else:
                             return {'Code':423}
@@ -460,14 +466,9 @@ class AuthSesh:
         elif request['Code'] == 102:
             self._certadder(request['Server'])
             
-        elif request['Code'] == 204:
-            self._removed = True
-            
         elif request['Code'] == 420:
-            if not self._removed:
-                raise SaveError('couldnt find user in database and user was not removed')
-            else:
-                self._removed = False
+            raise SaveError(request['Data'])
+            
 
 def simple_syntax():        
     from maxmods import menu as Menu
