@@ -1,8 +1,8 @@
 from maxmods.auth import AuthSesh as ash
-from maxmods.imports.authimports import AuthenticationError, LocationError
+from maxmods.imports.authimports import AuthenticationError, LocationError, warnings
 import unittest
-'https://127.0.0.1:5678/'
-with ash() as user1, ash() as user2:
+
+with ash() as user1, ash('https://127.0.0.1:5678/') as user2:
 
     class testAuth(unittest.TestCase):
         def test_111_login_client_side_wrong_username(self):
@@ -73,6 +73,7 @@ with ash() as user1, ash() as user2:
             self.assertTrue(user1.remove())
         
         def test_211_login_server_side_wrong_username(self):
+            warnings.filterwarnings('ignore')
             user2.set_vals('test', 'test')
             with self.assertRaises(AuthenticationError) as cm:
                 user2.login()
@@ -126,6 +127,7 @@ with ash() as user1, ash() as user2:
         def test_234_save_server_side_whole_dict(self):
             user2.set_vals('test', 'test')
             self.assertTrue(user2.save('', {'URMOM':'test'}))
+            input()
             
         def test_235_load_server_side_all_data(self):
             user2.set_vals('test', 'test')

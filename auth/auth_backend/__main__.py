@@ -173,7 +173,9 @@ class Remove(Resource):
                 db.session.delete(fromdat)
                 db.session.commit()
             
-            return {'Code':204}
+            cache.update(data['Hash'], [None,(None,None)])
+            
+            return {'Code':200}
         
         else:
             return {'Code':423}
@@ -286,29 +288,33 @@ class Logout(Resource):
         userdat = cache.find(data['Hash'])[0]
         username, password = cache.find(data['Hash'])[1]
 
-        with app.app_context():
-            fromdat = DataMod.query.filter_by(Username=username).first()
-        
-        if not fromdat:
-            return {'Code':420}
-        
-        datPass = marshal(fromdat, passfields)['Password']
-        userPass = hashlib.sha512((password + username).encode("UTF-8")).hexdigest()
-        
-        if userPass == datPass:
-            
+        if userdat is not None:
             with app.app_context():
+                fromdat = DataMod.query.filter_by(Username=username).first()
+            
+            if not fromdat:
+                return {'Code':420, 'Data':json.dumps(userdat)}
+            
+            datPass = marshal(fromdat, passfields)['Password']
+            userPass = hashlib.sha512((password + username).encode("UTF-8")).hexdigest()
+            
+            if userPass == datPass:
+                
+                with app.app_context():
                     db.session.delete(fromdat)
                     db.session.add(DataMod(Username=username, Password=hashlib.sha512((password + username).encode("UTF-8")).hexdigest(), Data=Encrypt(userdat, username, password)))
                     db.session.commit()
+                
+                return {'Code':200}
             
-            return {'Code':200}
-        
-        else:
-            return {'Code':423}
+            else:
+                return {'Code':423}
 
-class cahce(Resource):
-    def post(self):
+        else:
+            return {'Code':200}
+
+class cache1(Resource):
+    def get(self):
         return {'Code': 202, 'Data': cache.users}
 
 api.add_resource(Login, '/Login')
@@ -321,6 +327,7 @@ api.add_resource(Remove, '/Remove')
 api.add_resource(Delete, '/Delete')
 api.add_resource(Cert, '/Cert')
 api.add_resource(Logout, '/Logout')
+api.add_resource(cache1, '/cache')
 
 def start_server(host = None, port = None):
     if not os.path.isfile('server-public-key.pem') or not os.path.isfile('server-private-key.pem'):
