@@ -111,7 +111,7 @@ class AuthSesh:
                     return hash
                     
                 def find(self, hash):
-                    return [match.value for match in jsonpath_ng.parse(num_to_str(hash)).find(self.users)][0]
+                    return [match.value for match in jsonpath_ng.parse(num_to_str(hash)).find(self.users)]#[0]
                 
                 def update(self, hash, dbdat):
                     jsonpath_ng.parse(num_to_str(hash)).update_or_create(self.users, dbdat)
