@@ -1,6 +1,6 @@
 '''An all-in-one user authenticator and data manager'''
 
-from maxmods.imports.authimports import *
+from auth.imports import *
 
 class AuthSesh:
     '''
