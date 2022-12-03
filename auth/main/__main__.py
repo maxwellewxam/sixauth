@@ -106,14 +106,14 @@ class AuthSesh:
                     
                 def add(self, id):
                     hash = hashlib.sha512((f'{id}{datetime.now()}').encode("UTF-8")).hexdigest()
-                    jsonpath_ng.parse(num_to_str(hash)).update_or_create(self.users, [None,(None,None)])
+                    jsonpath_ng.parse(num_to_str(hash)).create(self.users, [None,(None,None)])
                     return hash
                     
                 def find(self, hash):
                     return [match.value for match in jsonpath_ng.parse(num_to_str(hash)).find(self.users)][0]
                 
                 def update(self, hash, dbdat):
-                    jsonpath_ng.parse(num_to_str(hash)).update_or_create(self.users, dbdat)
+                    jsonpath_ng.parse(num_to_str(hash)).update(self.users, dbdat)
                     
                 def delete(self, hash):
                     yes = jsonpath_ng.parse(num_to_str(hash)).find(self.users)
@@ -309,7 +309,6 @@ class AuthSesh:
                             return {'Code':423}
                         
                     elif location == 'Greet':
-                        print('sdf')
                         user = self.cache.add(data['Id'])
                         return {'Code':101, 'Hash':user}
                     
