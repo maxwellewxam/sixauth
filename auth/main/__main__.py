@@ -18,8 +18,7 @@ class AuthSesh:
     def __init__(self, Address: str = None, Path: str = None):
         self._Path = Path
         self._Address = Address
-        self._active = True
-        self._removed = True
+
         if self._Address == None:
             
             app = Flask(__name__)
@@ -111,7 +110,7 @@ class AuthSesh:
                     return hash
                     
                 def find(self, hash):
-                    return [match.value for match in jsonpath_ng.parse(num_to_str(hash)).find(self.users)]#[0]
+                    return [match.value for match in jsonpath_ng.parse(num_to_str(hash)).find(self.users)][0]
                 
                 def update(self, hash, dbdat):
                     jsonpath_ng.parse(num_to_str(hash)).update_or_create(self.users, dbdat)
@@ -202,7 +201,7 @@ class AuthSesh:
                             return {'Code':423}
                         
                     elif location == 'Logout':
-                        
+                        return {'Code':202, 'Data':self.cache.users}
                         userdat = self.cache.find(data['Hash'])[0]
                         username, password = self.cache.find(data['Hash'])[1]
 
@@ -402,7 +401,7 @@ class AuthSesh:
         
         Raises an exception if it fails
         '''
-        self._requestHandle(self._sesh.post(self._Path+ 'Logout', None, {'Hash':self._Hash}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+ 'Logout', None, {'Hash':self._Hash}, verify=True).json())
         return self._requestHandle(self._sesh.post(self._Path+'Login', None, {'Username':self._Name, 'Password':self._Pass, 'Hash':self._Hash}, verify=True).json())
         
     def signup(self):
@@ -427,10 +426,9 @@ class AuthSesh:
         
         if you do not manually call this, you are at the mercy of the garbage collector (unless you are using the context manager!)
         '''
-        if self._active:
-            self._requestHandle(self._sesh.post(self._Path+ 'Logout', None, {'Hash':self._Hash}, verify=True).json())
-            self._requestHandle(self._sesh.post(self._Path+'Leave', None, {'Hash':self._Hash}, verify=True).json())
-            self._active = False
+        self._requestHandle(self._sesh.post(self._Path+ 'Logout', None, {'Hash':self._Hash}, verify=True).json())
+        self._requestHandle(self._sesh.post(self._Path+'Leave', None, {'Hash':self._Hash}, verify=True).json())
+
     
     def _requestHandle(self, request):
         if request['Code'] == 200:
