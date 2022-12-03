@@ -201,7 +201,7 @@ class AuthSesh:
                             return {'Code':423}
                         
                     elif location == 'Logout':
-                        return {'Code':202, 'Data':self.cache.users}
+                        
                         userdat = self.cache.find(data['Hash'])[0]
                         username, password = self.cache.find(data['Hash'])[1]
 
@@ -309,7 +309,7 @@ class AuthSesh:
                             return {'Code':423}
                         
                     elif location == 'Greet':
-                        
+                        print('sdf')
                         user = self.cache.add(data['Id'])
                         return {'Code':101, 'Hash':user}
                     
@@ -401,7 +401,7 @@ class AuthSesh:
         
         Raises an exception if it fails
         '''
-        return self._requestHandle(self._sesh.post(self._Path+ 'Logout', None, {'Hash':self._Hash}, verify=True).json())
+        self._requestHandle(self._sesh.post(self._Path+ 'Logout', None, {'Hash':self._Hash}, verify=True).json())
         return self._requestHandle(self._sesh.post(self._Path+'Login', None, {'Username':self._Name, 'Password':self._Pass, 'Hash':self._Hash}, verify=True).json())
         
     def signup(self):
