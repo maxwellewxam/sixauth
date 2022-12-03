@@ -1,5 +1,5 @@
 requests
-jsonpath_ng
+jsonpath-ng
 flask_sqlalchemy
 flask
 flask_restful

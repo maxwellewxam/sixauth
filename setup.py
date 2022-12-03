@@ -17,7 +17,7 @@ with open(path.join(HERE, 'README.md'), encoding='utf-8') as f:
 # This call to setup() does all the work
 setup(
     name="maxmods",
-    version="0.2.2",
+    version="0.2.3",
     description="A library of all the usefull code snipits I make and maintain",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -41,7 +41,7 @@ setup(
     packages=['auth', 'auth.auth_backend', 'auth.imports', 'auth.main'],
     include_package_data=True,
     install_requires=['requests',
-        'jsonpath_ng',
+        'jsonpath-ng',
         'flask_sqlalchemy',
         'flask',
         'flask_restful',
