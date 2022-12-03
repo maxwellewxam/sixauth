@@ -1,8 +1,9 @@
-help("modules")
-
 from maxmods.auth import AuthSesh as ash
 from maxmods.imports.authimports import AuthenticationError, LocationError, warnings
+from maxmods.auth.auth_backend import start_server
 import unittest
+
+start_server('127.0.0.1', 5678)
 
 with ash() as user1, ash('https://127.0.0.1:5678/') as user2:
 
@@ -129,7 +130,6 @@ with ash() as user1, ash('https://127.0.0.1:5678/') as user2:
         def test_234_save_server_side_whole_dict(self):
             user2.set_vals('test', 'test')
             self.assertTrue(user2.save('', {'URMOM':'test'}))
-            input()
             
         def test_235_load_server_side_all_data(self):
             user2.set_vals('test', 'test')
