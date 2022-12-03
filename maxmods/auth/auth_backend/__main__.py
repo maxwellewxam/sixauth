@@ -316,6 +316,8 @@ class Logout(Resource):
 class cache1(Resource):
     def get(self):
         return {'Code': 202, 'Data': cache.users}
+    def post(self):
+        quit()
 
 api.add_resource(Login, '/Login')
 api.add_resource(Signup, '/Signup')
