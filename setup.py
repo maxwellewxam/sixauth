@@ -41,12 +41,7 @@ setup(
     packages=['auth', 'imports', 'menu', 'primitives'],
     include_package_data=True,
     install_requires=['requests',
-        'hashlib',
         'jsonpath_ng',
-        'json',
-        'base64',
-        'warnings',
-        'datetime',
         'flask_sqlalchemy',
         'flask',
         'flask_restful',
@@ -54,7 +49,5 @@ setup(
         'keyboard',
         'concurrent',
         'pygame',
-        'fpstimer',
-        'numpy',
-        'func_timeout']
+        'numpy']
 )
