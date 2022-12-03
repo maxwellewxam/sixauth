@@ -16,8 +16,6 @@ auth/auth_backend/__init__.py
 auth/auth_backend/__main__.py
 auth/main/__init__.py
 auth/main/__main__.py
-dist/maxmods-0.1.0-py3-none-any.whl
-dist/maxmods-0.1.0.tar.gz
 imports/__init__.py
 imports/authimports.py
 imports/updateImports.py

@@ -5,6 +5,5 @@ flask
 flask_restful
 cryptography
 keyboard
-concurrent
 pygame
 numpy

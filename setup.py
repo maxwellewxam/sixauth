@@ -17,7 +17,7 @@ with open(path.join(HERE, 'README.md'), encoding='utf-8') as f:
 # This call to setup() does all the work
 setup(
     name="maxmods",
-    version="0.1.1",
+    version="0.1.2",
     description="A library of all the usefull code snipits I make and maintain",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -47,7 +47,6 @@ setup(
         'flask_restful',
         'cryptography',
         'keyboard',
-        'concurrent',
         'pygame',
         'numpy']
 )
