@@ -1,0 +1,17 @@
+requests
+hashlib
+jsonpath_ng
+json
+base64
+warnings
+datetime
+flask_sqlalchemy
+flask
+flask_restful
+cryptography
+keyboard
+concurrent
+pygame
+fpstimer
+numpy
+func_timeout
