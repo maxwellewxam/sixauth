@@ -1,3 +1,5 @@
+help("modules")
+
 from maxmods.auth import AuthSesh as ash
 from maxmods.imports.authimports import AuthenticationError, LocationError, warnings
 import unittest
