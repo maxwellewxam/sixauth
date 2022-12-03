@@ -12,6 +12,8 @@ __pycache__/Auth.cpython-310.pyc
 __pycache__/AuthBakend.cpython-310.pyc
 dist/maxmods-0.1.2-py3-none-any.whl
 dist/maxmods-0.1.2.tar.gz
+dist/maxmods-0.1.3-py3-none-any.whl
+dist/maxmods-0.1.3.tar.gz
 maxmods/__init__.py
 maxmods.egg-info/PKG-INFO
 maxmods.egg-info/SOURCES.txt
@@ -22,3 +24,4 @@ tests/Auth_Test.py
 tests/Canvas_test.py
 tests/Matrix_Test.py
 tests/auth_speed_test.py
+tests/server_run.py
