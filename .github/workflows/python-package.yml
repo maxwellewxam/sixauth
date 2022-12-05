@@ -37,7 +37,7 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: start server
       run: |
-        pythonw.exe tests/server_run.py
+        pythonw.exe tests/server_run.py &
       env:
         PORT: 5678
     - name: Test with unittest
