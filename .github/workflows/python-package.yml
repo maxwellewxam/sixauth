@@ -12,7 +12,7 @@ on:
 jobs:
   build:
 
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -37,7 +37,7 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: start server
       run: |
-        nohup pythonw.exe tests/server_run.py
+        nohup python tests/server_run.py &
       env:
         PORT: 5678
     - name: Test with unittest
