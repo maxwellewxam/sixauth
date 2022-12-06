@@ -1,6 +1,6 @@
 # Always prefer setuptools over distutils
 from setuptools import setup, find_packages
-
+import subprocess
 # To use a consistent encoding
 from codecs import open
 from os import path
@@ -12,12 +12,27 @@ HERE = path.abspath(path.dirname(__file__))
 with open(path.join(HERE, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
+mm_remote_version = (
+    subprocess.run(["git", "describe", "--tags"], stdout=subprocess.PIPE)
+    .stdout.decode("utf-8")
+    .strip()
+)
 
+if "-" in mm_remote_version:
+    # when not on tag, git describe outputs: "1.3.3-22-gdf81228"
+    # pip has gotten strict with version numbers
+    # so change it to: "1.3.3+22.git.gdf81228"
+    # See: https://peps.python.org/pep-0440/#local-version-segments
+    v,i,s = mm_remote_version.split("-")
+    mm_remote_version = v + "+" + i + ".git." + s
+
+assert "-" not in mm_remote_version
+assert "." in mm_remote_version
 
 # This call to setup() does all the work
 setup(
     name="maxmods",
-    version="0.2.3",
+    version=mm_remote_version,
     description="A library of all the usefull code snipits I make and maintain",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -38,7 +53,7 @@ setup(
         "Programming Language :: Python :: 3.11",
         "Operating System :: OS Independent"
     ],
-    packages=['auth', 'auth.auth_backend', 'auth.imports', 'auth.main'],
+    packages=find_packages(),
     include_package_data=True,
     install_requires=['requests',
         'jsonpath-ng',
