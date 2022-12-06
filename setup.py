@@ -53,7 +53,7 @@ setup(
         "Programming Language :: Python :: 3.11",
         "Operating System :: OS Independent"
     ],
-    packages=find_packages(),
+    packages=['maxmods', 'maxmods.auth', 'maxmods.menu', 'maxmods.auth.auth_backend'],
     include_package_data=True,
     install_requires=['requests',
         'jsonpath-ng',
