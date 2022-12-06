@@ -1,9 +1,9 @@
 
 import sys
-sys.path.append('src/auth/')
+sys.path.append('maxmods/')
 
-from auth import AuthSesh as ash
-from auth.imports import AuthenticationError, LocationError, warnings
+from maxmods.auth import AuthSesh as ash
+from maxmods.auth.imports import AuthenticationError, LocationError, warnings
 import unittest
 
 with ash() as user1, ash('https://127.0.0.1:5678/') as user2:
