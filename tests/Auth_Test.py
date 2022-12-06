@@ -1,6 +1,6 @@
 
 import sys
-sys.path.append('auth/')
+sys.path.append('src/auth/')
 
 from auth import AuthSesh as ash
 from auth.imports import AuthenticationError, LocationError, warnings
