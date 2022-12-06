@@ -1,7 +1,8 @@
 
 import sys
-sys.path.append('maxmods/')
-
+import os
+HERE = os.path.abspath(os.getcwd())
+sys.path.append(HERE)
 from maxmods.auth import AuthSesh as ash
 from maxmods.auth.imports import AuthenticationError, LocationError, warnings
 import unittest
