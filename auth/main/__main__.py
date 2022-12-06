@@ -142,7 +142,7 @@ class AuthSesh:
                         userdat = self.cache.find(data['Hash'])[0]
                         userinfo = self.cache.find(data['Hash'])[1]
                         
-                        if userdat != 0:
+                        if userdat != None:
                             try:
                                 hmm = json.loads(data['Data'])
                                 jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).update_or_create(userdat, hmm)
@@ -171,7 +171,7 @@ class AuthSesh:
                         userdat = self.cache.find(data['Hash'])[0]
                         userinfo = self.cache.find(data['Hash'])[1]
                         
-                        if userdat != 0:
+                        if userdat != None:
                             try:
                                 yes = jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).find(userdat)
                                 del [match.context for match in yes][0].value[str([match.path for match in yes][0])]
@@ -197,7 +197,7 @@ class AuthSesh:
                         userdat = self.cache.find(data['Hash'])[0]
                         username, password = self.cache.find(data['Hash'])[1]
 
-                        if userdat != 0:
+                        if userdat != None:
                             with app.app_context():
                                 fromdat = DataMod.query.filter_by(Username=username).first()
                             
@@ -278,7 +278,7 @@ class AuthSesh:
 
                         userdat = self.cache.find(data['Hash'])[0]
                         
-                        if userdat != 0:
+                        if userdat != None:
                             try:
                                 jsonpath_expr = [match.value for match in jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).find(userdat)][0]
                                 
