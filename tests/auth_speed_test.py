@@ -1,35 +1,13 @@
-from maxmods.primitives.randomfuncs import Timer
-from maxmods.auth import AuthSesh as ash
-from maxmods.imports.authimports import *
+# from maxmods.primitives.randomfuncs import Timer
+# from maxmods.auth import AuthSesh as ash
+import bcrypt
 
-t = Timer()
-def main():
-    with ash('https://127.0.0.1:5678/') as server:
-        server.set_vals('max', 'max')
-        server.login()
-        server.save('sdfsfg/sdfg/dfgdfg/dfgdsdgjdguomfbxgh/cgyicxvsZEF', {'URMOM':'test'})
-        print(server.load())
-        server.delete('sdfsfg/sdfg/dfgdfg/dfgdsdgjdguomfbxgh')
-        print(server.load())
-        server.remove()
-        server.set_vals('max1', 'max1')
-        server.login()
-        server.save('sdfsfg/sdfg/dfgdfg/dfgdsdgjdguomfbxgh/cgyicxvsZEF', {'URMOM':'test'})
-        print(server.load())
-        server.delete('sdfsfg/sdfg/dfgdfg/dfgdsdgjdguomfbxgh')
-        print(server.load())
-        server.set_vals('max', 'max')
-        server.signup()
-        server.login()
-        print(server.load())
-        server.set_vals('max1', 'max1')
-        server.login()
-        print(server.load())
-        
-t.run_time(main)
-print(t.message)        
+def create_hash(password):
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
 
-# with ascm('https://127.0.0.1:5678/') as f:
-#     f.set_vals('max1', 'max1')
-#     f.signup()
-#     f.login()
+def check_hash(hash, password):
+    return bcrypt.checkpw(password.encode('utf-8'), hash)
+
+asd = create_hash('password')
+
+print(check_hash(asd, 'password'))
