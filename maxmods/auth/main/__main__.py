@@ -53,7 +53,13 @@ class AuthSesh:
                 key = base64.urlsafe_b64encode(kdf.derive(bytes(password.encode())))
                 fernet = Fernet(key)
                 return json.loads(fernet.decrypt(Data.encode()).decode())
-    
+
+            def create_hash(password):
+                return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).hex()
+
+            def check_hash(hash, password):
+                return bcrypt.checkpw(password.encode('utf-8'), bytes.fromhex(hash))
+            
             class DataMod(db.Model):
                 Username = db.Column(db.String, nullable=False, primary_key = True)
                 Password = db.Column(db.String, nullable=False)
@@ -131,7 +137,7 @@ class AuthSesh:
                         else:
                             
                             with app.app_context():
-                                inf = DataMod(Username=data['Username'], Password=hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt({}, data['Username'], data['Password']))
+                                inf = DataMod(Username=data['Username'], Password=create_hash(data['Password']), Data=Encrypt({}, data['Username'], data['Password']))
                                 db.session.add(inf)
                                 db.session.commit()
                             
@@ -205,13 +211,12 @@ class AuthSesh:
                                 return {'Code':420, 'Data':json.dumps(userdat)}
                             
                             datPass = marshal(fromdat, passfields)['Password']
-                            userPass = hashlib.sha512((password + username).encode("UTF-8")).hexdigest()
                             
-                            if userPass == datPass:
+                            if check_hash(datPass, password):
                                 
                                 with app.app_context():
                                     db.session.delete(fromdat)
-                                    db.session.add(DataMod(Username=username, Password=hashlib.sha512((password + username).encode("UTF-8")).hexdigest(), Data=Encrypt(userdat, username, password)))
+                                    db.session.add(DataMod(Username=username, Password=create_hash(password), Data=Encrypt(userdat, username, password)))
                                     db.session.commit()
                                 
                                 return {'Code':200}
@@ -234,9 +239,8 @@ class AuthSesh:
 
                         
                         datPass = marshal(fromdat, passfields)['Password']
-                        userPass = hashlib.sha512((password + username).encode("UTF-8")).hexdigest()
                         
-                        if userPass == datPass:
+                        if check_hash(datPass, password):
                             
                             with app.app_context():
                                 db.session.delete(fromdat)
@@ -263,9 +267,8 @@ class AuthSesh:
                             return {'Code':404}
                         
                         datPass = marshal(fromdat, passfields)['Password']
-                        userPass = hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest()
                         
-                        if userPass == datPass:
+                        if check_hash(datPass, data['Password']):
                             
                             self.cache.update(data['Hash'], [Decrypt(marshal(fromdat, datfields)['Data'], data['Username'], data['Password']), (data['Password'], data['Username'])]) 
                             

@@ -6,6 +6,7 @@ import json
 import base64
 import warnings
 import random
+import bcrypt
 
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy

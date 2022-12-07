@@ -9,3 +9,4 @@ pygame
 fpstimer
 numpy
 func_timeout
+bcrypt
