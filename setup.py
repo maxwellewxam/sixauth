@@ -33,7 +33,7 @@ assert "." in mm_remote_version
 setup(
     name="maxmods",
     version=mm_remote_version,
-    description="A library of all the usefull code snipits I make and maintain",
+    description="A library of all the useful code snippets I make and maintain",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/maxwellewxam/maxmods/",
