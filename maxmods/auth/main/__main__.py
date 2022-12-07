@@ -18,6 +18,7 @@ class AuthSesh:
     def __init__(self, Address: str = None, Path: str = None):
         self._Path = Path
         self._Address = Address
+        self._Id = random.randint(100000, 999999)
 
         if self._Address == None:
             
@@ -98,25 +99,43 @@ class AuthSesh:
             def num_to_str(text):
                 return text.replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')
             
+            def getcachepass(id):
+                return str(id)
+            
+            def getcacheuser(id):
+                return str(id)
+            
             class usercache:
                 def __init__(self):
                     self.users = {}
                     
                 def add(self, id):
                     hash = hashlib.sha512((f'{id}{datetime.now()}').encode("UTF-8")).hexdigest()
-                    jsonpath_ng.parse(num_to_str(hash)).update_or_create(self.users, [None,(None,None)])
+                    jsonpath_ng.parse(num_to_str(hash)).update_or_create(self.users, Encrypt([None,(None,None)],getcachepass(id),getcacheuser(id)))
+                    
                     return hash
                     
-                def find(self, hash):
-                    return [match.value for match in jsonpath_ng.parse(num_to_str(hash)).find(self.users)][0]
-                
-                def update(self, hash, dbdat):
-                    jsonpath_ng.parse(num_to_str(hash)).update_or_create(self.users, dbdat)
+                def find(self, hash, id):
+                    try:
+                        return Decrypt([match.value for match in jsonpath_ng.parse(num_to_str(hash)).find(self.users)][0],getcachepass(id),getcacheuser(id))
+
+                    except InvalidToken:
+                        return ['you being bad?',('you being bad?','you being bad?')]
                     
-                def delete(self, hash):
+                def update(self, hash, id, dbdat):
+                    jsonpath_ng.parse(num_to_str(hash)).update_or_create(self.users, Encrypt(dbdat,getcachepass(id),getcacheuser(id)))
+
+                def delete(self, hash, id):
                     yes = jsonpath_ng.parse(num_to_str(hash)).find(self.users)
-                    del [match.context for match in yes][0].value[str([match.path for match in yes][0])]
-            
+                    
+                    try:
+                        Decrypt([match.value for match in yes][0],getcachepass(id),getcacheuser(id))
+                        del [match.context for match in yes][0].value[str([match.path for match in yes][0])]
+                        return [None]
+                        
+                    except InvalidToken:
+                        return ['you being bad?',('you being bad?','you being bad?')]
+                    
             class datHandle:
                 cache = usercache()
                 @HandleWrapper
@@ -145,10 +164,10 @@ class AuthSesh:
                         
                     elif location == 'Save':
 
-                        userdat = self.cache.find(data['Hash'])[0]
-                        userinfo = self.cache.find(data['Hash'])[1]
+                        userdat = self.cache.find(data['Hash'], data['Id'])[0]
+                        userinfo = self.cache.find(data['Hash'], data['Id'])[1]
                         
-                        if userdat != None:
+                        if userdat != None and userdat != 'you being bad?':
                             try:
                                 hmm = json.loads(data['Data'])
                                 jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).update_or_create(userdat, hmm)
@@ -165,7 +184,7 @@ class AuthSesh:
                                     raise AttributeError(err)
                                     #return {'Code':202, 'Data':userdat}
                             
-                            self.cache.update(data['Hash'], [userdat, userinfo])
+                            self.cache.update(data['Hash'], data['Id'], [userdat, userinfo])
 
                             return {'Code':200, 'Data':userdat}
 
@@ -174,10 +193,10 @@ class AuthSesh:
 
                     elif location == 'Delete':
                         
-                        userdat = self.cache.find(data['Hash'])[0]
-                        userinfo = self.cache.find(data['Hash'])[1]
+                        userdat = self.cache.find(data['Hash'], data['Id'])[0]
+                        userinfo = self.cache.find(data['Hash'], data['Id'])[1]
                         
-                        if userdat != None:
+                        if userdat != None and userdat != 'you being bad?':
                             try:
                                 yes = jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).find(userdat)
                                 del [match.context for match in yes][0].value[str([match.path for match in yes][0])]
@@ -191,7 +210,7 @@ class AuthSesh:
                                 if str(err) == 'list index out of range':
                                     return {'Code':416}
                             
-                            self.cache.update(data['Hash'], [userdat, userinfo])
+                            self.cache.update(data['Hash'], data['Id'], [userdat, userinfo])
 
                             return {'Code':200}
 
@@ -200,10 +219,10 @@ class AuthSesh:
                         
                     elif location == 'Logout':
                         
-                        userdat = self.cache.find(data['Hash'])[0]
-                        username, password = self.cache.find(data['Hash'])[1]
+                        userdat = self.cache.find(data['Hash'], data['Id'])[0]
+                        username, password = self.cache.find(data['Hash'], data['Id'])[1]
 
-                        if userdat != None:
+                        if userdat != None and userdat != 'you being bad?':
                             with app.app_context():
                                 fromdat = DataMod.query.filter_by(Username=username).first()
                             
@@ -229,12 +248,12 @@ class AuthSesh:
                         
                     elif location == 'Remove':
 
-                        username, password = self.cache.find(data['Hash'])[1]
+                        username, password = self.cache.find(data['Hash'], data['Id'])[1]
                         
                         with app.app_context():
                             fromdat = DataMod.query.filter_by(Username=username).first()
                         
-                        if not fromdat:
+                        if not fromdat or username == 'you being bad?':
                             return {'Code':423}
 
                         
@@ -246,7 +265,7 @@ class AuthSesh:
                                 db.session.delete(fromdat)
                                 db.session.commit()
                                 
-                            self.cache.update(data['Hash'], [None,(None,None)])
+                            self.cache.update(data['Hash'], data['Id'], [None,(None,None)])
                             
                             return {'Code':200}
                         
@@ -270,7 +289,7 @@ class AuthSesh:
                         
                         if check_hash(datPass, data['Password']):
                             
-                            self.cache.update(data['Hash'], [Decrypt(marshal(fromdat, datfields)['Data'], data['Username'], data['Password']), (data['Password'], data['Username'])]) 
+                            self.cache.update(data['Hash'], data['Id'], [Decrypt(marshal(fromdat, datfields)['Data'], data['Username'], data['Password']), (data['Password'], data['Username'])]) 
                             
                             return {'Code':200}
                         
@@ -279,9 +298,9 @@ class AuthSesh:
                         
                     elif location == 'Load':
 
-                        userdat = self.cache.find(data['Hash'])[0]
+                        userdat = self.cache.find(data['Hash'], data['Id'])[0]
                         
-                        if userdat != None:
+                        if userdat != None and userdat != 'you being bad?':
                             try:
                                 jsonpath_expr = [match.value for match in jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).find(userdat)][0]
                                 
@@ -289,7 +308,7 @@ class AuthSesh:
                                 if str(err) == 'list index out of range':
                                     return {'Code':416}
                                 
-                                else: 
+                                else:
                                     raise IndexError(err)
                                 
                             except AttributeError as err:
@@ -311,9 +330,11 @@ class AuthSesh:
                         return {'Code':200}
                 
                     elif location == 'Leave':
-                        self.cache.delete(data['Hash'])
-
-                        return {'Code':200}
+                        if self.cache.delete(data['Hash'], data['Id'])[0] == 'you being bad?':
+                            return {'Code':423}
+                        
+                        else:
+                            return {'Code':200}
                 
             self._sesh = datHandle()
             self._Path = ''
@@ -323,7 +344,7 @@ class AuthSesh:
         try:
             warnings.filterwarnings('ignore')
             self._requestHandle(self._sesh.post(self._Path + 'Cert', None, {}, verify=False).json())
-            self._requestHandle(self._sesh.post(self._Path + 'Greet', None, {'Id':random.randint(100000, 999999)}, verify=True).json())
+            self._requestHandle(self._sesh.post(self._Path + 'Greet', None, {'Id':self._Id}, verify=True).json())
             
         except requests.ConnectionError as err:
             raise LocationError('Couldn\'t connect to backend server\nMessage:\n' + str(err))
@@ -372,14 +393,14 @@ class AuthSesh:
         '''
         Data = json.dumps(Data)
         
-        return self._requestHandle(self._sesh.post(self._Path+'Save', None, {'Location':Location, 'Data':Data, 'Hash':self._Hash}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'Save', None, {'Location':Location, 'Data':Data, 'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
     def load(self, Location = ''):
         '''
         Loads data at specified location. Raises an exception if location doesn't exist
 
         Auth.Load('Loc1/Loc2/Loc3') Returns data in Loc1/Loc2/Loc3/
         '''
-        return self._requestHandle(self._sesh.post(self._Path+'Load', None, {'Location':Location, 'Hash':self._Hash}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'Load', None, {'Location':Location, 'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
     
     def delete(self, Location: str):
         '''
@@ -387,7 +408,7 @@ class AuthSesh:
 
         Auth.Delete('Loc1/Loc2/Loc3') Deletes data in Loc1/Loc2/Loc3/
         '''
-        return self._requestHandle(self._sesh.post(self._Path+'Delete', None, {'Location':Location, 'Hash':self._Hash}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'Delete', None, {'Location':Location, 'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
 
     def login(self):
         '''
@@ -395,8 +416,8 @@ class AuthSesh:
         
         Raises an exception if it fails
         '''
-        self._requestHandle(self._sesh.post(self._Path+ 'Logout', None, {'Hash':self._Hash}, verify=True).json())
-        return self._requestHandle(self._sesh.post(self._Path+'Login', None, {'Username':self._Name, 'Password':self._Pass, 'Hash':self._Hash}, verify=True).json())
+        self._requestHandle(self._sesh.post(self._Path+ 'Logout', None, {'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'Login', None, {'Username':self._Name, 'Password':self._Pass, 'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
         
     def signup(self):
         '''
@@ -412,7 +433,7 @@ class AuthSesh:
         
         Raises an exception if it fails
         '''
-        return self._requestHandle(self._sesh.post(self._Path+'Remove', None, {'Hash':self._Hash}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'Remove', None, {'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
     
     def terminate(self):
         '''
@@ -420,8 +441,8 @@ class AuthSesh:
         
         if you do not manually call this, you are at the mercy of the garbage collector (unless you are using the context manager!)
         '''
-        self._requestHandle(self._sesh.post(self._Path+ 'Logout', None, {'Hash':self._Hash}, verify=True).json())
-        self._requestHandle(self._sesh.post(self._Path+'Leave', None, {'Hash':self._Hash}, verify=True).json())
+        self._requestHandle(self._sesh.post(self._Path+ 'Logout', None, {'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
+        self._requestHandle(self._sesh.post(self._Path+'Leave', None, {'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
 
     
     def _requestHandle(self, request):
