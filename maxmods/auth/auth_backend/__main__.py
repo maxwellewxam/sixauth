@@ -12,6 +12,7 @@ import jsonpath_ng
 import hashlib
 import base64
 import json
+import bcrypt
 
 app = Flask(__name__)
 api = Api(app)
@@ -68,6 +69,13 @@ Dataargs.add_argument('Id', type=int)
 datfields = {'Data': fields.Raw}
 passfields = {'Password': fields.String}
 
+
+def create_hash(password):
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).hex()
+
+def check_hash(hash, password):
+    return bcrypt.checkpw(password.encode('utf-8'), bytes.fromhex(hash))
+            
 def num_to_str(text):
     return text.replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')
 
@@ -165,9 +173,8 @@ class Remove(Resource):
 
         
         datPass = marshal(fromdat, passfields)['Password']
-        userPass = hashlib.sha512((password + username).encode("UTF-8")).hexdigest()
         
-        if userPass == datPass:
+        if check_hash(datPass, password):
             
             with app.app_context():
                 db.session.delete(fromdat)
@@ -197,9 +204,8 @@ class Login(Resource):
             return {'Code':404}
         
         datPass = marshal(fromdat, passfields)['Password']
-        userPass = hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest()
         
-        if userPass == datPass:
+        if check_hash(datPass, data['Password']):
             
             cache.update(data['Hash'], [Decrypt(marshal(fromdat, datfields)['Data'], data['Username'], data['Password']), (data['Password'], data['Username'])]) 
             
@@ -227,7 +233,7 @@ class Signup(Resource):
         else:
             
             with app.app_context():
-                inf = DataMod(Username=data['Username'], Password=hashlib.sha512((data['Password'] + data['Username']).encode("UTF-8")).hexdigest(), Data=Encrypt({}, data['Username'], data['Password']))
+                inf = DataMod(Username=data['Username'], Password=create_hash(data['Password']), Data=Encrypt({}, data['Username'], data['Password']))
                 db.session.add(inf)
                 db.session.commit()
             
@@ -296,9 +302,7 @@ class Logout(Resource):
                 return {'Code':420, 'Data':json.dumps(userdat)}
             
             datPass = marshal(fromdat, passfields)['Password']
-            userPass = hashlib.sha512((password + username).encode("UTF-8")).hexdigest()
-            
-            if userPass == datPass:
+            if check_hash(datPass, password):
                 
                 with app.app_context():
                     db.session.delete(fromdat)
