@@ -63,5 +63,6 @@ setup(
         'cryptography',
         'keyboard',
         'pygame',
-        'numpy']
+        'numpy',
+        'bcrypt']
 )
