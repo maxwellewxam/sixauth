@@ -6,8 +6,8 @@ sys.path.append(HERE)
 from maxmods.auth import AuthSesh as ash
 from maxmods.auth.imports import AuthenticationError, LocationError, warnings
 import unittest
-
-with ash() as user1, ash('https://127.0.0.1:5678/') as user2:
+'https://127.0.0.1:5678/'
+with ash() as user1, ash() as user2:
 
     class testAuth(unittest.TestCase):
         def test_111_login_client_side_wrong_username(self):
