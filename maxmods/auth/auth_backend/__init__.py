@@ -1,3 +1,3 @@
 '''Backend module for the Auth module'''
-from .__main__ import *
+from .main import *
 __all__ = ['start_server']

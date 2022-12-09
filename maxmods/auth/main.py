@@ -18,11 +18,10 @@ class AuthSesh:
     def __init__(self, Address: str = None, Path: str = None):
         self._Path = Path
         self._Address = Address
-        self._Id = Fernet.generate_key()
+        self._Id = Fernet.generate_key().hex()
 
         if self._Address == None:
-                
-            self._sesh = datHandle()
+            self._sesh = authClass(self._Path).Session()
             self._Path = ''
         else:
             self._sesh = requests.Session()
