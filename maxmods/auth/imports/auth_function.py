@@ -162,101 +162,94 @@ class authClass:
                     
                     if fromdat:
                         return {'Code':409}
+                        
+                    with self.app.app_context():
+                        inf = DataMod(Username=data['Username'], Password=create_hash(data['Password']), Data=encrypt({}, data['Username'], data['Password']))
+                        db.session.add(inf)
+                        db.session.commit()
                     
-                    else:
-                        
-                        with self.app.app_context():
-                            inf = DataMod(Username=data['Username'], Password=create_hash(data['Password']), Data=encrypt({}, data['Username'], data['Password']))
-                            db.session.add(inf)
-                            db.session.commit()
-                        
-                        return {'Code':200}
+                    return {'Code':200}
                     
                 elif location == 'Save':
 
                     userdat = self1.cache.find(data['Hash'], data['Id'])[0]
                     userinfo = self1.cache.find(data['Hash'], data['Id'])[1]
                     
-                    if userdat != None and userdat != 'you being bad?':
-                        try:
-                            try:
-                                hmm = json.loads(data['Data'])
-                                jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).update_or_create(userdat, hmm)
-                            
-                            except AttributeError as err:
-                                if str(err) == '\'NoneType\' object has no attribute \'lineno\'':
-                                    userdat = json.loads(data['Data'])
-                                        
-                                else:
-                                    raise AttributeError(err)
-                            
-                            self1.cache.update(data['Hash'], data['Id'], [userdat, userinfo])
-
-                            return {'Code':200, 'Data':userdat}
-
-                        except Exception as err:
-                            return {'Code':420, 'Data':userdat, 'err':err}
-                        
-                    else:
+                    if userdat == None or userdat == 'you being bad?':
                         return {'Code':423}
+                    
+                    try:
+                        try:
+                            hmm = json.loads(data['Data'])
+                            jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).update_or_create(userdat, hmm)
+                        
+                        except AttributeError as err:
+                            if str(err) == '\'NoneType\' object has no attribute \'lineno\'':
+                                userdat = json.loads(data['Data'])
+                                    
+                            else:
+                                raise AttributeError(err)
+                        
+                        self1.cache.update(data['Hash'], data['Id'], [userdat, userinfo])
+
+                        return {'Code':200, 'Data':userdat}
+
+                    except Exception as err:
+                        return {'Code':420, 'Data':userdat, 'err':err}
 
                 elif location == 'Delete':
                     
                     userdat = self1.cache.find(data['Hash'], data['Id'])[0]
                     userinfo = self1.cache.find(data['Hash'], data['Id'])[1]
                     
-                    if userdat != None and userdat != 'you being bad?':
-                        try:
-                            try:
-                                yes = jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).find(userdat)
-                                del [match.context for match in yes][0].value[str([match.path for match in yes][0])]
-                                
-                            except IndexError as err:
-                                if str(err) == 'list index out of range':
-                                    return {'Code':416}
-                            
-                            self1.cache.update(data['Hash'], data['Id'], [userdat, userinfo])
-
-                            return {'Code':200}
-                        
-                        except Exception as err:
-                            return {'Code':420, 'Data':userdat, 'err':err}
-
-                    else:
+                    if userdat == None or userdat == 'you being bad?':
                         return {'Code':423}
+                    
+                    try:
+                        try:
+                            yes = jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).find(userdat)
+                            del [match.context for match in yes][0].value[str([match.path for match in yes][0])]
+                            
+                        except IndexError as err:
+                            if str(err) == 'list index out of range':
+                                return {'Code':416}
+                        
+                        self1.cache.update(data['Hash'], data['Id'], [userdat, userinfo])
+
+                        return {'Code':200}
+                    
+                    except Exception as err:
+                        return {'Code':420, 'Data':userdat, 'err':err}
                     
                 elif location == 'Logout':
                     
                     userdat = self1.cache.find(data['Hash'], data['Id'])[0]
                     username, password = self1.cache.find(data['Hash'], data['Id'])[1]
 
-                    if userdat != None and userdat != 'you being bad?':
-                        try:
-                            with self.app.app_context():
-                                fromdat = DataMod.query.filter_by(Username=username).first()
-                            
-                            if not fromdat:
-                                return {'Code':420, 'Data':json.dumps(userdat)}
-                            
-                            datPass = marshal(fromdat, passfields)['Password']
-                            
-                            if check_hash(datPass, password):
-                                
-                                with self.app.app_context():
-                                    db.session.delete(fromdat)
-                                    db.session.add(DataMod(Username=username, Password=create_hash(password), Data=encrypt(userdat, username, password)))
-                                    db.session.commit()
-                                
-                                return {'Code':200}
-                            
-                            else:
-                                return {'Code':423}
-                        
-                        except Exception as err:
-                            return {'Code':420, 'Data':userdat, 'err':err}
-
-                    else:
+                    if userdat == None or userdat == 'you being bad?':
                         return {'Code':200}
+                    
+                    with self.app.app_context():
+                        fromdat = DataMod.query.filter_by(Username=username).first()
+                    
+                    if not fromdat:
+                        return {'Code':420, 'Data':userdat, 'err':'could not find user to logout'}
+                    
+                    datPass = marshal(fromdat, passfields)['Password']
+                    
+                    if not check_hash(datPass, password):
+                        return {'Code': 423}
+                        
+                    try:    
+                        with self.app.app_context():
+                            db.session.delete(fromdat)
+                            db.session.add(DataMod(Username=username, Password=create_hash(password), Data=encrypt(userdat, username, password)))
+                            db.session.commit()
+                        
+                        return {'Code':200}
+                
+                    except Exception as err:
+                        return {'Code':420, 'Data':userdat, 'err':err}
                     
                 elif location == 'Remove':
 
@@ -270,19 +263,17 @@ class authClass:
                     
                     datPass = marshal(fromdat, passfields)['Password']
                     
-                    if check_hash(datPass, password):
-                        
-                        with self.app.app_context():
-                            db.session.delete(fromdat)
-                            db.session.commit()
-                            
-                        self1.cache.update(data['Hash'], data['Id'], [None,(None,None)])
-                        
-                        return {'Code':200}
-                    
-                    else:
+                    if not check_hash(datPass, password):
                         return {'Code':423}
-                
+                    
+                    with self.app.app_context():
+                        db.session.delete(fromdat)
+                        db.session.commit()
+                        
+                    self1.cache.update(data['Hash'], data['Id'], [None,(None,None)])
+                    
+                    return {'Code':200}
+            
                 elif location == 'Login':
                     if data['Username'] == '':
                         return {'Code':406}
@@ -298,47 +289,42 @@ class authClass:
                     
                     datPass = marshal(fromdat, passfields)['Password']
                     
-                    if check_hash(datPass, data['Password']):
-                        
-                        if self1.cache.update(data['Hash'], data['Id'], [decrypt(marshal(fromdat, datfields)['Data'], data['Username'], data['Password']), (data['Password'], data['Username'])])[0] != 'you being bad?':
-                            return {'Code':200}
-                        
-                        else:
-                            return {'Code':423}
-                    
-                    else:
+                    if not check_hash(datPass, data['Password']):
                         return {'Code':401}
+                        
+                    if self1.cache.update(data['Hash'], data['Id'], [decrypt(marshal(fromdat, datfields)['Data'], data['Username'], data['Password']), (data['Password'], data['Username'])])[0] == 'you being bad?':
+                        return {'Code':423}
+                    
+                    return {'Code':423}
                     
                 elif location == 'Load':
 
                     userdat = self1.cache.find(data['Hash'], data['Id'])[0]
                     
-                    if userdat != None and userdat != 'you being bad?':
-                        try:
-                            try:
-                                jsonpath_expr = [match.value for match in jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).find(userdat)][0]
-                                
-                            except IndexError as err:
-                                if str(err) == 'list index out of range':
-                                    return {'Code':416}
-                                
-                                else:
-                                    raise IndexError(err)
-                                
-                            except AttributeError as err:
-                                if str(err) == '\'NoneType\' object has no attribute \'lineno\'':
-                                    return {'Data':userdat, 'Code':202}
-                                else:
-                                    raise AttributeError(err)
-                                
-                            return {'Data':jsonpath_expr, 'Code':202}
-                        
-                        except Exception as err:
-                            return {'Code':420, 'Data':userdat, 'err':err}
-                    
-                    else:
+                    if userdat == None or userdat == 'you being bad?':
                         return {'Code':423}
-
+                    try:
+                        try:
+                            jsonpath_expr = [match.value for match in jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).find(userdat)][0]
+                            
+                        except IndexError as err:
+                            if str(err) == 'list index out of range':
+                                return {'Code':416}
+                            
+                            else:
+                                raise IndexError(err)
+                            
+                        except AttributeError as err:
+                            if str(err) == '\'NoneType\' object has no attribute \'lineno\'':
+                                return {'Data':userdat, 'Code':202}
+                            else:
+                                raise AttributeError(err)
+                            
+                        return {'Data':jsonpath_expr, 'Code':202}
+                    
+                    except Exception as err:
+                        return {'Code':420, 'Data':userdat, 'err':err}
+                        
                 elif location == 'Greet':
                     try:
                         user = self1.cache.add(data['Id'])
@@ -352,8 +338,7 @@ class authClass:
                 elif location == 'Leave':
                     if self1.cache.delete(data['Hash'], data['Id'])[0] == 'you being bad?':
                         return {'Code':423}
-                    
-                    else:
-                        return {'Code':200}
+
+                    return {'Code':200}
                     
         self.Session = datHandle
