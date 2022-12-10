@@ -154,9 +154,6 @@ class AuthSesh:
         
         elif request['Code'] == 423:
             raise AuthenticationError('Failed to authenticate user')
-        
-        elif request['Code'] == 422:
-            raise LocationError(request['err'])
 
         elif request['Code'] == 101:
             self._Hash = request['Hash']
@@ -165,7 +162,7 @@ class AuthSesh:
             self._certadder(request['Server'])
             
         elif request['Code'] == 420:
-            raise SaveError(request['Data'])
+            raise DataError(f"An error occured during the request, here is the data we could recover: {request['Data']}/n Error: {request['err']}" )
             
 
 def simple_syntax():        
