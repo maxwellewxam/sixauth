@@ -21,7 +21,7 @@ class AuthSesh:
         self._Id = Fernet.generate_key().hex()
 
         if self._Address == None:
-            self._sesh = authClass(self._Path).Session()
+            self._sesh = Session(self._Path)
             self._Path = ''
         else:
             self._sesh = requests.Session()
