@@ -33,7 +33,7 @@ class testAuth(unittest.TestCase):
     def test_11(self):
         self.assertEqual(test.post('Save', None, {'Id':id, 'Hash':hash, 'Location':'', 'Data':''}).json()['Code'], 420)
     def test_12(self):
-        self.assertEqual(test.post('Save', None, {'Id':id, 'Hash':hash, 'Location':'', 'Data':json.dumps('32')}).json()['Code'], 200)
+        self.assertEqual(test.post('Save', None, {'Id':id, 'Hash':hash, 'Location':'ty', 'Data':json.dumps('32')}).json()['Code'], 200)
     def test_13(self):
         self.assertEqual(test.post('Save', None, {'Id':id, 'Hash':hash2, 'Location':'', 'Data':json.dumps('32')}).json()['Code'], 423)
     def test_14(self):
@@ -42,6 +42,8 @@ class testAuth(unittest.TestCase):
         self.assertEqual(test.post('Load', None, {'Id':id, 'Hash':hash, 'Location':'bruh'}).json()['Code'], 416)
     def test_16(self):
         self.assertEqual(test.post('Load', None, {'Id':id, 'Hash':hash2, 'Location':'bruh'}).json()['Code'], 423)
+    def test_17(self):
+        self.assertEqual(test.post('Delete', None, {'Id':id, 'Hash':hash, 'Location':'ty'}).json()['Code'], 423)
     def test_96(self):
         self.assertEqual(test.post('Remove', None, {'Id':id, 'Hash':hash}).json()['Code'], 200)
     

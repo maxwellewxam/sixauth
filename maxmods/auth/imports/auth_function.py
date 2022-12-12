@@ -109,6 +109,13 @@ class authClass:
         def num_to_str(text):
             return text.replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')
 
+        def is_serialized(obj):
+            try:
+                json.loads(obj)
+                return True
+            except json.decoder.JSONDecodeError:
+                return False
+
         class usercache:
             def __init__(self):
                 self.users = {}
@@ -178,24 +185,19 @@ class authClass:
                     if userdat == None or userdat == 'you being bad?':
                         return {'Code':423}
                     
-                    try:
-                        try:
-                            hmm = json.loads(data['Data'])
-                            jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).update_or_create(userdat, hmm)
-                        
-                        except AttributeError as err:
-                            if str(err) == '\'NoneType\' object has no attribute \'lineno\'':
-                                userdat = json.loads(data['Data'])
-                                    
-                            else:
-                                raise AttributeError(err)
-                        
-                        self1.cache.update(data['Hash'], data['Id'], [userdat, userinfo])
+                    if not is_serialized(data['Data']):
+                        return {'Code':420, 'Data':data['Data'], 'err':'Object is not json serialized'}
+                    
+                    requestdat = json.loads(data['Data'])
+                    
+                    if data['Location'] == '':
+                        self1.cache.update(data['Hash'], data['Id'], [requestdat, userinfo])
+                        return {'Code':200, 'Data':requestdat}
+                    
+                    jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).update_or_create(userdat, requestdat)
+                    self1.cache.update(data['Hash'], data['Id'], [userdat, userinfo])
 
-                        return {'Code':200, 'Data':userdat}
-
-                    except Exception as err:
-                        return {'Code':420, 'Data':userdat, 'err':err}
+                    return {'Code':200, 'Data':userdat}
 
                 elif location == 'Delete':
                     
@@ -205,21 +207,19 @@ class authClass:
                     if userdat == None or userdat == 'you being bad?':
                         return {'Code':423}
                     
-                    try:
-                        try:
-                            yes = jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).find(userdat)
-                            del [match.context for match in yes][0].value[str([match.path for match in yes][0])]
-                            
-                        except IndexError as err:
-                            if str(err) == 'list index out of range':
-                                return {'Code':416}
-                        
-                        self1.cache.update(data['Hash'], data['Id'], [userdat, userinfo])
-
+                    if data['Location'] == '':
+                        self1.cache.update(data['Hash'], data['Id'], [{}, userinfo])
                         return {'Code':200}
                     
-                    except Exception as err:
-                        return {'Code':420, 'Data':userdat, 'err':err}
+                    parsed = jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).find(userdat)
+                    
+                    if parsed == []:
+                        return {'Code':416}
+                    
+                    del [match.context for match in parsed][0].value[str([match.path for match in parsed][0])]
+                    self1.cache.update(data['Hash'], data['Id'], [userdat, userinfo])
+                    
+                    return {'Code':200}
                     
                 elif location == 'Logout':
                     
@@ -239,17 +239,13 @@ class authClass:
                     
                     if not check_hash(datPass, password):
                         return {'Code': 423}
-                        
-                    try:    
-                        with self.app.app_context():
-                            db.session.delete(fromdat)
-                            db.session.add(DataMod(Username=username, Password=create_hash(password), Data=encrypt(userdat, username, password)))
-                            db.session.commit()
-                        
-                        return {'Code':200}
-                
-                    except Exception as err:
-                        return {'Code':420, 'Data':userdat, 'err':err}
+   
+                    with self.app.app_context():
+                        db.session.delete(fromdat)
+                        db.session.add(DataMod(Username=username, Password=create_hash(password), Data=encrypt(userdat, username, password)))
+                        db.session.commit()
+                    
+                    return {'Code':200}
                     
                 elif location == 'Remove':
 
@@ -295,7 +291,7 @@ class authClass:
                     if self1.cache.update(data['Hash'], data['Id'], [decrypt(marshal(fromdat, datfields)['Data'], data['Username'], data['Password']), (data['Password'], data['Username'])])[0] == 'you being bad?':
                         return {'Code':423}
                     
-                    return {'Code':423}
+                    return {'Code':200}
                     
                 elif location == 'Load':
 
@@ -303,9 +299,17 @@ class authClass:
                     
                     if userdat == None or userdat == 'you being bad?':
                         return {'Code':423}
+                    
+                    parsed = jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).find(userdat)
+                    
+                    if parsed == []:
+                        return {'Code':416}
+                    
+                    jsonpath_expr = [match.value for match in parsed][0]
+                    
                     try:
                         try:
-                            jsonpath_expr = [match.value for match in jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).find(userdat)][0]
+                            jsonpath_expr = [match.value for match in ][0]
                             
                         except IndexError as err:
                             if str(err) == 'list index out of range':
