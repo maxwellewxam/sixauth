@@ -1,0 +1,10 @@
+def test_17(self):
+    self.assertEqual(test.post('Delete', None, {'Id':id, 'Hash':hash, 'Location':''}).json()['Code'], 420)
+def test_18(self):
+    self.assertEqual(test.post('Delete', None, {'Id':id, 'Hash':hash, 'Location':'bruh'}).json()['Code'], 416)
+def test_19(self):
+    self.assertEqual(test.post('Delete', None, {'Id':id, 'Hash':hash2, 'Location':'bruh'}).json()['Code'], 423)
+def test_20(self):
+    self.assertEqual(test.post('Terminate', None, {'Id':id, 'Hash':hash}).json()['Code'], 200)
+def test_21(self):
+    self.assertEqual(test.post('Terminate', None, {'Id':id, 'Hash':hash2}).json()['Code'], 423)
