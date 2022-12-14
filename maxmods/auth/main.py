@@ -4,15 +4,73 @@ from maxmods.auth.imports import *
 
 class AuthSesh:
     '''
-    Main class of the Auth module
+    This class provides a set of methods for interacting with an authentication and data storage service.
     
-    AuthSesh() connects to database internally
-    
-    AuthSesh(Address) connects to backend Auth server at address in path
+    Args:
+        Address (str): The address of the server to connect to.
+        Path (str): The path to a local database.
+        
+    Attributes:
+        _Path (str): The path to the local database.
+        _Address (str): The address of the server.
+        _Id (str): A unique identifier for the session.
+        _sesh (Session): A session object for making requests to the server.
+        _Name (str): The username for the session.
+        _Pass (str): The password for the session.
+        _Hash (str): A hash value used for authentication.
+        
+    Methods:
+        set_vals: Sets the username and password for the session.
+        save: Saves data to the specified location on the server or local database.
+        load: Loads data from the specified location on the server or local database.
+        delete: Deletes data at the specified location on the server or local database.
+        login: Attempts to log in to the server using the specified username and password.
+        signup: Attempts to create a new account on the server with the specified username and password.
+        terminate: Ends the session and logs out of the server.
 
-    AuthSesh(Path) connects to database internally to database at Path location
+    Usage:
+        Without Context Manager:
+            # Connect to the server at the specified address\n
+            auth = AuthSesh(Address='http://my-auth-server.com/')
+            
+            # Set the username and password for the session\n
+            auth.set_vals(Name='myusername', Pass='mypassword')
+            
+            # Attempt to log in to the server\n
+            auth.login()
+            
+            # Save some data to the server\n
+            auth.save(Location='mydata/myfolder', Data={'key': 'value'})
+        
+            # Load the data that we just saved\n
+            data = auth.load(Location='mydata/myfolder')\n
+            print(data) # Should print: {'key': 'value'}
 
-    repr(AuthSesh) returns the current username
+            # Delete the data that we saved\n
+            auth.delete(Location='mydata/myfolder')
+            
+            # Log out of the session\n
+            auth.terminate()
+            
+        With Context Manager:
+            # Connect to the server at the specified address \n
+            with AuthSesh(Address='http://my-auth-server.com/') as auth:
+            
+                # Set the username and password for the session \n
+                auth.set_vals(Name='myusername', Pass='mypassword')
+                
+                # Attempt to log in to the server\n
+                auth.login()
+                
+                # Save some data to the server \n
+                auth.save(Location='mydata/myfolder', Data={'key': 'value'})
+            
+                # Load the data that we just saved \n
+                data = auth.load(Location='mydata/myfolder')\n
+                print(data) # Should print: {'key': 'value'}
+
+                # Delete the data that we saved \n
+                auth.delete(Location='mydata/myfolder')
     '''
     
     def __init__(self, Address: str = None, Path: str = None):
