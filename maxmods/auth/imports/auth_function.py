@@ -28,7 +28,7 @@ def encrypt(Data, password, username):
         algorithm=hashes.SHA256(),
         length=32,
         salt=bytes(username.encode()),
-        iterations=390000,
+        iterations=100000,
         backend=default_backend()
         )
     key = base64.urlsafe_b64encode(kdf.derive(bytes(password.encode())))
@@ -40,7 +40,7 @@ def decrypt(Data, password, username):
         algorithm=hashes.SHA256(),
         length=32,
         salt=bytes(username.encode()),
-        iterations=390000,
+        iterations=100000,
         backend=default_backend()
         )
     key = base64.urlsafe_b64encode(kdf.derive(bytes(password.encode())))
@@ -159,7 +159,7 @@ def save(context, **data):
 
     return {'Code':200, 'Data':userdat}
 
-def  delete(context, **data):
+def delete(context, **data):
     userdat = context.cache.find(data['Hash'], data['Id'])[0]
     userinfo = context.cache.find(data['Hash'], data['Id'])[1]
     
