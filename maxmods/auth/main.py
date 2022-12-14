@@ -153,11 +153,10 @@ class AuthSesh:
         '''
         return self._requestHandle(self._sesh.post(self._Path+'Delete', None, {'Location':Location, 'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
 
-    def login(self):
+    def login(self) -> None:
         '''
-        Attempts to login with specified Auth.Name and Auth.Pass values
-        
-        Raises an exception if it fails
+        Attempts to log in to the server using the username and password specified
+        in the `set_vals` method. Raises an exception if the login fails.
         '''
         self._requestHandle(self._sesh.post(self._Path+ 'Logout', None, {'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
         return self._requestHandle(self._sesh.post(self._Path+'Login', None, {'Username':self._Name, 'Password':self._Pass, 'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
