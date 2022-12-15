@@ -126,13 +126,13 @@ def sign_up(context, **data):
         return {'code':406}
     
     with context.app.app_context():
-        user_from_database = context.User.query.filter_by(Username=data['username']).first()
+        user_from_database = context.User.query.filter_by(username=data['username']).first()
     
     if user_from_database:
         return {'code':409}
         
     with context.app.app_context():
-        context.db.session.add(context.User(Username=data['username'], Password=create_password_hash(data['password']), Data=encrypt_data({}, data['username'], data['password'])))
+        context.db.session.add(context.User(username=data['username'], password=create_password_hash(data['password']), data=encrypt_data({}, data['username'], data['password'])))
         context.db.session.commit()
     
     return {'code':200}
@@ -187,7 +187,7 @@ def log_out(context, **data):
         return {'code':200}
     
     with context.app.app_context():
-        user_from_database = context.User.query.filter_by(Username=username).first()
+        user_from_database = context.User.query.filter_by(username=username).first()
     
     if not user_from_database:
         return {'code':420, 'data':user_from_cache, 'error':'could not find user to logout'}
@@ -199,7 +199,7 @@ def log_out(context, **data):
 
     with context.app.app_context():
         context.db.session.delete(user_from_database)
-        context.db.session.add(context.User(Username=username, Password=create_password_hash(password), Data=encrypt_data(user_from_cache, username, password)))
+        context.db.session.add(context.User(username=username, password=create_password_hash(password), data=encrypt_data(user_from_cache, username, password)))
         context.db.session.commit()
     
     return {'code':200}
@@ -208,7 +208,7 @@ def remove_account(context, **data):
     username, password = context.cache.find_user(data['hash'], data['id'])[1]
             
     with context.app.app_context():
-        user_from_database = context.User.query.filter_by(Username=username).first()
+        user_from_database = context.User.query.filter_by(username=username).first()
     
     if not user_from_database or username == False:
         return {'code':423}
@@ -234,7 +234,7 @@ def log_in(context, **data):
         return {'code':406}
     
     with context.app.app_context():
-        user_from_database = context.User.query.filter_by(Username=data['username']).first()
+        user_from_database = context.User.query.filter_by(username=data['username']).first()
 
     if not user_from_database:
         return {'code':404}
@@ -266,9 +266,9 @@ def load_data(context, **data):
     return {'code':202, 'data':[match.value for match in parsed_location][0]}
 
 def create_session(context, **data):
-    user = context.cache.add_user(data['id'])
+    user_hash = context.cache.add_user(data['id'])
     
-    return {'code':101, 'hash':user}
+    return {'code':101, 'hash':user_hash}
 
 def end_session(context, **data):
     if context.cache.delete_user(data['hash'], data['id'])[0] == False:
@@ -287,14 +287,14 @@ class Session():
         self.db = SQLAlchemy(self.app)            
 
         class User(self.db.Model):
-            Username = self.db.Column(self.db.String, nullable=False, primary_key = True)
-            Password = self.db.Column(self.db.String, nullable=False)
-            Data = self.db.Column(self.db.String)
+            username = self.db.Column(self.db.String, nullable=False, primary_key = True)
+            password = self.db.Column(self.db.String, nullable=False)
+            data = self.db.Column(self.db.String)
 
-            def __init__(self, Username, Password, Data):
-                self.Username = Username
-                self.Password = Password
-                self.Data = Data
+            def __init__(self, username, password, data):
+                self.username = username
+                self.password = password
+                self.data = data
 
         if path == None:        
             if os.path.isfile(f'{os.getcwd()}/database.db') is False:

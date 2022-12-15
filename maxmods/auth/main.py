@@ -71,7 +71,7 @@ class AuthSesh:
         try:
             warnings.filterwarnings('ignore')
             self._requestHandle(self._sesh.post(self._Path + 'Cert', None, {}, verify=False).json())
-            self._requestHandle(self._sesh.post(self._Path + 'Greet', None, {'Id':self._Id}, verify=True).json())
+            self._requestHandle(self._sesh.post(self._Path + 'create_session', None, {'id':self._Id}, verify=True).json())
             
         except requests.ConnectionError as err:
             raise LocationError('Couldn\'t connect to backend server\nMessage:\n' + str(err))
@@ -184,7 +184,7 @@ class AuthSesh:
         """
         Data = json.dumps(Data)
         
-        return self._requestHandle(self._sesh.post(self._Path+'Save', None, {'Location':Location, 'Data':Data, 'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'save_data', None, {'location':Location, 'data':Data, 'hash':self._Hash, 'id':self._Id}, verify=True).json())
     def load(self, Location = ''):
         """Loads data from the specified location on the backend authentication server.
 
@@ -208,7 +208,7 @@ class AuthSesh:
         >>> user_data = auth.load("user_data/profile")
         This will load the data from the location "user_data/profile" on the backend server and store it in the `user_data` variable.
         """
-        return self._requestHandle(self._sesh.post(self._Path+'Load', None, {'Location':Location, 'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'load_data', None, {'location':Location, 'hash':self._Hash, 'id':self._Id}, verify=True).json())
     
     def delete(self, Location: str):
         """Deletes the data at the specified location on the backend authentication server.
@@ -233,7 +233,7 @@ class AuthSesh:
         >>> auth.delete("user_data/profile")
         This will delete the data at the location "user_data/profile" on the backend server.
         """
-        return self._requestHandle(self._sesh.post(self._Path+'Delete', None, {'Location':Location, 'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'delete_user', None, {'location':Location, 'hash':self._Hash, 'id':self._Id}, verify=True).json())
 
     def login(self) -> None:
         """Attempts to log in with the username and password set for the current `AuthSesh` instance.
@@ -252,8 +252,8 @@ class AuthSesh:
         >>> auth.login()
         This will attempt to log in with the username and password set for the `AuthSesh` instance.
         """
-        self._requestHandle(self._sesh.post(self._Path+ 'Logout', None, {'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
-        return self._requestHandle(self._sesh.post(self._Path+'Login', None, {'Username':self._Name, 'Password':self._Pass, 'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
+        self._requestHandle(self._sesh.post(self._Path+ 'log_out', None, {'hash':self._Hash, 'id':self._Id}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'log_in', None, {'username':self._Name, 'password':self._Pass, 'hash':self._Hash, 'id':self._Id}, verify=True).json())
         
     def signup(self):
         """Attempts to sign up with the username and password set for the current `AuthSesh` instance.
@@ -272,7 +272,7 @@ class AuthSesh:
         >>> auth.signup()
         This will attempt to sign up with the username and password set for the `AuthSesh` instance.
         """
-        return self._requestHandle(self._sesh.post(self._Path+'Signup', None, {'Username':self._Name, 'Password':self._Pass}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'sign_up', None, {'username':self._Name, 'password':self._Pass}, verify=True).json())
     
     def remove(self):
         """Attempts to remove the user with the username and password set for the current `AuthSesh` instance.
@@ -291,7 +291,7 @@ class AuthSesh:
         >>> auth.remove()
         This will attempt to remove the user with the username and password set for the `AuthSesh` instance.
         """
-        return self._requestHandle(self._sesh.post(self._Path+'Remove', None, {'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'remove_account', None, {'hash':self._Hash, 'id':self._Id}, verify=True).json())
     
     def terminate(self):
         """Terminates the current `AuthSesh` instance.
@@ -309,41 +309,41 @@ class AuthSesh:
         >>> auth.terminate()
         This will log in with the username and password set for the `AuthSesh` instance, and then terminate the `AuthSesh` instance.
         """
-        self._requestHandle(self._sesh.post(self._Path+ 'Logout', None, {'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
-        self._requestHandle(self._sesh.post(self._Path+'Leave', None, {'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
+        self._requestHandle(self._sesh.post(self._Path+ 'log_out', None, {'hash':self._Hash, 'id':self._Id}, verify=True).json())
+        self._requestHandle(self._sesh.post(self._Path+'end_session', None, {'hash':self._Hash, 'id':self._Id}, verify=True).json())
 
     
     def _requestHandle(self, request):
-        if request['Code'] == 200:
+        if request['code'] == 200:
             return self
         
-        elif request['Code'] == 202:
-            return request['Data']
+        elif request['code'] == 202:
+            return request['data']
         
-        elif request['Code'] == 416:
+        elif request['code'] == 416:
             raise LocationError('Loaction does not exist')
         
-        elif request['Code'] == 401:
+        elif request['code'] == 401:
             raise PasswordError('Incorrect password')
         
-        elif request['Code'] == 404:
+        elif request['code'] == 404:
             raise UsernameError('Username does not exist')
         
-        elif request['Code'] == 406:
+        elif request['code'] == 406:
             raise UsernameError('Invalid username')
         
-        elif request['Code'] == 409:
+        elif request['code'] == 409:
             raise UsernameError('Username already exists')
         
-        elif request['Code'] == 423:
+        elif request['code'] == 423:
             raise AuthenticationError('Failed to authenticate user')
 
-        elif request['Code'] == 101:
-            self._Hash = request['Hash']
+        elif request['code'] == 101:
+            self._Hash = request['hash']
         
-        elif request['Code'] == 102:
-            self._certadder(request['Server'])
+        elif request['code'] == 102:
+            self._certadder(request['server'])
             
-        elif request['Code'] == 420:
-            raise DataError(f"An error occured during the request, here is the data we could recover: {request['Data']}/n Error: {request['err']}" )
+        elif request['code'] == 420:
+            raise DataError(f"An error occured during the request, here is the data we could recover: {request['data']}/n Error: {request['error']}" )
             
