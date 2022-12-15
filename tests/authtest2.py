@@ -7,51 +7,51 @@ from maxmods.auth.imports.auth_function import *
 test = Session()
 id = Fernet.generate_key().hex()
 id2 = Fernet.generate_key().hex()
-hash = test.post('Greet', None, {'Id':id}).json()['Hash']
-hash2 = test.post('Greet', None, {'Id':id2}).json()['Hash']
+hash = test.post('create_session', None, {'id':id}).json()['hash']
+hash2 = test.post('create_session', None, {'id':id2}).json()['hash']
 class testAuth(unittest.TestCase):
     def test_01(self):
-        self.assertEqual(test.post('Signup', None, {'Username':''}).json()['Code'], 406)
+        self.assertEqual(test.post('sign_up', None, {'username':''}).json()['code'], 406)
     def test_02(self):
-        self.assertEqual(test.post('Signup', None, {'Username':'$%^'}).json()['Code'], 406)
+        self.assertEqual(test.post('sign_up', None, {'username':'$%^'}).json()['code'], 406)
     def test_03(self):
-        self.assertEqual(test.post('Signup', None, {'Username':'Test', 'Password':'Test'}).json()['Code'], 200)
+        self.assertEqual(test.post('sign_up', None, {'username':'Test', 'password':'Test'}).json()['code'], 200)
     def test_04(self):
-        self.assertEqual(test.post('Signup', None, {'Username':'Test'}).json()['Code'], 409)
+        self.assertEqual(test.post('sign_up', None, {'username':'Test'}).json()['code'], 409)
     def test_05(self):
-        self.assertEqual(test.post('Login', None, {'Id':id, 'Hash':hash , 'Username':'', 'Password':'Test'}).json()['Code'], 406)
+        self.assertEqual(test.post('log_in', None, {'id':id, 'hash':hash , 'username':'', 'password':'Test'}).json()['code'], 406)
     def test_06(self):
-        self.assertEqual(test.post('Login', None, {'Id':id, 'Hash':hash , 'Username':'#@$%', 'Password':'Test'}).json()['Code'], 406)
+        self.assertEqual(test.post('log_in', None, {'id':id, 'hash':hash , 'username':'#@$%', 'password':'Test'}).json()['code'], 406)
     def test_07(self):
-        self.assertEqual(test.post('Login', None, {'Id':id, 'Hash':hash , 'Username':'Test2', 'Password':'Test'}).json()['Code'], 404)
+        self.assertEqual(test.post('log_in', None, {'id':id, 'hash':hash , 'username':'Test2', 'password':'Test'}).json()['code'], 404)
     def test_08(self):
-        self.assertEqual(test.post('Login', None, {'Id':id, 'Hash':hash , 'Username':'Test', 'Password':'Test'}).json()['Code'], 200)
+        self.assertEqual(test.post('log_in', None, {'id':id, 'hash':hash , 'username':'Test', 'password':'Test'}).json()['code'], 200)
     def test_09(self):
-        self.assertEqual(test.post('Login', None, {'Id':id, 'Hash':hash , 'Username':'Test', 'Password':'Test2'}).json()['Code'], 401)
+        self.assertEqual(test.post('log_in', None, {'id':id, 'hash':hash , 'username':'Test', 'password':'Test2'}).json()['code'], 401)
     def test_10(self):
-        self.assertEqual(test.post('Login', None, {'Id':id, 'Hash':hash2, 'Username':'Test', 'Password':'Test'}).json()['Code'], 423)
+        self.assertEqual(test.post('log_in', None, {'id':id, 'hash':hash2, 'username':'Test', 'password':'Test'}).json()['code'], 423)
     def test_11(self):
-        self.assertEqual(test.post('Save', None, {'Id':id, 'Hash':hash, 'Location':'', 'Data':''}).json()['Code'], 420)
+        self.assertEqual(test.post('save_data', None, {'id':id, 'hash':hash, 'location':'', 'data':''}).json()['code'], 420)
     def test_12(self):
-        self.assertEqual(test.post('Save', None, {'Id':id, 'Hash':hash, 'Location':'ty', 'Data':json.dumps('32')}).json()['Code'], 200)
+        self.assertEqual(test.post('save_data', None, {'id':id, 'hash':hash, 'location':'ty', 'data':json.dumps('32')}).json()['code'], 200)
     def test_13(self):
-        self.assertEqual(test.post('Save', None, {'Id':id, 'Hash':hash2, 'Location':'', 'Data':json.dumps('32')}).json()['Code'], 423)
+        self.assertEqual(test.post('save_data', None, {'id':id, 'hash':hash2, 'location':'', 'data':json.dumps('32')}).json()['code'], 423)
     def test_14(self):
-        self.assertEqual(test.post('Load', None, {'Id':id, 'Hash':hash, 'Location':''}).json()['Code'], 202)
+        self.assertEqual(test.post('load_data', None, {'id':id, 'hash':hash, 'location':''}).json()['code'], 202)
     def test_15(self):
-        self.assertEqual(test.post('Load', None, {'Id':id, 'Hash':hash, 'Location':'bruh'}).json()['Code'], 416)
+        self.assertEqual(test.post('load_data', None, {'id':id, 'hash':hash, 'location':'bruh'}).json()['code'], 416)
     def test_16(self):
-        self.assertEqual(test.post('Load', None, {'Id':id, 'Hash':hash2, 'Location':'bruh'}).json()['Code'], 423)
+        self.assertEqual(test.post('load_data', None, {'id':id, 'hash':hash2, 'location':'bruh'}).json()['code'], 423)
     def test_17(self):
-        self.assertEqual(test.post('Delete', None, {'Id':id, 'Hash':hash, 'Location':'ty'}).json()['Code'], 200)
+        self.assertEqual(test.post('delete_data', None, {'id':id, 'hash':hash, 'location':'ty'}).json()['code'], 200)
     def test_17(self):
-        self.assertEqual(test.post('Delete', None, {'Id':id, 'Hash':hash, 'Location':''}).json()['Code'], 200)
+        self.assertEqual(test.post('delete_data', None, {'id':id, 'hash':hash, 'location':''}).json()['code'], 200)
     def test_18(self):
-        self.assertEqual(test.post('Delete', None, {'Id':id, 'Hash':hash, 'Location':'bruh'}).json()['Code'], 416)
+        self.assertEqual(test.post('delete_data', None, {'id':id, 'hash':hash, 'location':'bruh'}).json()['code'], 416)
     def test_19(self):
-        self.assertEqual(test.post('Delete', None, {'Id':id, 'Hash':hash2, 'Location':'bruh'}).json()['Code'], 423)
+        self.assertEqual(test.post('delete_data', None, {'id':id, 'hash':hash2, 'location':'bruh'}).json()['code'], 423)
     def test_96(self):
-        self.assertEqual(test.post('Remove', None, {'Id':id, 'Hash':hash}).json()['Code'], 200)
+        self.assertEqual(test.post('remove_account', None, {'id':id, 'hash':hash}).json()['code'], 200)
     
 if __name__ == '__main__':
     unittest.main()

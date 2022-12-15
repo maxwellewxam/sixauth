@@ -3,77 +3,61 @@
 from maxmods.auth.imports import *
 
 class AuthSesh:
-    '''
-    This class provides a set of methods for interacting with an authentication and data storage service.
+    """Main class of the Auth module.
     
-    Args:
-        Address (str): The address of the server to connect to.
-        Path (str): The path to a local database.
-        
-    Attributes:
-        _Path (str): The path to the local database.
-        _Address (str): The address of the server.
-        _Id (str): A unique identifier for the session.
-        _sesh (Session): A session object for making requests to the server.
-        _Name (str): The username for the session.
-        _Pass (str): The password for the session.
-        _Hash (str): A hash value used for authentication.
-        
-    Methods:
-        set_vals: Sets the username and password for the session.
-        save: Saves data to the specified location on the server or local database.
-        load: Loads data from the specified location on the server or local database.
-        delete: Deletes data at the specified location on the server or local database.
-        login: Attempts to log in to the server using the specified username and password.
-        signup: Attempts to create a new account on the server with the specified username and password.
-        terminate: Ends the session and logs out of the server.
+    AuthSesh() connects to database internally\n
+    AuthSesh(Address) connects to backend Auth server at address in path\n
+    AuthSesh(Path) connects to database internally to database at Path location\n
+    repr(AuthSesh) returns the current username\n
 
-    Usage:
-        Without Context Manager:
-            # Connect to the server at the specified address\n
-            auth = AuthSesh(Address='http://my-auth-server.com/')
-            
-            # Set the username and password for the session\n
-            auth.set_vals(Name='myusername', Pass='mypassword')
-            
-            # Attempt to log in to the server\n
-            auth.login()
-            
-            # Save some data to the server\n
-            auth.save(Location='mydata/myfolder', Data={'key': 'value'})
-        
-            # Load the data that we just saved\n
-            data = auth.load(Location='mydata/myfolder')\n
-            print(data) # Should print: {'key': 'value'}
+    The docstrings for this class were written by OpenAI.
 
-            # Delete the data that we saved\n
-            auth.delete(Location='mydata/myfolder')
-            
-            # Log out of the session\n
-            auth.terminate()
-            
-        With Context Manager:
-            # Connect to the server at the specified address \n
-            with AuthSesh(Address='http://my-auth-server.com/') as auth:
-            
-                # Set the username and password for the session \n
-                auth.set_vals(Name='myusername', Pass='mypassword')
-                
-                # Attempt to log in to the server\n
-                auth.login()
-                
-                # Save some data to the server \n
-                auth.save(Location='mydata/myfolder', Data={'key': 'value'})
-            
-                # Load the data that we just saved \n
-                data = auth.load(Location='mydata/myfolder')\n
-                print(data) # Should print: {'key': 'value'}
+    Examples
+    --------
+    >>> # Using a context manager
+    >>> with AuthSesh() as auth:
+    >>>     auth.set_vals("username", "password")
+    >>>     auth.login()
+    >>>     user_data = auth.load("user_data/profile")
+    This will create an `AuthSesh` instance that connects to a local database, log in with the provided username and password, and load the data from the location "user_data/profile" on the server. The `AuthSesh` instance will be terminated when exiting the context manager.\n
 
-                # Delete the data that we saved \n
-                auth.delete(Location='mydata/myfolder')
-    '''
-    
+    >>> # Without a context manager
+    >>> auth = AuthSesh()
+    >>> auth.set_vals("username", "password")
+    >>> auth.login()
+    >>> user_data = auth.load("user_data/profile")
+    >>> auth.terminate()
+    This will create an `AuthSesh` instance that connects to a local database, log in with the provided username and password, and load the data from the location "user_data/profile" on the server. The `AuthSesh` instance will be terminated manually by calling the `terminate` method.
+    """
     def __init__(self, Address: str = None, Path: str = None):
+        """Initializes the `AuthSesh` instance.
+
+        This method can connect to a backend authentication server or a database depending on the arguments provided.
+
+        Parameters
+        ----------
+        Address : str, optional
+            The address of the backend authentication server. If `Address` is provided, the `AuthSesh` instance will connect to the server at the specified address. If `Address` is not provided, the `AuthSesh` instance will connect to a local database instead.
+        Path : str, optional
+            The path to the local database. This argument is only used if `Address` is not provided.
+
+        Returns
+        -------
+        object
+            The newly created `AuthSesh` instance.
+
+        Raises
+        ------
+        LocationError
+            If the `AuthSesh` instance fails to connect to the backend authentication server or the local database.
+
+        Examples
+        --------
+        >>> # Connecting to a backend server
+        >>> auth = AuthSesh("https://authserver.com")
+        >>> # Connecting to a local database
+        >>> auth = AuthSesh("/path/to/database/folder")
+        """
         self._Path = Path
         self._Address = Address
         self._Id = Fernet.generate_key().hex()
@@ -87,7 +71,7 @@ class AuthSesh:
         try:
             warnings.filterwarnings('ignore')
             self._requestHandle(self._sesh.post(self._Path + 'Cert', None, {}, verify=False).json())
-            self._requestHandle(self._sesh.post(self._Path + 'Greet', None, {'Id':self._Id}, verify=True).json())
+            self._requestHandle(self._sesh.post(self._Path + 'create_session', None, {'id':self._Id}, verify=True).json())
             
         except requests.ConnectionError as err:
             raise LocationError('Couldn\'t connect to backend server\nMessage:\n' + str(err))
@@ -110,114 +94,256 @@ class AuthSesh:
         
     @property
     def Pass(self):
+        """The password set for the current `AuthSesh` instance.
+
+        Returns
+        -------
+        str
+            The password set for the `AuthSesh` instance.
+
+        Examples
+        --------
+        >>> auth = AuthSesh()
+        >>> auth.set_vals("username", "password")
+        >>> print(auth.Pass)
+        This will print the password set for the `AuthSesh` instance.
+        """
         return self._Pass
     
     @property
     def Name(self):
+        """The username set for the current `AuthSesh` instance.
+
+        Returns
+        -------
+        str
+            The username set for the `AuthSesh` instance.
+
+        Examples
+        --------
+        >>> auth = AuthSesh()
+        >>> auth.set_vals("username", "password")
+        >>> print(auth.Name)
+        This will print the username set for the `AuthSesh` instance.
+        """
         return self._Name
     
     def set_vals(self, Name: str, Pass:str):
-        '''
-        Sets the desired username and password 
-        '''
+        """Sets the username and password for the current `AuthSesh` instance.
+
+        Parameters
+        ----------
+        Name : str
+            The desired username.
+        Pass : str
+            The password associated with the given username.
+
+        Returns
+        -------
+        AuthSesh
+            The `AuthSesh` instance with the updated username and password.
+
+        Examples
+        --------
+        >>> auth = AuthSesh()
+        >>> auth.set_vals("username", "password")
+        >>> auth.login()
+        This will set the username and password for the `AuthSesh` instance to "username" and "password" respectively.
+        """
         self._Name = Name
         self._Pass = Pass
         return self
     
     def save(self, Location: str, Data):
-        '''
-        Saves data to the specified location. Creates location if it doesn't exist
+        """Saves the given data to the specified location on the backend authentication server.
 
-        If no location is specified and the data is a Dict, it will replace everythin with the Dict
+        If the specified location does not exist, it will be created.
+        If no location is specified and the data is a dictionary, it will replace the entire database with the given dictionary.
+        
+        Raises a `DataError` if it fails to save the data to the specified location.
 
-        rasies LocationError if it fails
+        Parameters
+        ----------
+        Location : str
+            The location on the backend server where the data should be saved.
+        Data : object
+            The data to be saved to the specified location.
 
-        Auth.Save('Loc1/Loc2/Loc3', 'Data') 
-        '''
+        Returns
+        -------
+        object
+            The response from the server indicating whether the data was successfully saved.
+
+        Examples
+        --------
+        >>> auth = AuthSesh()
+        >>> auth.set_vals("username", "password")
+        >>> auth.login()
+        >>> auth.save("user_data/profile", {"name": "John Doe", "age": 30})
+        This will save the dictionary {"name": "John Doe", "age": 30} to the location "user_data/profile" on the backend server.
+        """
         Data = json.dumps(Data)
         
-        return self._requestHandle(self._sesh.post(self._Path+'Save', None, {'Location':Location, 'Data':Data, 'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'save_data', None, {'location':Location, 'data':Data, 'hash':self._Hash, 'id':self._Id}, verify=True).json())
     def load(self, Location = ''):
-        '''
-        Loads data at specified location. Raises an exception if location doesn't exist
+        """Loads data from the specified location on the backend authentication server.
 
-        Auth.Load('Loc1/Loc2/Loc3') Returns data in Loc1/Loc2/Loc3/
-        '''
-        return self._requestHandle(self._sesh.post(self._Path+'Load', None, {'Location':Location, 'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
+        Raises a `LocationError` if the specified location does not exist. Rasies `DataError` if there is an error loading the data from the server.
+
+        Parameters
+        ----------
+        Location : str, optional
+            The location on the backend server from which to load data. If no location is specified, the entire database will be loaded.
+
+        Returns
+        -------
+        object
+            The data loaded from the specified location on the backend server.
+
+        Examples
+        --------
+        >>> auth = AuthSesh()
+        >>> auth.set_vals("username", "password")
+        >>> auth.login()
+        >>> user_data = auth.load("user_data/profile")
+        This will load the data from the location "user_data/profile" on the backend server and store it in the `user_data` variable.
+        """
+        return self._requestHandle(self._sesh.post(self._Path+'load_data', None, {'location':Location, 'hash':self._Hash, 'id':self._Id}, verify=True).json())
     
     def delete(self, Location: str):
-        '''
-        Deletes data at specified location. Raises an exception if location doesn't exist.
+        """Deletes the data at the specified location on the backend authentication server.
 
-        Auth.Delete('Loc1/Loc2/Loc3') Deletes data in Loc1/Loc2/Loc3/
-        '''
-        return self._requestHandle(self._sesh.post(self._Path+'Delete', None, {'Location':Location, 'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
+        Raises a `LocationError` if the specified location does not exist. Rasies `DataError` if there is an error deleting the data from the server.
+
+        Parameters
+        ----------
+        Location : str
+            The location on the backend server from which to delete data.
+
+        Returns
+        -------
+        object
+            The response from the server indicating whether the data was successfully deleted.
+
+        Examples
+        --------
+        >>> auth = AuthSesh()
+        >>> auth.set_vals("username", "password")
+        >>> auth.login()
+        >>> auth.delete("user_data/profile")
+        This will delete the data at the location "user_data/profile" on the backend server.
+        """
+        return self._requestHandle(self._sesh.post(self._Path+'delete_user', None, {'location':Location, 'hash':self._Hash, 'id':self._Id}, verify=True).json())
 
     def login(self) -> None:
-        '''
-        Attempts to log in to the server using the username and password specified
-        in the `set_vals` method. Raises an exception if the login fails.
-        '''
-        self._requestHandle(self._sesh.post(self._Path+ 'Logout', None, {'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
-        return self._requestHandle(self._sesh.post(self._Path+'Login', None, {'Username':self._Name, 'Password':self._Pass, 'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
+        """Attempts to log in with the username and password set for the current `AuthSesh` instance.
+
+        Raises a `UsernameError` or `PasswordError`, for example if the username or password is incorrect.
+
+        Returns
+        -------
+        object
+            The response from the server indicating whether the login was successful.
+
+        Examples
+        --------
+        >>> auth = AuthSesh()
+        >>> auth.set_vals("username", "password")
+        >>> auth.login()
+        This will attempt to log in with the username and password set for the `AuthSesh` instance.
+        """
+        self._requestHandle(self._sesh.post(self._Path+ 'log_out', None, {'hash':self._Hash, 'id':self._Id}, verify=True).json())
+        return self._requestHandle(self._sesh.post(self._Path+'log_in', None, {'username':self._Name, 'password':self._Pass, 'hash':self._Hash, 'id':self._Id}, verify=True).json())
         
     def signup(self):
-        '''
-        Attempts to signup with specified Auth.Name and Auth.Pass values
-        
-        Raises an exception if it fails
-        '''
-        return self._requestHandle(self._sesh.post(self._Path+'Signup', None, {'Username':self._Name, 'Password':self._Pass}, verify=True).json())
+        """Attempts to sign up with the username and password set for the current `AuthSesh` instance.
+
+        Raises a `UsernameError` or `PasswordError` if the signup fails, for example if the username is already in use or the password is wrong.
+
+        Returns
+        -------
+        object
+            The response from the server indicating whether the signup was successful.
+
+        Examples
+        --------
+        >>> auth = AuthSesh()
+        >>> auth.set_vals("username", "password")
+        >>> auth.signup()
+        This will attempt to sign up with the username and password set for the `AuthSesh` instance.
+        """
+        return self._requestHandle(self._sesh.post(self._Path+'sign_up', None, {'username':self._Name, 'password':self._Pass}, verify=True).json())
     
     def remove(self):
-        '''
-        Attempts to remove the user with specified Auth.Name and Auth.Pass values
-        
-        Raises an exception if it fails
-        '''
-        return self._requestHandle(self._sesh.post(self._Path+'Remove', None, {'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
+        """Attempts to remove the user with the username and password set for the current `AuthSesh` instance.
+
+        Raises a `AuthenticationError` if the removal fails, for example if the username or password is incorrect.
+
+        Returns
+        -------
+        object
+            The response from the server indicating whether the user was successfully removed.
+
+        Examples
+        --------
+        >>> auth = AuthSesh()
+        >>> auth.set_vals("username", "password")
+        >>> auth.remove()
+        This will attempt to remove the user with the username and password set for the `AuthSesh` instance.
+        """
+        return self._requestHandle(self._sesh.post(self._Path+'remove_account', None, {'hash':self._Hash, 'id':self._Id}, verify=True).json())
     
     def terminate(self):
-        '''
-        Closes connection to backend and saves cache
-        
-        if you do not manually call this, you are at the mercy of the garbage collector (unless you are using the context manager!)
-        '''
-        self._requestHandle(self._sesh.post(self._Path+ 'Logout', None, {'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
-        self._requestHandle(self._sesh.post(self._Path+'Leave', None, {'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
+        """Terminates the current `AuthSesh` instance.
+
+        Returns
+        -------
+        object
+            The response from the server indicating whether the `AuthSesh` instance was successfully terminated.
+
+        Examples
+        --------
+        >>> auth = AuthSesh()
+        >>> auth.set_vals("username", "password")
+        >>> auth.login()
+        >>> auth.terminate()
+        This will log in with the username and password set for the `AuthSesh` instance, and then terminate the `AuthSesh` instance.
+        """
+        self._requestHandle(self._sesh.post(self._Path+ 'log_out', None, {'hash':self._Hash, 'id':self._Id}, verify=True).json())
+        self._requestHandle(self._sesh.post(self._Path+'end_session', None, {'hash':self._Hash, 'id':self._Id}, verify=True).json())
 
     
     def _requestHandle(self, request):
-        if request['Code'] == 200:
+        if request['code'] == 200:
             return self
         
-        elif request['Code'] == 202:
-            return request['Data']
+        elif request['code'] == 202:
+            return request['data']
         
-        elif request['Code'] == 416:
+        elif request['code'] == 416:
             raise LocationError('Loaction does not exist')
         
-        elif request['Code'] == 401:
+        elif request['code'] == 401:
             raise PasswordError('Incorrect password')
         
-        elif request['Code'] == 404:
+        elif request['code'] == 404:
             raise UsernameError('Username does not exist')
         
-        elif request['Code'] == 406:
+        elif request['code'] == 406:
             raise UsernameError('Invalid username')
         
-        elif request['Code'] == 409:
+        elif request['code'] == 409:
             raise UsernameError('Username already exists')
         
-        elif request['Code'] == 423:
+        elif request['code'] == 423:
             raise AuthenticationError('Failed to authenticate user')
 
-        elif request['Code'] == 101:
-            self._Hash = request['Hash']
+        elif request['code'] == 101:
+            self._Hash = request['hash']
         
-        elif request['Code'] == 102:
-            self._certadder(request['Server'])
+        elif request['code'] == 102:
+            self._certadder(request['server'])
             
-        elif request['Code'] == 420:
-            raise DataError(f"An error occured during the request, here is the data we could recover: {request['Data']}/n Error: {request['err']}" )
+        elif request['code'] == 420:
+            raise DataError(f"An error occured during the request, here is the data we could recover: {request['data']}/n Error: {request['error']}" )
             

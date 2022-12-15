@@ -129,3 +129,42 @@ class AuthSesh:
         elif request['Code'] == 420:
             raise DataError(f"An error occured during the request, here is the data we could recover: {request['Data']}/n Error: {request['err']}" )
             
+
+Rename jsonHandle to JsonResponse
+Rename HandleWrapper to json_response
+Rename signup to sign_up
+Rename save to save_data
+Rename delete to delete_data
+Rename logout to log_out
+Rename remove to remove_account
+Rename login to log_in
+Rename load to load_data
+Rename greet to create_session
+Rename leave to end_session
+Rename usercache to UserCache
+Rename add to add_user
+Rename find to find_user
+Rename update to update_user
+Rename delete to delete_user
+Rename encrypt to encrypt_data
+Rename decrypt to decrypt_data
+Rename encrypt_fast to encrypt_data_fast
+Rename decrypt_fast to decrypt_data_fast
+Rename create_hash to create_password_hash
+Rename check_hash to verify_password_hash
+Rename num_to_str to convert_numbers_to_words
+Rename is_serialized to is_json_serialized
+Rename good_key to is_valid_key
+Rename Code to code
+Rename Data to data
+Rename Hash to hash
+Rename Id to id
+Rename Location to location
+Rename Username to username
+Rename Password to password
+Rename DataMod to User
+Rename err to error
+Rename fromdat to user_from_database
+Rename datPass to password_from_database
+Rename inf to user_info
+Rename parsed to parsed_location
