@@ -1,103 +1,56 @@
-class AuthSesh:
-    '''
-    Main class of the Auth module
-    AuthSesh() connects to database internally
-    AuthSesh(Address) connects to backend Auth server at address in path
-    AuthSesh(Path) connects to database internally to database at Path location
-    repr(AuthSesh) returns the current username
-    '''
-    def __init__(self, Address: str = None, Path: str = None):
-        self._Path = Path
-        self._Address = Address
-        self._Id = Fernet.generate_key().hex()
-        if self._Address == None:
-            self._sesh = Session(self._Path)
-            self._Path = ''
-        else:
-            self._sesh = requests.Session()
-            self._Path = self._Address
-        try:
-            warnings.filterwarnings('ignore')
-            self._requestHandle(self._sesh.post(self._Path + 'Cert', None, {}, verify=False).json())
-            self._requestHandle(self._sesh.post(self._Path + 'Greet', None, {'Id':self._Id}, verify=True).json())
-            
-        except requests.ConnectionError as err:
-            raise LocationError('Couldn\'t connect to backend server\nMessage:\n' + str(err))
-    def __repr__(self):
-        return f'AuthSesh({self._Path}).set_vals({self._Name}, {self._Pass})'        
-    def __enter__(self):
-        return self
-    def __exit__(self, type, val, trace):
-        if str(val) != 'Username does not exist':
-            self.terminate()
-    def _certadder(self, server):
-        with open('cacerts.pem', 'wb') as f:
-            f.write(bytes(server.encode()))
-        self._sesh.verify = 'cacerts.pem'
-    @property
-    def Pass(self):
-        return self._Pass
-    @property
-    def Name(self):
-        return self._Name
-    def set_vals(self, Name: str, Pass:str):
-        '''
-        Sets the desired username and password 
-        '''
-        self._Name = Name
-        self._Pass = Pass
-        return self
-    def save(self, Location: str, Data):
-        '''
-        Saves data to the specified location. Creates location if it doesn't exist
-        If no location is specified and the data is a Dict, it will replace everythin with the Dict
-        rasies LocationError if it fails
-        Auth.Save('Loc1/Loc2/Loc3', 'Data') 
-        '''
-        Data = json.dumps(Data)
-        return self._requestHandle(self._sesh.post(self._Path+'Save', None, {'Location':Location, 'Data':Data, 'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
-    def load(self, Location = ''):
-        '''
-        Loads data at specified location. Raises an exception if location doesn't exist
-        Auth.Load('Loc1/Loc2/Loc3') Returns data in Loc1/Loc2/Loc3/
-        '''
-        return self._requestHandle(self._sesh.post(self._Path+'Load', None, {'Location':Location, 'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
-    def delete(self, Location: str):
-        '''
-        Deletes data at specified location. Raises an exception if location doesn't exist.
-        Auth.Delete('Loc1/Loc2/Loc3') Deletes data in Loc1/Loc2/Loc3/
-        '''
-        return self._requestHandle(self._sesh.post(self._Path+'Delete', None, {'Location':Location, 'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
-    def login(self):
-        '''
-        Attempts to login with specified Auth.Name and Auth.Pass values
-        Raises an exception if it fails
-        '''
-        self._requestHandle(self._sesh.post(self._Path+ 'Logout', None, {'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
-        return self._requestHandle(self._sesh.post(self._Path+'Login', None, {'Username':self._Name, 'Password':self._Pass, 'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
-    def signup(self):
-        '''
-        Attempts to signup with specified Auth.Name and Auth.Pass values
-        Raises an exception if it fails
-        '''
-        return self._requestHandle(self._sesh.post(self._Path+'Signup', None, {'Username':self._Name, 'Password':self._Pass}, verify=True).json())
-    def remove(self):
-        '''
-        Attempts to remove the user with specified Auth.Name and Auth.Pass values
-        Raises an exception if it fails
-        '''
-        return self._requestHandle(self._sesh.post(self._Path+'Remove', None, {'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
-    def terminate(self):
-        '''
-        Closes connection to backend and saves cache
-        
-        if you do not manually call this, you are at the mercy of the garbage collector (unless you are using the context manager!)
-        '''
-        self._requestHandle(self._sesh.post(self._Path+ 'Logout', None, {'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
-        self._requestHandle(self._sesh.post(self._Path+'Leave', None, {'Hash':self._Hash, 'Id':self._Id}, verify=True).json())
-    def _requestHandle(self, request):
-        if request['Code'] == 200:
-            return self
+My Python Library
+My Python Library is an open-source library for authenticating users and accessing user data on a server.
+
+Installation
+To install My Python Library, use pip:
+
+Copy code
+pip install my-python-library
+Or, to install from source:
+
+Copy code
+git clone https://github.com/<user>/my-python-library.git
+cd my-python-library
+python setup.py install
+Usage
+To use My Python Library, you will need to create an AuthSesh instance. There are several different ways to do this, depending on your needs:
+
+Copy code
+# Connect to a local database
+auth = AuthSesh()
+
+# Connect to a remote database at the specified address
+auth = AuthSesh("<address>")
+
+# Connect to a local database at the specified path
+auth = AuthSesh("<path>")
+Once you have created an AuthSesh instance, you can log in and access user data using the following methods:
+
+Copy code
+# Set the username and password
+auth.set_vals("<username>", "<password>")
+
+# Log in to the server
+auth.login()
+
+# Load data from the specified location on the server
+user_data = auth.load("<path>")
+When you are finished, you can terminate the AuthSesh instance by calling the terminate method:
+
+Copy code
+auth.terminate()
+Alternatively, you can use a context manager to automatically terminate the AuthSesh instance when you are done:
+
+Copy code
+with AuthSesh() as auth:
+    auth.set_vals("<username>", "<password>")
+    auth.login()
+    user_data = auth.load("<path>")
+License
+My Python Library is licensed under the terms of the MIT license.
+
+Contributions
+Contributions are welcome! Please fork the repository and open a pull request to add new features or fix bugs.
         
         elif request['Code'] == 202:
             return request['Data']
