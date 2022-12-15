@@ -202,6 +202,8 @@ def log_out(context, **data):
         context.db.session.add(context.User(username=username, password=create_password_hash(password), data=encrypt_data(user_from_cache, username, password)))
         context.db.session.commit()
     
+    context.cache.update_user(data['hash'], data['id'], [None,(None,None)])
+    
     return {'code':200}
 
 def remove_account(context, **data):
