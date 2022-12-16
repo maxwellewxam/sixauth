@@ -32,8 +32,8 @@ def generate_csr(private_key, filename, **kwargs):
     san = x509.SubjectAlternativeName(alt_names)
     builder = (x509.CertificateSigningRequestBuilder().subject_name(subject).add_extension(san, critical=False))
     csr = builder.sign(private_key, hashes.SHA256(), default_backend())
-    with open(filename, "wb") as csrfile:
-        csrfile.write(csr.public_bytes(serialization.Encoding.PEM))
+    # with open(filename, "wb") as csrfile:
+    #     csrfile.write(csr.public_bytes(serialization.Encoding.PEM))
     return csr
 
 def sign_csr(csr, ca_public_key, ca_private_key, new_filename):
@@ -45,14 +45,3 @@ def sign_csr(csr, ca_public_key, ca_private_key, new_filename):
     public_key = builder.sign(private_key=ca_private_key, algorithm=hashes.SHA256(), backend=default_backend())
     with open(new_filename, "wb") as keyfile:
         keyfile.write(public_key.public_bytes(serialization.Encoding.PEM))
-server_private_key = generate_private_key("server-private-key.pem", "")
-private_key = generate_private_key("ca-private-key.pem", "")
-generate_public_key(private_key, filename="ca-public-key.pem", country="US", state="Iowa", locality="Ankeny", org="32", hostname="192.168.6.3")
-generate_csr( server_private_key, filename="server-csr.pem", country="US", state="Iowa", locality="Ankeny", org="32", hostname="192.168.6.3", alt_names=["localhost", "ldums.com", "192.168.6.3"]) #edit this list with alt names for your domain.
-csr_file = open("server-csr.pem", "rb")
-csr = x509.load_pem_x509_csr(csr_file.read(), default_backend())
-ca_public_key_file = open("ca-public-key.pem", "rb")
-ca_public_key = x509.load_pem_x509_certificate(ca_public_key_file.read(), default_backend())
-ca_private_key_file = open("ca-private-key.pem", "rb")
-ca_private_key = serialization.load_pem_private_key(ca_private_key_file.read(), None, default_backend())
-sign_csr(csr, ca_public_key, ca_private_key, "server-public-key.pem")
