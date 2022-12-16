@@ -5,84 +5,84 @@ session = Session()
 api = Api(session.app)
 
 Dataargs = reqparse.RequestParser()
-Dataargs.add_argument('Location', type=str)
-Dataargs.add_argument('Data', type=str)
-Dataargs.add_argument('Username', type=str)
-Dataargs.add_argument('Password', type=str)
-Dataargs.add_argument('Hash', type=str)
-Dataargs.add_argument('Id', type=str)
+Dataargs.add_argument('location', type=str)
+Dataargs.add_argument('data', type=str)
+Dataargs.add_argument('username', type=str)
+Dataargs.add_argument('password', type=str)
+Dataargs.add_argument('hash', type=str)
+Dataargs.add_argument('id', type=str)
         
 class Load(Resource):
     def post(self):#load data
         data = Dataargs.parse_args()
         
-        return session.post('Load', None, {'Location':data['Location'], 'Hash':data['Hash'], 'Id':data['Id']}, verify=True).json()
+        return session.post('load_data', None, {'location':data['location'], 'hash':data['hash'], 'id':data['id']}, verify=True).json()
 
 class Save(Resource):
     def post(self):#save data
         data = Dataargs.parse_args()
 
-        return session.post('Save', None, {'Location':data['Location'], 'Data':data['Data'], 'Hash':data['Hash'], 'Id':data['Id']}, verify=True).json()
+        return session.post('save_data', None, {'location':data['location'], 'data':data['data'], 'hash':data['hash'], 'id':data['id']}, verify=True).json()
 
 class Remove(Resource):
     def post(self):#remove user
         data = Dataargs.parse_args()
         
-        return session.post('Remove', None, {'Hash':data['Hash'], 'Id':data['Id']}, verify=True).json()
+        return session.post('remove_account', None, {'hash':data['hash'], 'id':data['id']}, verify=True).json()
 
 class Login(Resource):
     def post(self):#login
         data = Dataargs.parse_args()
         
-        return session.post('Login', None, {'Username':data['Username'], 'Password':data['Password'], 'Hash':data['Hash'], 'Id':data['Id']}, verify=True).json()
+        return session.post('log_in', None, {'username':data['username'], 'password':data['password'], 'hash':data['hash'], 'id':data['id']}, verify=True).json()
         
 class Signup(Resource):
     def post(slef):#signup
         data = Dataargs.parse_args()
         
-        return session.post('Signup', None, {'Username':data['Username'], 'Password':data['Password']}, verify=True).json()
+        return session.post('sign_up', None, {'username':data['username'], 'password':data['password']}, verify=True).json()
 
 class Greet(Resource):
     def post(self):#greeting
         data = Dataargs.parse_args()
 
-        return session.post('Greet', None, {'Id':data['Id']}, verify=True).json()
+        return session.post('create_session', None, {'id':data['id']}, verify=True).json()
 
 class Leave(Resource):
     def post(self):#goodbyes
         data = Dataargs.parse_args()
         
-        return session.post('Leave', None, {'Hash':data['Hash'], 'Id':data['Id']}, verify=True).json()
+        return session.post('end_session', None, {'hash':data['hash'], 'id':data['id']}, verify=True).json()
 
 class Delete(Resource):
     def post(self):
         data = Dataargs.parse_args()
         
-        return session.post('Delete', None, {'Location':data['Location'], 'Hash':data['Hash'], 'Id':data['ID']}, verify=True).json()
+        return session.post('delete_data', None, {'location':data['location'], 'hash':data['hash'], 'id':data['iD']}, verify=True).json()
 
 class Cert(Resource):
     def post(slef):
         with open('server-public-key.pem') as f:
             serv = f.read()
         
-        return {'Code':102, 'Server': serv}
+        return {'code':102, 'server': serv}
 
 class Logout(Resource):
     def post(self):
         data = Dataargs.parse_args()
         
-        return session.post('Logout', None, {'Hash':data['Hash'], 'Id':data['Id']}, verify=True).json()
+        return session.post('log_out', None, {'hash':data['hash'], 'id':data['id']}, verify=True).json()
 
-api.add_resource(Login, '/Login')
-api.add_resource(Signup, '/Signup')
-api.add_resource(Greet, '/Greet')
-api.add_resource(Leave, '/Leave')
-api.add_resource(Load, '/Load')
-api.add_resource(Save, '/Save')
-api.add_resource(Remove, '/Remove')
-api.add_resource(Delete, '/Delete')
+api.add_resource(Login, '/log_in')
+api.add_resource(Signup, '/sign_up')
+api.add_resource(Greet, '/create_session')
+api.add_resource(Leave, '/end_session')
+api.add_resource(Load, '/load_data')
+api.add_resource(Save, '/save_data')
+api.add_resource(Remove, '/remove_account')
+api.add_resource(Delete, '/delete_data')
 api.add_resource(Cert, '/Cert')
-api.add_resource(Logout, '/Logout')
+api.add_resource(Logout, '/log_out')
 
 def start_server(host = None, port = None):
     if not os.path.isfile('server-public-key.pem') or not os.path.isfile('server-private-key.pem'):

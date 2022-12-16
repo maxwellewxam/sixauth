@@ -22,260 +22,261 @@ class UsernameError(AuthenticationError): ...
 class PasswordError(AuthenticationError): ...
 class DataError(BaseException): ...
 
-def encrypt(Data, password, username):
-    Data1 = json.dumps(Data)
+def encrypt_data(data, password, username):
+    json_data = json.dumps(data)
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=32,
         salt=bytes(username.encode()),
-        iterations=390000,
+        iterations=100000,
         backend=default_backend()
         )
     key = base64.urlsafe_b64encode(kdf.derive(bytes(password.encode())))
     fernet = Fernet(key)
-    return fernet.encrypt(Data1.encode()).decode()
+    return fernet.encrypt(json_data.encode()).decode()
 
-def decrypt(Data, password, username):
+def decrypt_data(data, password, username):
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=32,
         salt=bytes(username.encode()),
-        iterations=390000,
+        iterations=100000,
         backend=default_backend()
         )
     key = base64.urlsafe_b64encode(kdf.derive(bytes(password.encode())))
     fernet = Fernet(key)
-    return json.loads(fernet.decrypt(Data.encode()).decode())
+    return json.loads(fernet.decrypt(data.encode()).decode())
 
-def encrypt_fast(message, key):
+def encrypt_data_fast(message, key):
     return Fernet(bytes.fromhex(key)).encrypt(json.dumps(message).encode())
 
-def decrypt_fast(message, key):
+def decrypt_data_fast(message, key):
     return json.loads(Fernet(bytes.fromhex(key)).decrypt(message).decode())
 
-def create_hash(password):
+def create_password_hash(password):
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).hex()
 
-def check_hash(hash, password):
+def verify_password_hash(hash, password):
     return bcrypt.checkpw(password.encode('utf-8'), bytes.fromhex(hash))
 
-def num_to_str(text):
+def convert_numbers_to_words(text):
         return text.replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')
 
-def is_serialized(obj):
+def is_json_serialized(obj):
     try:
         json.loads(obj)
         return True
     except json.decoder.JSONDecodeError:
         return False
 
-def good_key(data, id):
+def is_valid_key(data, id):
     try:
-        decrypt_fast(data, id)
+        decrypt_data_fast(data, id)
         return True
     except InvalidToken:
         return False
 
-class usercache:
+class UserCache:
     def __init__(self):
         self.users = {}
         
-    def add(self, id):
+    def add_user(self, id):
         hash = hashlib.sha512((f'{id}{datetime.now()}').encode("UTF-8")).hexdigest()
-        self.users[hash] = encrypt_fast([None,(None,None)],id)
+        self.users[hash] = encrypt_data_fast([None,(None,None)],id)
         
         return hash
         
-    def find(self, hash, id):
-        if good_key(self.users[hash], id):
-            return decrypt_fast(self.users[hash],id)
+    def find_user(self, hash, id):
+        if is_valid_key(self.users[hash], id):
+            return decrypt_data_fast(self.users[hash],id)
         
-        return ['you being bad?',('you being bad?','you being bad?')]
+        return [False,(False,False)]
         
-    def update(self, hash, id, dbdat):
-        if good_key(self.users[hash], id):
-            self.users[hash] = encrypt_fast(dbdat,id)
+    def update_user(self, hash, id, dbdat):
+        if is_valid_key(self.users[hash], id):
+            self.users[hash] = encrypt_data_fast(dbdat,id)
             return [None]
 
-        return ['you being bad?',('you being bad?','you being bad?')]
+        return [False,(False,False)]
 
-    def delete(self, hash, id):
-        if good_key(self.users[hash], id):
+    def delete_user(self, hash, id):
+        if is_valid_key(self.users[hash], id):
             del self.users[hash]
             return [None]
 
-        return ['you being bad?',('you being bad?','you being bad?')]
+        return [False,(False,False)]
 
-class jsonHandle:
+class JsonResponse:
     def __init__(self, Code):
         self.Code = Code
         
     def json(self):
         return self.Code
     
-def HandleWrapper(func):
-    def Wrapper(*args, **kwargs):
-            return jsonHandle(func(*args, **kwargs))
-    return Wrapper
+def json_response(func):
+    def wrapper(*args, **kwargs):
+            return JsonResponse(func(*args, **kwargs))
+    return wrapper
 
-def signup(context, **data):
-    if data['Username'] == '':
-        return {'Code':406}
+def sign_up(context, **data):
+    if data['username'] == '':
+        return {'code':406}
     
-    if data['Username'].isalnum() == False:
-        return {'Code':406}
+    if data['username'].isalnum() == False:
+        return {'code':406}
     
     with context.app.app_context():
-        fromdat = context.DataMod.query.filter_by(Username=data['Username']).first()
+        user_from_database = context.User.query.filter_by(username=data['username']).first()
     
-    if fromdat:
-        return {'Code':409}
+    if user_from_database:
+        return {'code':409}
         
     with context.app.app_context():
-        inf = context.DataMod(Username=data['Username'], Password=create_hash(data['Password']), Data=encrypt({}, data['Username'], data['Password']))
-        context.db.session.add(inf)
+        context.db.session.add(context.User(username=data['username'], password=create_password_hash(data['password']), data=encrypt_data({}, data['username'], data['password'])))
         context.db.session.commit()
     
-    return {'Code':200}
+    return {'code':200}
 
-def save(context, **data):
-    userdat = context.cache.find(data['Hash'], data['Id'])[0]
-    userinfo = context.cache.find(data['Hash'], data['Id'])[1]
+def save_data(context, **data):
+    user_from_cache = context.cache.find_user(data['hash'], data['id'])[0]
+    userinfo_from_cache = context.cache.find_user(data['hash'], data['id'])[1]
     
-    if userdat == None or userdat == 'you being bad?':
-        return {'Code':423}
+    if user_from_cache == None or user_from_cache == False:
+        return {'code':423}
     
-    if not is_serialized(data['Data']):
-        return {'Code':420, 'Data':data['Data'], 'err':'Object is not json serialized'}
+    if not is_json_serialized(data['data']):
+        return {'code':420, 'data':data['data'], 'error':'Object is not json serialized'}
     
-    requestdat = json.loads(data['Data'])
+    data_from_request = json.loads(data['data'])
     
-    if data['Location'] == '':
-        context.cache.update(data['Hash'], data['Id'], [requestdat, userinfo])
-        return {'Code':200, 'Data':requestdat}
+    if data['location'] == '':
+        context.cache.update_user(data['hash'], data['id'], [data_from_request, userinfo_from_cache])
+        return {'code':200, 'data':data_from_request}
     
-    jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).update_or_create(userdat, requestdat)
-    context.cache.update(data['Hash'], data['Id'], [userdat, userinfo])
+    jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).update_or_create(user_from_cache, data_from_request)
+    context.cache.update_user(data['hash'], data['id'], [user_from_cache, userinfo_from_cache])
 
-    return {'Code':200, 'Data':userdat}
+    return {'code':200, 'data':user_from_cache}
 
-def  delete(context, **data):
-    userdat = context.cache.find(data['Hash'], data['Id'])[0]
-    userinfo = context.cache.find(data['Hash'], data['Id'])[1]
+def delete_data(context, **data):
+    user_from_cache = context.cache.find_user(data['hash'], data['id'])[0]
+    userinfo_from_cache = context.cache.find_user(data['hash'], data['id'])[1]
     
-    if userdat == None or userdat == 'you being bad?':
-        return {'Code':423}
+    if user_from_cache == None or user_from_cache == False:
+        return {'code':423}
     
-    if data['Location'] == '':
-        context.cache.update(data['Hash'], data['Id'], [{}, userinfo])
-        return {'Code':200}
+    if data['location'] == '':
+        context.cache.update_user(data['hash'], data['id'], [{}, userinfo_from_cache])
+        return {'code':200}
     
-    parsed = jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).find(userdat)
+    parsed_location = jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).find(user_from_cache)
     
-    if parsed == []:
-        return {'Code':416}
+    if parsed_location == []:
+        return {'code':416}
     
-    del [match.context for match in parsed][0].value[str([match.path for match in parsed][0])]
-    context.cache.update(data['Hash'], data['Id'], [userdat, userinfo])
+    del [match.context for match in parsed_location][0].value[str([match.path for match in parsed_location][0])]
+    context.cache.update_user(data['hash'], data['id'], [user_from_cache, userinfo_from_cache])
     
-    return {'Code':200}
+    return {'code':200}
 
-def logout(context, **data):
-    userdat = context.cache.find(data['Hash'], data['Id'])[0]
-    username, password = context.cache.find(data['Hash'], data['Id'])[1]
+def log_out(context, **data):
+    user_from_cache = context.cache.find_user(data['hash'], data['id'])[0]
+    username, password = context.cache.find_user(data['hash'], data['id'])[1]
 
-    if userdat == None or userdat == 'you being bad?':
-        return {'Code':200}
+    if user_from_cache == None or user_from_cache == False:
+        return {'code':200}
     
     with context.app.app_context():
-        fromdat = context.DataMod.query.filter_by(Username=username).first()
+        user_from_database = context.User.query.filter_by(username=username).first()
     
-    if not fromdat:
-        return {'Code':420, 'Data':userdat, 'err':'could not find user to logout'}
+    if not user_from_database:
+        return {'code':420, 'data':user_from_cache, 'error':'could not find user to logout'}
     
-    datPass = marshal(fromdat, context.passfields)['Password']
+    datPass = marshal(user_from_database, context.passfields)['password']
     
-    if not check_hash(datPass, password):
-        return {'Code': 423}
+    if not verify_password_hash(datPass, password):
+        return {'code': 423}
 
     with context.app.app_context():
-        context.db.session.delete(fromdat)
-        context.db.session.add(context.DataMod(Username=username, Password=create_hash(password), Data=encrypt(userdat, username, password)))
+        context.db.session.delete(user_from_database)
+        context.db.session.add(context.User(username=username, password=create_password_hash(password), data=encrypt_data(user_from_cache, username, password)))
         context.db.session.commit()
     
-    return {'Code':200}
+    context.cache.update_user(data['hash'], data['id'], [None,(None,None)])
+    
+    return {'code':200}
 
-def remove(context, **data):
-    username, password = context.cache.find(data['Hash'], data['Id'])[1]
+def remove_account(context, **data):
+    username, password = context.cache.find_user(data['hash'], data['id'])[1]
             
     with context.app.app_context():
-        fromdat = context.DataMod.query.filter_by(Username=username).first()
+        user_from_database = context.User.query.filter_by(username=username).first()
     
-    if not fromdat or username == 'you being bad?':
-        return {'Code':423}
+    if not user_from_database or username == False:
+        return {'code':423}
     
-    datPass = marshal(fromdat, context.passfields)['Password']
+    datPass = marshal(user_from_database, context.passfields)['password']
     
-    if not check_hash(datPass, password):
-        return {'Code':423}
+    if not verify_password_hash(datPass, password):
+        return {'code':423}
     
     with context.app.app_context():
-        context.db.session.delete(fromdat)
+        context.db.session.delete(user_from_database)
         context.db.session.commit()
         
-    context.cache.update(data['Hash'], data['Id'], [None,(None,None)])
+    context.cache.update_user(data['hash'], data['id'], [None,(None,None)])
     
-    return {'Code':200}
+    return {'code':200}
 
-def login(context, **data):
-    if data['Username'] == '':
-        return {'Code':406}
+def log_in(context, **data):
+    if data['username'] == '':
+        return {'code':406}
     
-    if data['Username'].isalnum() == False:
-        return {'Code':406}
+    if data['username'].isalnum() == False:
+        return {'code':406}
     
     with context.app.app_context():
-        fromdat = context.DataMod.query.filter_by(Username=data['Username']).first()
+        user_from_database = context.User.query.filter_by(username=data['username']).first()
 
-    if not fromdat:
-        return {'Code':404}
+    if not user_from_database:
+        return {'code':404}
     
-    datPass = marshal(fromdat, context.passfields)['Password']
+    datPass = marshal(user_from_database, context.passfields)['password']
     
-    if not check_hash(datPass, data['Password']):
-        return {'Code':401}
+    if not verify_password_hash(datPass, data['password']):
+        return {'code':401}
         
-    if context.cache.update(data['Hash'], data['Id'], [decrypt(marshal(fromdat, context.datfields)['Data'], data['Username'], data['Password']), (data['Password'], data['Username'])])[0] == 'you being bad?':
-        return {'Code':423}
+    if context.cache.update_user(data['hash'], data['id'], [decrypt_data(marshal(user_from_database, context.datfields)['data'], data['username'], data['password']), (data['password'], data['username'])])[0] == False:
+        return {'code':423}
     
-    return {'Code':200}
+    return {'code':200}
 
-def load(context, **data):
-    userdat = context.cache.find(data['Hash'], data['Id'])[0]
+def load_data(context, **data):
+    user_from_cache = context.cache.find_user(data['hash'], data['id'])[0]
     
-    if userdat == None or userdat == 'you being bad?':
-        return {'Code':423}
+    if user_from_cache == None or user_from_cache == False:
+        return {'code':423}
     
-    if data['Location'] == '':
-        return {'Code':202, 'Data' :userdat}
+    if data['location'] == '':
+        return {'code':202, 'data':user_from_cache}
     
-    parsed = jsonpath_ng.parse(num_to_str(data['Location'].replace('/', '.').replace(' ', '-'))).find(userdat)
+    parsed_location = jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).find(user_from_cache)
     
-    if parsed == []:
-        return {'Code':416}
+    if parsed_location == []:
+        return {'code':416}
     
-    return {'Code':202, 'Data':[match.value for match in parsed][0]}
+    return {'code':202, 'data':[match.value for match in parsed_location][0]}
 
-def greet(context, **data):
-    user = context.cache.add(data['Id'])
+def create_session(context, **data):
+    user_hash = context.cache.add_user(data['id'])
     
-    return {'Code':101, 'Hash':user}
+    return {'code':101, 'hash':user_hash}
 
-def leave(context, **data):
-    if context.cache.delete(data['Hash'], data['Id'])[0] == 'you being bad?':
-        return {'Code':423}
+def end_session(context, **data):
+    if context.cache.delete_user(data['hash'], data['id'])[0] == False:
+        return {'code':423}
 
-    return {'Code':200}
+    return {'code':200}
 
 class Session():
     def __init__(self, path=None):
@@ -287,15 +288,15 @@ class Session():
         self.app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
         self.db = SQLAlchemy(self.app)            
 
-        class DataMod(self.db.Model):
-            Username = self.db.Column(self.db.String, nullable=False, primary_key = True)
-            Password = self.db.Column(self.db.String, nullable=False)
-            Data = self.db.Column(self.db.String)
+        class User(self.db.Model):
+            username = self.db.Column(self.db.String, nullable=False, primary_key = True)
+            password = self.db.Column(self.db.String, nullable=False)
+            data = self.db.Column(self.db.String)
 
-            def __init__(self, Username, Password, Data):
-                self.Username = Username
-                self.Password = Password
-                self.Data = Data
+            def __init__(self, username, password, data):
+                self.username = username
+                self.password = password
+                self.data = data
 
         if path == None:        
             if os.path.isfile(f'{os.getcwd()}/database.db') is False:
@@ -307,39 +308,39 @@ class Session():
                 with self.app.app_context():
                     self.db.create_all()
             
-        self.datfields = {'Data': fields.Raw}
-        self.passfields = {'Password': fields.String}
-        self.DataMod = DataMod
-        self.cache = usercache()
+        self.datfields = {'data': fields.Raw}
+        self.passfields = {'password': fields.String}
+        self.User = User
+        self.cache = UserCache()
             
-    @HandleWrapper
+    @json_response
     def post(self, location, a ,data, **_):
-        if location == 'Signup':
-            return signup(self, **data)
+        if location == 'sign_up':
+            return sign_up(self, **data)
             
-        elif location == 'Save':
-            return save(self, **data)
+        elif location == 'save_data':
+            return save_data(self, **data)
 
-        elif location == 'Delete':
-            return delete(self, **data)
+        elif location == 'delete_data':
+            return delete_data(self, **data)
             
-        elif location == 'Logout':
-            return logout(self, **data)
+        elif location == 'log_out':
+            return log_out(self, **data)
             
-        elif location == 'Remove':
-            return remove(self, **data)
+        elif location == 'remove_account':
+            return remove_account(self, **data)
     
-        elif location == 'Login':
-            return login(self, **data)
+        elif location == 'log_in':
+            return log_in(self, **data)
             
-        elif location == 'Load':
-            return load(self, **data)
+        elif location == 'load_data':
+            return load_data(self, **data)
                 
-        elif location == 'Greet':
-            return greet(self, **data)
+        elif location == 'create_session':
+            return create_session(self, **data)
         
         elif location == 'Cert':
-            return {'Code':200}
+            return {'code':200}
     
-        elif location == 'Leave':
-            return leave(self, **data)
+        elif location == 'end_session':
+            return end_session(self, **data)
