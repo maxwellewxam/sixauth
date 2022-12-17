@@ -2,6 +2,11 @@ from flask_restful import Api, Resource, reqparse
 from maxmods.auth.imports import *
 from maxmods.auth.auth_backend.cert_maker import *
 
+
+
+
+
+
 session = Session()
 api = Api(session.app)
 
@@ -87,13 +92,8 @@ api.add_resource(Logout, '/log_out')
 
 def start_server(host = None, port = None):
     if not os.path.isfile('server-public-key.pem') or not os.path.isfile('server-private-key.pem'):
-        server_private_key = generate_private_key("server-private-key.pem", "")
-        private_key = generate_private_key("ignore.pem", "")
-        generate_public_key(private_key, filename="ca-public-key.pem", country="US", state="Iowa", locality="Ankeny", org="32", hostname="192.168.6.3")
-        csr = generate_csr( server_private_key, filename="server-csr.pem", country="US", state="Iowa", locality="Ankeny", org="32", hostname="192.168.6.3", alt_names=["localhost", "ldums.com", "192.168.6.3"]) #edit this list with alt names for your domain.
-        ca_public_key_file = open("ca-public-key.pem", "rb")
-        ca_public_key = x509.load_pem_x509_certificate(ca_public_key_file.read(), default_backend())
-        sign_csr(csr, ca_public_key, private_key, "server-public-key.pem")
-    session.app.run(host=host, port=port, ssl_context=('server-public-key.pem', 'server-private-key.pem'))
+        if not os.path.isfile('server-public-key.pem') or not os.path.isfile('server-private-key.pem'):
+            file = os.path.dirname(main.__file__) + '/'
+            pass
 if __name__ == '__main__':
     start_server('0.0.0.0', 5678)
