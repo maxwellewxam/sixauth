@@ -5,7 +5,6 @@ import json
 import base64
 import bcrypt
 import socket
-import warnings
 
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy

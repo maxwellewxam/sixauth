@@ -54,7 +54,7 @@ class AuthSesh:
         Examples
         --------
         >>> # Connecting to a backend server
-        >>> auth = AuthSesh("authserver.com/5678")
+        >>> auth = AuthSesh("authserver.com:5678")
         >>> # Connecting to a local database
         >>> auth = AuthSesh("/path/to/database/folder")
         """
