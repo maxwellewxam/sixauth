@@ -78,7 +78,6 @@ with ash() as user1, ash('127.0.0.1:5678') as user2:
             self.assertTrue(user1.remove())
         
         def test_211_login_server_side_wrong_username(self):
-            warnings.filterwarnings('ignore')
             user2.set_vals('test', 'test')
             with self.assertRaises(AuthenticationError) as cm:
                 user2.login()
