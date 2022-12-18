@@ -44,11 +44,11 @@ class testAuth(unittest.TestCase):
         self.assertEqual(test.post('load_data', None, {'id':id, 'hash':hash2, 'location':'bruh'}).json()['code'], 423)
     def test_17(self):
         self.assertEqual(test.post('delete_data', None, {'id':id, 'hash':hash, 'location':'ty'}).json()['code'], 200)
-    def test_17(self):
-        self.assertEqual(test.post('delete_data', None, {'id':id, 'hash':hash, 'location':''}).json()['code'], 200)
     def test_18(self):
-        self.assertEqual(test.post('delete_data', None, {'id':id, 'hash':hash, 'location':'bruh'}).json()['code'], 416)
+        self.assertEqual(test.post('delete_data', None, {'id':id, 'hash':hash, 'location':''}).json()['code'], 200)
     def test_19(self):
+        self.assertEqual(test.post('delete_data', None, {'id':id, 'hash':hash, 'location':'bruh'}).json()['code'], 416)
+    def test_20(self):
         self.assertEqual(test.post('delete_data', None, {'id':id, 'hash':hash2, 'location':'bruh'}).json()['code'], 423)
     def test_96(self):
         self.assertEqual(test.post('remove_account', None, {'id':id, 'hash':hash}).json()['code'], 200)
