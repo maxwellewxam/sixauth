@@ -1,92 +1,74 @@
-from flask_restful import Api, Resource, reqparse
+import threading
 from maxmods.auth.imports import *
 
-session = Session()
-api = Api(session.app)
+def start_server(host, port):
+    session = Session()
+    #Generate an ECDH key pair for the server
+    server_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
+    server_public_key = server_private_key.public_key()
 
-Dataargs = reqparse.RequestParser()
-Dataargs.add_argument('location', type=str)
-Dataargs.add_argument('data', type=str)
-Dataargs.add_argument('username', type=str)
-Dataargs.add_argument('password', type=str)
-Dataargs.add_argument('hash', type=str)
-Dataargs.add_argument('id', type=str)
+    #Serialize the server's public key
+    server_public_key_bytes = server_public_key.public_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+
+    # Create a socket object
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    # Bind the socket to the port
+    server_socket.bind((host, port))
+
+    # Listen for incoming connections
+    server_socket.listen()
+
+    print(f"Listening for incoming connections on {host}:{port}...")
+
+    def handle_client(client_socket, f, client_address, session):
+    # Do something with the client's socket, such as send and receive data
+        while True:
+            data = json.loads(f.decrypt(client_socket.recv(1024)).decode())
+            if data['func'] == 'end_session':
+                client_socket.send(f.encrypt(json.dumps(session.send(**data)).encode('utf-8')))
+                break
+            print(f"Received data from client: {client_address}")
+            client_socket.send(f.encrypt(json.dumps(session.send(**data)).encode('utf-8')))
+        print(f"Closed connection from {client_address}")
+        client_socket.close()
+
+    #Accept an incoming connection
+    while True:
+        client_socket, client_address = server_socket.accept()
+
+        #Wait for the client's public key
+        client_public_key_bytes = client_socket.recv(1024)
+
+        #Deserialize the client's public key
+        client_public_key = serialization.load_pem_public_key(
+        client_public_key_bytes, default_backend()
+        )
+
+        #Send the server's public key to the client
+        client_socket.send(server_public_key_bytes)
+
+        #Calculate the shared secret key using ECDH
+        shared_secret = server_private_key.exchange(ec.ECDH(), client_public_key)
+
+        #Use HKDF to derive a symmetric key from the shared secret
+        kdf = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=None,
+        info=b"session key",
+        backend=default_backend()
+        )
+        key = kdf.derive(shared_secret)
+
+        #Use the symmetric key to encrypt and decrypt messages
+        f = Fernet(base64.urlsafe_b64encode(key))
+
+        print(f"Received incoming connection from {client_address}")
         
-class Load(Resource):
-    def post(self):#load data
-        data = Dataargs.parse_args()
-        
-        return session.post('load_data', None, {'location':data['location'], 'hash':data['hash'], 'id':data['id']}, verify=True).json()
-
-class Save(Resource):
-    def post(self):#save data
-        data = Dataargs.parse_args()
-
-        return session.post('save_data', None, {'location':data['location'], 'data':data['data'], 'hash':data['hash'], 'id':data['id']}, verify=True).json()
-
-class Remove(Resource):
-    def post(self):#remove user
-        data = Dataargs.parse_args()
-        
-        return session.post('remove_account', None, {'hash':data['hash'], 'id':data['id']}, verify=True).json()
-
-class Login(Resource):
-    def post(self):#login
-        data = Dataargs.parse_args()
-        
-        return session.post('log_in', None, {'username':data['username'], 'password':data['password'], 'hash':data['hash'], 'id':data['id']}, verify=True).json()
-        
-class Signup(Resource):
-    def post(slef):#signup
-        data = Dataargs.parse_args()
-        
-        return session.post('sign_up', None, {'username':data['username'], 'password':data['password']}, verify=True).json()
-
-class Greet(Resource):
-    def post(self):#greeting
-        data = Dataargs.parse_args()
-
-        return session.post('create_session', None, {'id':data['id']}, verify=True).json()
-
-class Leave(Resource):
-    def post(self):#goodbyes
-        data = Dataargs.parse_args()
-        
-        return session.post('end_session', None, {'hash':data['hash'], 'id':data['id']}, verify=True).json()
-
-class Delete(Resource):
-    def post(self):
-        data = Dataargs.parse_args()
-        
-        return session.post('delete_data', None, {'location':data['location'], 'hash':data['hash'], 'id':data['iD']}, verify=True).json()
-
-class Cert(Resource):
-    def post(slef):
-        with open('server-public-key.pem') as f:
-            serv = f.read()
-        
-        return {'code':102, 'server': serv}
-
-class Logout(Resource):
-    def post(self):
-        data = Dataargs.parse_args()
-        
-        return session.post('log_out', None, {'hash':data['hash'], 'id':data['id']}, verify=True).json()
-
-api.add_resource(Login, '/log_in')
-api.add_resource(Signup, '/sign_up')
-api.add_resource(Greet, '/create_session')
-api.add_resource(Leave, '/end_session')
-api.add_resource(Load, '/load_data')
-api.add_resource(Save, '/save_data')
-api.add_resource(Remove, '/remove_account')
-api.add_resource(Delete, '/delete_data')
-api.add_resource(Cert, '/Cert')
-api.add_resource(Logout, '/log_out')
-
-def start_server(host = None, port = None):
-    if not os.path.isfile('server-public-key.pem') or not os.path.isfile('server-private-key.pem'):
-        from maxmods.auth.auth_backend import cert_maker
-    session.app.run(host=host, port=port, ssl_context=('server-public-key.pem', 'server-private-key.pem'))
-if __name__ == '__main__':
-    start_server('0.0.0.0', 5678)
+        # Create a new thread to handle the incoming connection
+        client_thread = threading.Thread(target=handle_client, args=(client_socket,f, client_address, session))
+        client_thread.start()

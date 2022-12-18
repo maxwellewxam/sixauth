@@ -1,293 +1,41 @@
-My Python Library
-My Python Library is an open-source library for authenticating users and accessing user data on a server.
+client:
 
-Installation
-To install My Python Library, use pip:
+import socket
+import json
+class dict(dict):
+    def make_bytes(self):
+        return json.dumps(self).encode('utf-8')
+# Create a socket
+client_socket = socket.socket()
 
-Copy code
-pip install my-python-library
-Or, to install from source:
+# Connect to the server
+client_socket.connect(('localhost', 8443))
+data = dict({'hey':'hey'})
+new = data.make_bytes()
+print(new)
+# Send data to the server
+client_socket.send(new)
+print(client_socket.recv(1024))
+# Close the client socket
+client_socket.close()
 
-Copy code
-git clone https://github.com/<user>/my-python-library.git
-cd my-python-library
-python setup.py install
-Usage
-To use My Python Library, you will need to create an AuthSesh instance. There are several different ways to do this, depending on your needs:
+server:
 
-Copy code
-# Connect to a local database
-auth = AuthSesh()
+import socket
+import json
+class dict(dict):
+    def make_bytes(self):
+        return json.dumps(self).encode('utf-8')
+# Create a socket
+client_socket = socket.socket()
 
-# Connect to a remote database at the specified address
-auth = AuthSesh("<address>")
-
-# Connect to a local database at the specified path
-auth = AuthSesh("<path>")
-Once you have created an AuthSesh instance, you can log in and access user data using the following methods:
-
-Copy code
-# Set the username and password
-auth.set_vals("<username>", "<password>")
-
-# Log in to the server
-auth.login()
-
-# Load data from the specified location on the server
-user_data = auth.load("<path>")
-When you are finished, you can terminate the AuthSesh instance by calling the terminate method:
-
-Copy code
-auth.terminate()
-Alternatively, you can use a context manager to automatically terminate the AuthSesh instance when you are done:
-
-Copy code
-with AuthSesh() as auth:
-    auth.set_vals("<username>", "<password>")
-    auth.login()
-    user_data = auth.load("<path>")
-License
-My Python Library is licensed under the terms of the MIT license.
-
-Contributions
-Contributions are welcome! Please fork the repository and open a pull request to add new features or fix bugs.
-        
-        elif request['Code'] == 202:
-            return request['Data']
-        
-        elif request['Code'] == 416:
-            raise LocationError('Loaction does not exist')
-        
-        elif request['Code'] == 401:
-            raise PasswordError('Incorrect password')
-        
-        elif request['Code'] == 404:
-            raise UsernameError('Username does not exist')
-        
-        elif request['Code'] == 406:
-            raise UsernameError('Invalid username')
-        
-        elif request['Code'] == 409:
-            raise UsernameError('Username already exists')
-        
-        elif request['Code'] == 423:
-            raise AuthenticationError('Failed to authenticate user')
-
-        elif request['Code'] == 101:
-            self._Hash = request['Hash']
-        
-        elif request['Code'] == 102:
-            self._certadder(request['Server'])
-            
-        elif request['Code'] == 420:
-            raise DataError(f"An error occured during the request, here is the data we could recover: {request['Data']}/n Error: {request['err']}" )
-            
-
-Rename jsonHandle to JsonResponse
-Rename HandleWrapper to json_response
-Rename signup to sign_up
-Rename save to save_data
-Rename delete to delete_data
-Rename logout to log_out
-Rename remove to remove_account
-Rename login to log_in
-Rename load to load_data
-Rename greet to create_session
-Rename leave to end_session
-Rename usercache to UserCache
-Rename add to add_user
-Rename find to find_user
-Rename update to update_user
-Rename delete to delete_user
-Rename encrypt to encrypt_data
-Rename decrypt to decrypt_data
-Rename encrypt_fast to encrypt_data_fast
-Rename decrypt_fast to decrypt_data_fast
-Rename create_hash to create_password_hash
-Rename check_hash to verify_password_hash
-Rename num_to_str to convert_numbers_to_words
-Rename is_serialized to is_json_serialized
-Rename good_key to is_valid_key
-Rename Code to code
-Rename Data to data
-Rename Hash to hash
-Rename Id to id
-Rename Location to location
-Rename Username to username
-Rename Password to password
-Rename DataMod to User
-Rename err to error
-Rename fromdat to user_from_database
-Rename datPass to password_from_database
-Rename inf to user_info
-Rename parsed to parsed_location
-
-import os
-class CallerError(BaseException): ...
-class MenuException(BaseException): ...
-class Base:
-    def __init__(self, Title = None, Class = None, Item = None, inText = 'Selection: '):
-        '''
-        Underlying Base class of all Menu objects.
-        '''
-        self.Title = Title
-        self.Class = Class
-        self.inText = inText
-        if Item is None:
-            self.Item = [[0, 'Exit', (None, None), {}]]
-        else: self.Item = Item
-    def add_item(self, Caller, Text, *args, **kwargs):
-        '''
-        Adds an item to the menu at the specified Caller
-        Raises an exception if the position is already occupied
-        '''
-        for item in self.Item:
-            if item[0] == Caller:
-                raise CallerError('Defined Caller is already in use.')
-        row = [Caller, Text, args, kwargs]
-        self.Item.append(row)
-    def update_item(self, Caller, Text, *args, **kwargs):
-        '''
-        Updates item on the menu with specified Caller
-        Raises an exception if the Caller does not exist
-        '''
-        self.remove_item(Caller)
-        row = [Caller, Text, args, kwargs]
-        self.Item.append(row)
-    def remove_item(self, Caller):
-        '''
-        Removes item with specified Caller
-        Raises an Exception if Caller does not exist
-        '''
-        for item in self.Item:
-            if item[0] == Caller:
-                self.Item.remove(item)
-                return
-        raise CallerError('Defined Caller does not exist')
-    def __Refresh(self):
-        os.system('cls')
-    def run(self, Caller = 0):
-        '''
-        Creates the menu and Runs it
-
-        Handles Menu exceptions and prints them to screen
-        '''
-        self.__Refresh()
-        text = f'{self.Title}\n'
-        self.Item.sort(key=lambda x:x[0])
-        for i, item in enumerate(self.Item):
-            if Caller == 0 or item[0] == 0:
-                text += f'{i} | {item[1]}'
-            elif Caller == 1:
-                val = str(getattr(self.Class, *item[2]))
-                text += f'{item[1]}: {val}'
-            elif Caller == 2:
-                _, attr = item[2]
-                val = str(getattr(self.Class, attr))
-                text += f'{i} | {item[1]}: {val}'
-            if i+1 != len(self.Item):
-                text += '\n'
-        print(text)
-        try:
-            choice = str(input(self.inText))
-            self.__Refresh()
-            for item in self.Item:
-                if str(item[0]) == choice:
-                    func, *args = item[2]
-                    if callable(func):
-                        func(*args, **item[3])
-                        break
-                    else:
-                        return
-                elif '' == choice and Caller == 1:
-                    return
-            self.Run()
-        except MenuException as err:
-            print(err)
-            input()
-            self.Run()
-class BasicMenu(Base):
-    def __init__(self, Title: str):
-        '''
-        Creates a menu object
-        
-        Most basic form of menu
-        '''
-        super().__init__(Title = Title)
-    def add_item(self, Caller: int, Text: str, Func: object, *args, **kwargs):
-        '''
-        Adds an item to the menu at the specified Caller
-        
-        Raises an exception if the Caller is already occupied
-        '''
-        super().add_item(Caller, Text, Func, *args, **kwargs)
-    def update_item(self, Caller: int, Text: str, Func: object, *args, **kwargs):
-        '''
-        Updates item on the menu with specified Caller
-        
-        Raises an exception if the Caller does not exist
-        '''
-        super().update_item(Caller, Text, Func, *args, **kwargs)
-        
-class InfoMenu(Base):
-    def __init__(self, Title: str, Class: object):
-        '''
-        Creates a menu object that does not except a user input
-        
-        used for displaying info in a style similar to the rest of the menus
-        '''
-        super().__init__(Title = Title, Class = Class, Item = [])
-    def add_item(self, Caller: int, Text: str, Attr: str):
-        '''
-        Adds an item to the menu at the specified Caller
-        
-        Raises an exception if the position is already occupied
-        '''
-        super().add_item(Caller, Text, Attr)
-    def update_item(self, Caller: int, Text: str, Attr: str):
-        '''
-        Updates item on the menu with specified Caller
-        
-        Raises an exception if the Caller does not exist
-        '''
-        super().update_item(Caller, Text, Attr)
-    def run(self):
-        '''
-        Creates the menu and Runs it
-        
-        Handles all exceptions and prints them to screen
-        '''
-        self.inText='Enter to Continue'
-        super().run(Caller=1)
-class SettingsMenu(Base):
-    def __init__(self, Title: str, Class: object):
-        '''
-        Creats a menu object
-        
-        defined attr in add_item will be changed to user defined value when selected
-        '''
-        super().__init__(Title = Title, Class = Class)
-    def add_item(self, Caller: int, Text: str, Attr: str):
-        '''
-        Adds an item to the menu at the specified Caller
-        
-        Raises an exception if the position is already occupied
-        '''
-        super().add_item(Caller, Text, self.__ChangeVal, Attr)
-    def update_item(self, Caller: int, Text: str, Attr: str):
-        '''
-        Updates item on the menu with specified Caller
-        
-        Raises an exception if the Caller does not exist
-        '''
-        super().update_item(Caller, Text, self.__ChangeVal, Attr)
-    def run(self):
-        '''
-        Creates the menu and Runs it
-        
-        Handles all exceptions and prints them to screen
-        '''
-        super().run(Caller=2)
-    def __ChangeVal(self, attr):
-        new = input('New Value: ')
-        setattr(self.Class, attr, new)
+# Connect to the server
+client_socket.connect(('localhost', 8443))
+data = dict({'hey':'hey'})
+new = data.make_bytes()
+print(new)
+# Send data to the server
+client_socket.send(new)
+print(client_socket.recv(1024))
+# Close the client socket
+client_socket.close()

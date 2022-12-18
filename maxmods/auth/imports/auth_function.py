@@ -4,15 +4,17 @@ import os
 import json
 import base64
 import bcrypt
-import requests
+import socket
 import warnings
 
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 from flask import Flask
 from flask_restful import fields, marshal
-from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.backends import default_backend
 from cryptography.fernet import Fernet, InvalidToken
 
@@ -105,18 +107,6 @@ class UserCache:
             return [None]
 
         return [False,(False,False)]
-
-class JsonResponse:
-    def __init__(self, Code):
-        self.Code = Code
-        
-    def json(self):
-        return self.Code
-    
-def json_response(func):
-    def wrapper(*args, **kwargs):
-            return JsonResponse(func(*args, **kwargs))
-    return wrapper
 
 def sign_up(context, **data):
     if data['username'] == '':
@@ -279,68 +269,116 @@ def end_session(context, **data):
     return {'code':200}
 
 class Session():
-    def __init__(self, path=None):
-        self.app = Flask(__name__)
-        if path == None:
-            self.app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.getcwd()}/database.db'
-        else:
-            self.app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{path}/database.db'
-        self.app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-        self.db = SQLAlchemy(self.app)            
+    def __init__(self, path=None, address=None,):
+        self.address = address
+        if self.address == None:
+            self.app = Flask(__name__)
+            if path == None:
+                self.app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.getcwd()}/database.db'
+            else:
+                self.app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{path}/database.db'
+            self.app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+            self.db = SQLAlchemy(self.app)            
 
-        class User(self.db.Model):
-            username = self.db.Column(self.db.String, nullable=False, primary_key = True)
-            password = self.db.Column(self.db.String, nullable=False)
-            data = self.db.Column(self.db.String)
+            class User(self.db.Model):
+                username = self.db.Column(self.db.String, nullable=False, primary_key = True)
+                password = self.db.Column(self.db.String, nullable=False)
+                data = self.db.Column(self.db.String)
 
-            def __init__(self, username, password, data):
-                self.username = username
-                self.password = password
-                self.data = data
+                def __init__(self, username, password, data):
+                    self.username = username
+                    self.password = password
+                    self.data = data
 
-        if path == None:        
-            if os.path.isfile(f'{os.getcwd()}/database.db') is False:
-                with self.app.app_context():
-                    self.db.create_all()
+            if path == None:        
+                if os.path.isfile(f'{os.getcwd()}/database.db') is False:
+                    with self.app.app_context():
+                        self.db.create_all()
 
-        else:
-            if os.path.isfile(f'{path}/database.db') is False:
-                with self.app.app_context():
-                    self.db.create_all()
-            
-        self.datfields = {'data': fields.Raw}
-        self.passfields = {'password': fields.String}
-        self.User = User
-        self.cache = UserCache()
-            
-    @json_response
-    def post(self, location, a ,data, **_):
-        if location == 'sign_up':
-            return sign_up(self, **data)
-            
-        elif location == 'save_data':
-            return save_data(self, **data)
-
-        elif location == 'delete_data':
-            return delete_data(self, **data)
-            
-        elif location == 'log_out':
-            return log_out(self, **data)
-            
-        elif location == 'remove_account':
-            return remove_account(self, **data)
-    
-        elif location == 'log_in':
-            return log_in(self, **data)
-            
-        elif location == 'load_data':
-            return load_data(self, **data)
+            else:
+                if os.path.isfile(f'{path}/database.db') is False:
+                    with self.app.app_context():
+                        self.db.create_all()
                 
-        elif location == 'create_session':
-            return create_session(self, **data)
+            self.datfields = {'data': fields.Raw}
+            self.passfields = {'password': fields.String}
+            self.User = User
+            self.cache = UserCache()
+
+        else:
+            client_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
+            client_public_key = client_private_key.public_key()
+
+            #Serialize the client's public key
+            client_public_key_bytes = client_public_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+            )
+
+            #reate a socket
+            self.client_socket = socket.socket()
+            
+            #get adress and port
+            connection_info = self.address.split(':')
+
+            #Connect to the server
+            self.client_socket.connect((connection_info[0], int(connection_info[1])))
+
+            #Send the client's public key to the server
+            self.client_socket.send(client_public_key_bytes)
+
+            #Wait for the server's public key
+            server_public_key_bytes = self.client_socket.recv(1024)
+
+            #Deserialize the server's public key
+            server_public_key = serialization.load_pem_public_key(
+            server_public_key_bytes, default_backend()
+            )
+
+            #Calculate the shared secret key using ECDH
+            shared_secret = client_private_key.exchange(ec.ECDH(), server_public_key)
+
+            #Use HKDF to derive a symmetric key from the shared secret
+            kdf = HKDF(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=None,
+            info=b"session key",
+            backend=default_backend()
+            )
+            key = kdf.derive(shared_secret)
+
+            #Use the symmetric key to encrypt and decrypt messages
+            self.f = Fernet(base64.urlsafe_b64encode(key))
+            
+    def send(self, **data):
+        if self.address == None:
+            if data['func'] == 'create_session':
+                return create_session(self, **data)
+            
+            elif data['func'] == 'sign_up':
+                return sign_up(self, **data)
+            
+            elif data['func'] == 'save_data':
+                return save_data(self, **data)
+
+            elif data['func'] == 'delete_data':
+                return delete_data(self, **data)
+                
+            elif data['func'] == 'log_out':
+                return log_out(self, **data)
+                
+            elif data['func'] == 'remove_account':
+                return remove_account(self, **data)
         
-        elif location == 'Cert':
-            return {'code':200}
-    
-        elif location == 'end_session':
-            return end_session(self, **data)
+            elif data['func'] == 'log_in':
+                return log_in(self, **data)
+                
+            elif data['func'] == 'load_data':
+                return load_data(self, **data)
+            
+            elif data['func'] == 'end_session':
+                return end_session(self, **data)
+        else:
+            self.client_socket.send(self.f.encrypt(json.dumps(data).encode('utf-8')))
+            return json.loads(self.f.decrypt(self.client_socket.recv(1024)).decode())
