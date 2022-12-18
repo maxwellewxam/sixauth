@@ -1,6 +1,5 @@
 client:
 
-import ssl
 import socket
 import json
 class dict(dict):
@@ -8,16 +7,6 @@ class dict(dict):
         return json.dumps(self).encode('utf-8')
 # Create a socket
 client_socket = socket.socket()
-
-# Create a SSL context
-context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
-context.check_hostname = False
-context.verify_mode = ssl.CERT_NONE
-# Load the certificate authority (CA) that issued the server's certificate
-context.load_verify_locations(cafile='ca-public-key.pem')
-
-# Set the socket to use the SSL context
-client_socket = context.wrap_socket(client_socket, server_hostname='localhost')
 
 # Connect to the server
 client_socket.connect(('localhost', 8443))
@@ -32,7 +21,6 @@ client_socket.close()
 
 server:
 
-import ssl
 import socket
 import json
 class dict(dict):
@@ -40,16 +28,6 @@ class dict(dict):
         return json.dumps(self).encode('utf-8')
 # Create a socket
 client_socket = socket.socket()
-
-# Create a SSL context
-context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
-context.check_hostname = False
-context.verify_mode = ssl.CERT_NONE
-# Load the certificate authority (CA) that issued the server's certificate
-context.load_verify_locations(cafile='ca-public-key.pem')
-
-# Set the socket to use the SSL context
-client_socket = context.wrap_socket(client_socket, server_hostname='localhost')
 
 # Connect to the server
 client_socket.connect(('localhost', 8443))
