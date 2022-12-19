@@ -2,7 +2,7 @@ import threading
 from maxmods.auth.imports import *
 
 def start_server(host, port):
-    session = Session()
+    session = frontend_session()
     #Generate an ECDH key pair for the server
     server_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
     server_public_key = server_private_key.public_key()
@@ -29,10 +29,12 @@ def start_server(host, port):
         while True:
             data = json.loads(f.decrypt(client_socket.recv(1024)).decode())
             if data['func'] == 'end_session':
-                client_socket.send(f.encrypt(json.dumps(session.send(**data)).encode('utf-8')))
-                break
+                end = session(**data)
+                client_socket.send(f.encrypt(json.dumps(end).encode('utf-8')))
+                if end['code'] == 200:
+                    break
             print(f"Received data from client: {client_address}")
-            client_socket.send(f.encrypt(json.dumps(session.send(**data)).encode('utf-8')))
+            client_socket.send(f.encrypt(json.dumps(session(**data)).encode('utf-8')))
         print(f"Closed connection from {client_address}")
         client_socket.close()
 

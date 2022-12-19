@@ -77,35 +77,79 @@ def is_valid_key(data, id):
     except InvalidToken:
         return False
 
-class UserCache:
-    def __init__(self):
-        self.users = {}
-        
-    def add_user(self, id):
-        hash = hashlib.sha512((f'{id}{datetime.now()}').encode("UTF-8")).hexdigest()
-        self.users[hash] = encrypt_data_fast([None,(None,None)],id)
-        
-        return hash
-        
-    def find_user(self, hash, id):
-        if is_valid_key(self.users[hash], id):
-            return decrypt_data_fast(self.users[hash],id)
-        
-        return [False,(False,False)]
-        
-    def update_user(self, hash, id, dbdat):
-        if is_valid_key(self.users[hash], id):
-            self.users[hash] = encrypt_data_fast(dbdat,id)
-            return [None]
+def establish_connection(address):
+    client_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
+    client_public_key = client_private_key.public_key()
 
-        return [False,(False,False)]
+    #Serialize the client's public key
+    client_public_key_bytes = client_public_key.public_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
 
-    def delete_user(self, hash, id):
-        if is_valid_key(self.users[hash], id):
-            del self.users[hash]
-            return [None]
+    #reate a socket
+    client_socket = socket.socket()
+    
+    #get adress and port
+    connection_info = address.split(':')
 
-        return [False,(False,False)]
+    #Connect to the server
+    client_socket.connect((connection_info[0], int(connection_info[1])))
+
+    #Send the client's public key to the server
+    client_socket.send(client_public_key_bytes)
+
+    #Wait for the server's public key
+    server_public_key_bytes = client_socket.recv(1024)
+
+    #Deserialize the server's public key
+    server_public_key = serialization.load_pem_public_key(
+    server_public_key_bytes, default_backend()
+    )
+
+    #Calculate the shared secret key using ECDH
+    shared_secret = client_private_key.exchange(ec.ECDH(), server_public_key)
+
+    #Use HKDF to derive a symmetric key from the shared secret
+    kdf = HKDF(
+    algorithm=hashes.SHA256(),
+    length=32,
+    salt=None,
+    info=b"session key",
+    backend=default_backend()
+    )
+    key = kdf.derive(shared_secret)
+
+    #Use the symmetric key to encrypt and decrypt messages
+    return Fernet(base64.urlsafe_b64encode(key)), client_socket
+
+cache = {}
+
+def add_user(id):
+    hash = hashlib.sha512((f'{id}{datetime.now()}').encode("UTF-8")).hexdigest()
+    cache[hash] = encrypt_data_fast([None,(None,None)],id)
+    
+    return hash
+    
+def find_user(hash, id):
+    if is_valid_key(cache[hash], id):
+        return decrypt_data_fast(cache[hash],id)
+    
+    return [False,(False,False)]
+    
+def update_user(hash, id, dbdat):
+    if is_valid_key(cache[hash], id):
+        cache[hash] = encrypt_data_fast(dbdat,id)
+        return [None]
+
+    return [False,(False,False)]
+
+def delete_user(hash, id):
+    if is_valid_key(cache[hash], id):
+        del cache[hash]
+        return [None]
+
+    return [False,(False,False)]
 
 def sign_up(context, **data):
     if data['username'] == '':
@@ -127,8 +171,8 @@ def sign_up(context, **data):
     return {'code':200}
 
 def save_data(context, **data):
-    user_from_cache = context.cache.find_user(data['hash'], data['id'])[0]
-    userinfo_from_cache = context.cache.find_user(data['hash'], data['id'])[1]
+    user_from_cache = find_user(data['hash'], data['id'])[0]
+    userinfo_from_cache = find_user(data['hash'], data['id'])[1]
     
     if user_from_cache == None or user_from_cache == False:
         return {'code':423}
@@ -139,23 +183,23 @@ def save_data(context, **data):
     data_from_request = json.loads(data['data'])
     
     if data['location'] == '':
-        context.cache.update_user(data['hash'], data['id'], [data_from_request, userinfo_from_cache])
+        update_user(data['hash'], data['id'], [data_from_request, userinfo_from_cache])
         return {'code':200, 'data':data_from_request}
     
     jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).update_or_create(user_from_cache, data_from_request)
-    context.cache.update_user(data['hash'], data['id'], [user_from_cache, userinfo_from_cache])
+    update_user(data['hash'], data['id'], [user_from_cache, userinfo_from_cache])
 
     return {'code':200, 'data':user_from_cache}
 
 def delete_data(context, **data):
-    user_from_cache = context.cache.find_user(data['hash'], data['id'])[0]
-    userinfo_from_cache = context.cache.find_user(data['hash'], data['id'])[1]
+    user_from_cache = find_user(data['hash'], data['id'])[0]
+    userinfo_from_cache = find_user(data['hash'], data['id'])[1]
     
     if user_from_cache == None or user_from_cache == False:
         return {'code':423}
     
     if data['location'] == '':
-        context.cache.update_user(data['hash'], data['id'], [{}, userinfo_from_cache])
+        update_user(data['hash'], data['id'], [{}, userinfo_from_cache])
         return {'code':200}
     
     parsed_location = jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).find(user_from_cache)
@@ -164,13 +208,13 @@ def delete_data(context, **data):
         return {'code':416}
     
     del [match.context for match in parsed_location][0].value[str([match.path for match in parsed_location][0])]
-    context.cache.update_user(data['hash'], data['id'], [user_from_cache, userinfo_from_cache])
+    update_user(data['hash'], data['id'], [user_from_cache, userinfo_from_cache])
     
     return {'code':200}
 
 def log_out(context, **data):
-    user_from_cache = context.cache.find_user(data['hash'], data['id'])[0]
-    username, password = context.cache.find_user(data['hash'], data['id'])[1]
+    user_from_cache = find_user(data['hash'], data['id'])[0]
+    username, password = find_user(data['hash'], data['id'])[1]
 
     if user_from_cache == None or user_from_cache == False:
         return {'code':200}
@@ -191,12 +235,12 @@ def log_out(context, **data):
         context.db.session.add(context.User(username=username, password=create_password_hash(password), data=encrypt_data(user_from_cache, username, password)))
         context.db.session.commit()
     
-    context.cache.update_user(data['hash'], data['id'], [None,(None,None)])
+    update_user(data['hash'], data['id'], [None,(None,None)])
     
     return {'code':200}
 
 def remove_account(context, **data):
-    username, password = context.cache.find_user(data['hash'], data['id'])[1]
+    username, password = find_user(data['hash'], data['id'])[1]
             
     with context.app.app_context():
         user_from_database = context.User.query.filter_by(username=username).first()
@@ -213,7 +257,7 @@ def remove_account(context, **data):
         context.db.session.delete(user_from_database)
         context.db.session.commit()
         
-    context.cache.update_user(data['hash'], data['id'], [None,(None,None)])
+    update_user(data['hash'], data['id'], [None,(None,None)])
     
     return {'code':200}
 
@@ -235,13 +279,13 @@ def log_in(context, **data):
     if not verify_password_hash(datPass, data['password']):
         return {'code':401}
         
-    if context.cache.update_user(data['hash'], data['id'], [decrypt_data(marshal(user_from_database, context.datfields)['data'], data['username'], data['password']), (data['password'], data['username'])])[0] == False:
+    if update_user(data['hash'], data['id'], [decrypt_data(marshal(user_from_database, context.datfields)['data'], data['username'], data['password']), (data['password'], data['username'])])[0] == False:
         return {'code':423}
     
     return {'code':200}
 
-def load_data(context, **data):
-    user_from_cache = context.cache.find_user(data['hash'], data['id'])[0]
+def load_data(**data):
+    user_from_cache = find_user(data['hash'], data['id'])[0]
     
     if user_from_cache == None or user_from_cache == False:
         return {'code':423}
@@ -256,128 +300,83 @@ def load_data(context, **data):
     
     return {'code':202, 'data':[match.value for match in parsed_location][0]}
 
-def create_session(context, **data):
-    user_hash = context.cache.add_user(data['id'])
+def create_session(**data):
+    user_hash = add_user(data['id'])
     
     return {'code':101, 'hash':user_hash}
 
-def end_session(context, **data):
-    if context.cache.delete_user(data['hash'], data['id'])[0] == False:
+def end_session(**data):
+    if delete_user(data['hash'], data['id'])[0] == False:
         return {'code':423}
 
     return {'code':200}
 
-class Session():
-    def __init__(self, path=None, address=None,):
-        self.address = address
-        if self.address == None:
-            self.app = Flask(__name__)
-            if path == None:
-                self.app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.getcwd()}/database.db'
-            else:
-                self.app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{path}/database.db'
-            self.app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-            self.db = SQLAlchemy(self.app)            
+def backend_session(address):
+    f, client_socket = establish_connection(address)
+    def send(**data):
+        client_socket.send(f.encrypt(json.dumps(data).encode('utf-8')))
+        return json.loads(f.decrypt(client_socket.recv(1024)).decode())
+    return send
 
-            class User(self.db.Model):
-                username = self.db.Column(self.db.String, nullable=False, primary_key = True)
-                password = self.db.Column(self.db.String, nullable=False)
-                data = self.db.Column(self.db.String)
+def frontend_session(path = None):
+    self = {'app', 'db', 'datfields', 'passfields', 'User'}
+    app = Flask(__name__)
+    if path == None:
+        app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.getcwd()}/database.db'
+    else:
+        app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{path}/database.db'
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    db = SQLAlchemy(app)            
 
-                def __init__(self, username, password, data):
-                    self.username = username
-                    self.password = password
-                    self.data = data
+    class User(db.Model):
+        username = db.Column(db.String, nullable=False, primary_key = True)
+        password = db.Column(db.String, nullable=False)
+        data = db.Column(db.String)
 
-            if path == None:        
-                if os.path.isfile(f'{os.getcwd()}/database.db') is False:
-                    with self.app.app_context():
-                        self.db.create_all()
+        def __init__(self, username, password, data):
+            username = username
+            password = password
+            data = data
 
-            else:
-                if os.path.isfile(f'{path}/database.db') is False:
-                    with self.app.app_context():
-                        self.db.create_all()
-                
-            self.datfields = {'data': fields.Raw}
-            self.passfields = {'password': fields.String}
-            self.User = User
-            self.cache = UserCache()
+    if path == None:        
+        if os.path.isfile(f'{os.getcwd()}/database.db') is False:
+            with app.app_context():
+                db.create_all()
 
-        else:
-            client_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
-            client_public_key = client_private_key.public_key()
-
-            #Serialize the client's public key
-            client_public_key_bytes = client_public_key.public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo
-            )
-
-            #reate a socket
-            self.client_socket = socket.socket()
-            
-            #get adress and port
-            connection_info = self.address.split(':')
-
-            #Connect to the server
-            self.client_socket.connect((connection_info[0], int(connection_info[1])))
-
-            #Send the client's public key to the server
-            self.client_socket.send(client_public_key_bytes)
-
-            #Wait for the server's public key
-            server_public_key_bytes = self.client_socket.recv(1024)
-
-            #Deserialize the server's public key
-            server_public_key = serialization.load_pem_public_key(
-            server_public_key_bytes, default_backend()
-            )
-
-            #Calculate the shared secret key using ECDH
-            shared_secret = client_private_key.exchange(ec.ECDH(), server_public_key)
-
-            #Use HKDF to derive a symmetric key from the shared secret
-            kdf = HKDF(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=None,
-            info=b"session key",
-            backend=default_backend()
-            )
-            key = kdf.derive(shared_secret)
-
-            #Use the symmetric key to encrypt and decrypt messages
-            self.f = Fernet(base64.urlsafe_b64encode(key))
-            
-    def send(self, **data):
-        if self.address == None:
-            if data['func'] == 'create_session':
-                return create_session(self, **data)
-            
-            elif data['func'] == 'sign_up':
-                return sign_up(self, **data)
-            
-            elif data['func'] == 'save_data':
-                return save_data(self, **data)
-
-            elif data['func'] == 'delete_data':
-                return delete_data(self, **data)
-                
-            elif data['func'] == 'log_out':
-                return log_out(self, **data)
-                
-            elif data['func'] == 'remove_account':
-                return remove_account(self, **data)
+    else:
+        if os.path.isfile(f'{path}/database.db') is False:
+            with app.app_context():
+                db.create_all()
         
-            elif data['func'] == 'log_in':
-                return log_in(self, **data)
-                
-            elif data['func'] == 'load_data':
-                return load_data(self, **data)
+    datfields = {'data': fields.Raw}
+    passfields = {'password': fields.String}
+    
+    def action(**data):
+        if data['func'] == 'create_session':
+            return create_session(app, db, datfields, passfields, User, **data)
+        
+        elif data['func'] == 'sign_up':
+            return sign_up(app, db, datfields, passfields, User, **data)
+        
+        elif data['func'] == 'save_data':
+            return save_data(app, db, datfields, passfields, User, **data)
+
+        elif data['func'] == 'delete_data':
+            return delete_data(app, db, datfields, passfields, User, **data)
             
-            elif data['func'] == 'end_session':
-                return end_session(self, **data)
-        else:
-            self.client_socket.send(self.f.encrypt(json.dumps(data).encode('utf-8')))
-            return json.loads(self.f.decrypt(self.client_socket.recv(1024)).decode())
+        elif data['func'] == 'log_out':
+            return log_out(app, db, datfields, passfields, User, **data)
+            
+        elif data['func'] == 'remove_account':
+            return remove_account(app, db, datfields, passfields, User, **data)
+    
+        elif data['func'] == 'log_in':
+            return log_in(app, db, datfields, passfields, User, **data)
+            
+        elif data['func'] == 'load_data':
+            return load_data(app, db, datfields, passfields, User, **data)
+        
+        elif data['func'] == 'end_session':
+            return end_session(app, db, datfields, passfields, User, **data)
+    
+    return action
