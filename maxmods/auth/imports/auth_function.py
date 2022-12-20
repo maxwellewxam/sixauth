@@ -121,7 +121,9 @@ def establish_connection(address):
     key = kdf.derive(shared_secret)
 
     #Use the symmetric key to encrypt and decrypt messages
-    return Fernet(base64.urlsafe_b64encode(key)), client_socket
+    f = Fernet(base64.urlsafe_b64encode(key))
+    
+    return f, client_socket
 
 cache = {}
 
@@ -151,26 +153,26 @@ def delete_user(hash, id):
 
     return [False,(False,False)]
 
-def sign_up(context, **data):
+def sign_up(app, db, User, **data):
     if data['username'] == '':
         return {'code':406}
     
     if data['username'].isalnum() == False:
         return {'code':406}
     
-    with context.app.app_context():
-        user_from_database = context.User.query.filter_by(username=data['username']).first()
+    with app.app_context():
+        user_from_database = User.query.filter_by(username=data['username']).first()
     
     if user_from_database:
         return {'code':409}
         
-    with context.app.app_context():
-        context.db.session.add(context.User(username=data['username'], password=create_password_hash(data['password']), data=encrypt_data({}, data['username'], data['password'])))
-        context.db.session.commit()
+    with app.app_context():
+        db.session.add(User(username=data['username'], password=create_password_hash(data['password']), data=encrypt_data({}, data['username'], data['password'])))
+        db.session.commit()
     
     return {'code':200}
 
-def save_data(context, **data):
+def save_data(**data):
     user_from_cache = find_user(data['hash'], data['id'])[0]
     userinfo_from_cache = find_user(data['hash'], data['id'])[1]
     
@@ -191,7 +193,7 @@ def save_data(context, **data):
 
     return {'code':200, 'data':user_from_cache}
 
-def delete_data(context, **data):
+def delete_data(**data):
     user_from_cache = find_user(data['hash'], data['id'])[0]
     userinfo_from_cache = find_user(data['hash'], data['id'])[1]
     
@@ -212,74 +214,74 @@ def delete_data(context, **data):
     
     return {'code':200}
 
-def log_out(context, **data):
+def log_out(app, db, passfields, User, **data):
     user_from_cache = find_user(data['hash'], data['id'])[0]
     username, password = find_user(data['hash'], data['id'])[1]
 
     if user_from_cache == None or user_from_cache == False:
         return {'code':200}
     
-    with context.app.app_context():
-        user_from_database = context.User.query.filter_by(username=username).first()
+    with app.app_context():
+        user_from_database = User.query.filter_by(username=username).first()
     
     if not user_from_database:
         return {'code':420, 'data':user_from_cache, 'error':'could not find user to logout'}
     
-    datPass = marshal(user_from_database, context.passfields)['password']
+    datPass = marshal(user_from_database, passfields)['password']
     
     if not verify_password_hash(datPass, password):
         return {'code': 423}
 
-    with context.app.app_context():
-        context.db.session.delete(user_from_database)
-        context.db.session.add(context.User(username=username, password=create_password_hash(password), data=encrypt_data(user_from_cache, username, password)))
-        context.db.session.commit()
+    with app.app_context():
+        db.session.delete(user_from_database)
+        db.session.add(User(username=username, password=create_password_hash(password), data=encrypt_data(user_from_cache, username, password)))
+        db.session.commit()
     
     update_user(data['hash'], data['id'], [None,(None,None)])
     
     return {'code':200}
 
-def remove_account(context, **data):
+def remove_account(app, db, passfields, User, **data):
     username, password = find_user(data['hash'], data['id'])[1]
             
-    with context.app.app_context():
-        user_from_database = context.User.query.filter_by(username=username).first()
+    with app.app_context():
+        user_from_database = User.query.filter_by(username=username).first()
     
     if not user_from_database or username == False:
         return {'code':423}
     
-    datPass = marshal(user_from_database, context.passfields)['password']
+    datPass = marshal(user_from_database, passfields)['password']
     
     if not verify_password_hash(datPass, password):
         return {'code':423}
     
-    with context.app.app_context():
-        context.db.session.delete(user_from_database)
-        context.db.session.commit()
+    with app.app_context():
+        db.session.delete(user_from_database)
+        db.session.commit()
         
     update_user(data['hash'], data['id'], [None,(None,None)])
     
     return {'code':200}
 
-def log_in(context, **data):
+def log_in(app, datfields, passfields, User, **data):
     if data['username'] == '':
         return {'code':406}
     
     if data['username'].isalnum() == False:
         return {'code':406}
     
-    with context.app.app_context():
-        user_from_database = context.User.query.filter_by(username=data['username']).first()
+    with app.app_context():
+        user_from_database = User.query.filter_by(username=data['username']).first()
 
     if not user_from_database:
         return {'code':404}
     
-    datPass = marshal(user_from_database, context.passfields)['password']
+    datPass = marshal(user_from_database, passfields)['password']
     
     if not verify_password_hash(datPass, data['password']):
         return {'code':401}
         
-    if update_user(data['hash'], data['id'], [decrypt_data(marshal(user_from_database, context.datfields)['data'], data['username'], data['password']), (data['password'], data['username'])])[0] == False:
+    if update_user(data['hash'], data['id'], [decrypt_data(marshal(user_from_database, datfields)['data'], data['username'], data['password']), (data['password'], data['username'])])[0] == False:
         return {'code':423}
     
     return {'code':200}
@@ -319,7 +321,6 @@ def backend_session(address):
     return send
 
 def frontend_session(path = None):
-    self = {'app', 'db', 'datfields', 'passfields', 'User'}
     app = Flask(__name__)
     if path == None:
         app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.getcwd()}/database.db'
@@ -334,9 +335,9 @@ def frontend_session(path = None):
         data = db.Column(db.String)
 
         def __init__(self, username, password, data):
-            username = username
-            password = password
-            data = data
+            self.username = username
+            self.password = password
+            self.data = data
 
     if path == None:        
         if os.path.isfile(f'{os.getcwd()}/database.db') is False:
@@ -353,30 +354,30 @@ def frontend_session(path = None):
     
     def action(**data):
         if data['func'] == 'create_session':
-            return create_session(app, db, datfields, passfields, User, **data)
+            return create_session(**data)
         
         elif data['func'] == 'sign_up':
-            return sign_up(app, db, datfields, passfields, User, **data)
+            return sign_up(app, db, User, **data)
         
         elif data['func'] == 'save_data':
-            return save_data(app, db, datfields, passfields, User, **data)
+            return save_data(**data)
 
         elif data['func'] == 'delete_data':
-            return delete_data(app, db, datfields, passfields, User, **data)
+            return delete_data(**data)
             
         elif data['func'] == 'log_out':
-            return log_out(app, db, datfields, passfields, User, **data)
+            return log_out(app, db, passfields, User, **data)
             
         elif data['func'] == 'remove_account':
-            return remove_account(app, db, datfields, passfields, User, **data)
+            return remove_account(app, db, passfields, User, **data)
     
         elif data['func'] == 'log_in':
-            return log_in(app, db, datfields, passfields, User, **data)
+            return log_in(app, datfields, passfields, User, **data)
             
         elif data['func'] == 'load_data':
-            return load_data(app, db, datfields, passfields, User, **data)
+            return load_data(**data)
         
         elif data['func'] == 'end_session':
-            return end_session(app, db, datfields, passfields, User, **data)
+            return end_session(**data)
     
     return action
