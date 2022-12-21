@@ -23,6 +23,8 @@ class UsernameError(AuthenticationError): ...
 class PasswordError(AuthenticationError): ...
 class DataError(BaseException): ...
 
+cache = {}
+
 def encrypt_data(data, password, username):
     json_data = json.dumps(data)
     kdf = PBKDF2HMAC(
@@ -124,8 +126,6 @@ def establish_connection(address):
     f = Fernet(base64.urlsafe_b64encode(key))
     
     return f, client_socket
-
-cache = {}
 
 def add_user(id):
     hash = hashlib.sha512((f'{id}{datetime.now()}').encode("UTF-8")).hexdigest()
@@ -339,15 +339,13 @@ def frontend_session(path = None):
             self.password = password
             self.data = data
 
-    if path == None:        
-        if os.path.isfile(f'{os.getcwd()}/database.db') is False:
-            with app.app_context():
-                db.create_all()
+    if path == None and os.path.isfile(f'{os.getcwd()}/database.db') is False:        
+        with app.app_context():
+            db.create_all()
 
-    else:
-        if os.path.isfile(f'{path}/database.db') is False:
-            with app.app_context():
-                db.create_all()
+    elif os.path.isfile(f'{path}/database.db') is False:
+        with app.app_context():
+            db.create_all()
         
     datfields = {'data': fields.Raw}
     passfields = {'password': fields.String}
