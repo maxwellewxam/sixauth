@@ -27,14 +27,18 @@ def start_server(host, port):
     def handle_client(client_socket, f, client_address, session):
     # Do something with the client's socket, such as send and receive data
         while True:
-            data = json.loads(f.decrypt(client_socket.recv(1024)).decode())
-            if data['func'] == 'end_session':
-                end = session(**data)
-                client_socket.send(f.encrypt(json.dumps(end).encode('utf-8')))
-                if end['code'] == 200:
-                    break
-            print(f"Received data from client: {client_address}")
-            client_socket.send(f.encrypt(json.dumps(session(**data)).encode('utf-8')))
+            recv = client_socket.recv(1024)
+            if recv != None:
+                data = json.loads(f.decrypt(recv).decode())
+                if data['func'] == 'end_session':
+                    end = session(**data)
+                    client_socket.send(f.encrypt(json.dumps(end).encode('utf-8')))
+                    if end['code'] == 200:
+                        break
+                print(f"Received data from client: {client_address}")
+                client_socket.send(f.encrypt(json.dumps(session(**data)).encode('utf-8')))
+            else:
+                break
         print(f"Closed connection from {client_address}")
         client_socket.close()
 
