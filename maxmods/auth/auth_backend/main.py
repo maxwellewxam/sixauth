@@ -75,6 +75,6 @@ def start_server(host, port):
 
         print(f"Received incoming connection from {client_address}")
         
-        # Create a new thread to handle the incoming connection
+        #Create a new thread to handle the incoming connection
         client_thread = threading.Thread(target=handle_client, args=(client_socket,f, client_address, session))
         client_thread.start()
