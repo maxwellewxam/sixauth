@@ -5,6 +5,8 @@ import json
 import base64
 import bcrypt
 import socket
+import time
+import threading
 
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
@@ -24,6 +26,20 @@ class PasswordError(AuthenticationError): ...
 class DataError(BaseException): ...
 
 cache = {}
+
+#To continuously parse a dictionary for new items and remove them after a certain time, you can create a separate thread that runs in a loop and checks the dictionary at regular intervals.
+
+#Here's an example of how you might do this:
+
+#Copy code
+
+
+def check_and_remove(d, threshold):
+    while True:
+        for key in list(d):  # make a copy of the keys to avoid modifying the dict while iterating
+            if time.time() - d[key]['time'] > threshold:
+                del d[key]
+        time.sleep(1)  # check every 1 second
 
 def encrypt_data(data, password, username):
     json_data = json.dumps(data)
@@ -129,25 +145,25 @@ def establish_connection(address):
 
 def add_user(id):
     hash = hashlib.sha512((f'{id}{datetime.now()}').encode("UTF-8")).hexdigest()
-    cache[hash] = encrypt_data_fast([None,(None,None)],id)
+    cache[hash] = {'main':encrypt_data_fast([None,(None,None)],id), 'time': time.time()}
     
     return hash
     
 def find_user(hash, id):
     if is_valid_key(cache[hash], id):
-        return decrypt_data_fast(cache[hash],id)
+        return decrypt_data_fast(cache[hash]['main'],id)
     
     return [False,(False,False)]
     
 def update_user(hash, id, dbdat):
-    if is_valid_key(cache[hash], id):
-        cache[hash] = encrypt_data_fast(dbdat,id)
+    if is_valid_key(cache[hash]['main'], id):
+        cache[hash] = {'main':encrypt_data_fast(dbdat,id), 'time': time.time()}
         return [None]
 
     return [False,(False,False)]
 
 def delete_user(hash, id):
-    if is_valid_key(cache[hash], id):
+    if is_valid_key(cache[hash]['main'], id):
         del cache[hash]
         return [None]
 
