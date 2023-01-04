@@ -222,7 +222,7 @@ class AuthSesh:
         """
         return self._requestHandle(self._sesh(func='delete_user', location=Location, hash=self._Hash, id=self._Id))
 
-    def login(self) -> None:
+    def login(self):
         """Attempts to log in with the username and password set for the current `AuthSesh` instance.
 
         Raises a `UsernameError` or `PasswordError`, for example if the username or password is incorrect.

@@ -27,13 +27,6 @@ class DataError(BaseException): ...
 
 cache = {}
 
-#To continuously parse a dictionary for new items and remove them after a certain time, you can create a separate thread that runs in a loop and checks the dictionary at regular intervals.
-
-#Here's an example of how you might do this:
-
-#Copy code
-
-
 def check_and_remove(d, threshold):
     while True:
         for key in list(d):  # make a copy of the keys to avoid modifying the dict while iterating
@@ -145,19 +138,20 @@ def establish_connection(address):
 
 def add_user(id):
     hash = hashlib.sha512((f'{id}{datetime.now()}').encode("UTF-8")).hexdigest()
-    cache[hash] = {'main':encrypt_data_fast([None,(None,None)],id), 'time': time.time()}
-    
+    cache[hash] = {'main':encrypt_data_fast([None,(None,None)],id), 'time':time.time()}
     return hash
     
 def find_user(hash, id):
-    if is_valid_key(cache[hash], id):
+    if is_valid_key(cache[hash]['main'], id):
+        cache[hash]['time'] = time.time()
         return decrypt_data_fast(cache[hash]['main'],id)
     
     return [False,(False,False)]
     
 def update_user(hash, id, dbdat):
     if is_valid_key(cache[hash]['main'], id):
-        cache[hash] = {'main':encrypt_data_fast(dbdat,id), 'time': time.time()}
+        cache[hash]['main'] = encrypt_data_fast(dbdat,id)
+        cache[hash]['time'] = time.time()
         return [None]
 
     return [False,(False,False)]
@@ -336,12 +330,18 @@ def backend_session(address):
         return json.loads(f.decrypt(client_socket.recv(1024)).decode())
     return send
 
-def frontend_session(path = None):
+def frontend_session(path = None, cache_threshold = 300):
+    t = threading.Thread(target=check_and_remove, args=(cache, cache_threshold))
+    #t.start()
+    
     app = Flask(__name__)
+    
     if path == None:
         app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.getcwd()}/database.db'
+    
     else:
         app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{path}/database.db'
+    
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     db = SQLAlchemy(app)            
 
@@ -395,3 +395,93 @@ def frontend_session(path = None):
             return end_session(**data)
     
     return action
+
+def start_server(host, port):
+    # Run the server
+    # Create a frontend session for the server
+    session = frontend_session()
+    
+    #Generate an ECDH key pair for the server
+    server_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
+    server_public_key = server_private_key.public_key()
+
+    #Serialize the server's public key
+    server_public_key_bytes = server_public_key.public_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+
+    # Create a socket object
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    # Bind the socket to the port
+    server_socket.bind((host, port))
+
+    # Listen for incoming connections
+    server_socket.listen()
+
+    print(f"Listening for incoming connections on {host}:{port}...")
+
+    def handle_client(client_socket, f, client_address, session):
+    # Pass requests from the client to the servers database session
+        while True:
+            # Get client request
+            recv = client_socket.recv(1024)
+            print(f"Received data from client: {client_address}")
+            if recv != None:
+                # Decrpyt request 
+                data = json.loads(f.decrypt(recv).decode())
+                # This is a special case for when the client requests to end the session
+                if data['func'] == 'end_session':
+                    # Send request to server session and then check the return status
+                    end = session(**data)
+                    client_socket.send(f.encrypt(json.dumps(end).encode('utf-8')))
+                    # If good then close connection
+                    if end['code'] == 200:
+                        break
+                # Normal handling of client requests
+                else:
+                    # Just pass the request to the session and return to the client
+                    client_socket.send(f.encrypt(json.dumps(session(**data)).encode('utf-8')))
+            else:
+                break
+        # End the connection when loop breaks
+        print(f"Closed connection from {client_address}")
+        client_socket.close()
+
+    #Accept an incoming connection
+    while True:
+        client_socket, client_address = server_socket.accept()
+
+        #Wait for the client's public key
+        client_public_key_bytes = client_socket.recv(1024)
+
+        #Deserialize the client's public key
+        client_public_key = serialization.load_pem_public_key(
+        client_public_key_bytes, default_backend()
+        )
+
+        #Send the server's public key to the client
+        client_socket.send(server_public_key_bytes)
+
+        #Calculate the shared secret key using ECDH
+        shared_secret = server_private_key.exchange(ec.ECDH(), client_public_key)
+
+        #Use HKDF to derive a symmetric key from the shared secret
+        kdf = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=None,
+        info=b"session key",
+        backend=default_backend()
+        )
+        key = kdf.derive(shared_secret)
+
+        #Use the symmetric key to encrypt and decrypt messages
+        f = Fernet(base64.urlsafe_b64encode(key))
+
+        print(f"Received incoming connection from {client_address}")
+        
+        #Create a new thread to handle the incoming connection
+        client_thread = threading.Thread(target=handle_client, args=(client_socket,f, client_address, session))
+        client_thread.start()

@@ -4,8 +4,12 @@ import os
 HERE = os.path.abspath(os.getcwd())
 sys.path.append(HERE)
 from maxmods.auth import AuthSesh as ash
-from maxmods.auth.imports import AuthenticationError, LocationError
+from maxmods.auth.imports import AuthenticationError, LocationError, start_server
 import unittest
+
+import threading
+t = threading.Thread(target=start_server, args=('127.0.0.1', 5678))
+t.start()
 
 with ash() as user1, ash('127.0.0.1:5678') as user2:
 
