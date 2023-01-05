@@ -3,8 +3,8 @@ import os
 HERE = os.path.abspath(os.getcwd())
 sys.path.append(HERE)
 import unittest
-from maxmods.auth.imports.auth_function import *
-test = Session()
+from maxmods.auth.main import *
+test = frontend_session()
 id = Fernet.generate_key().hex()
 id2 = Fernet.generate_key().hex()
 hash = test.post('create_session', None, {'id':id}).json()['hash']
