@@ -1,336 +1,535 @@
-'''An all-in-one user authenticator and data manager'''
+import hashlib
+import jsonpath_ng
+import os
+import json
+import base64
+import bcrypt
+import socket
+import time
+import threading
+import logging
 
-from maxmods.auth.imports import *
+from datetime import datetime
+from flask_sqlalchemy import SQLAlchemy
+from flask import Flask
+from flask_restful import fields, marshal
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.backends import default_backend
+from cryptography.fernet import Fernet, InvalidToken
 
-class AuthSesh:
-    """Main class of the Auth module.
+class LocationError(BaseException): ...
+class AuthenticationError(BaseException): ...
+class UsernameError(AuthenticationError): ...
+class PasswordError(AuthenticationError): ...
+class DataError(BaseException): ...
+
+cache = {}
+
+def check_and_remove(d, threshold, stop_flag):
+    while not stop_flag.is_set():
+        for key in list(d):  # make a copy of the keys to avoid modifying the dict while iterating
+            if time.time() - d[key]['time'] > threshold:
+                del d[key]
+        time.sleep(1)  # check every 1 second
+
+def encrypt_data(data, password, username):
+    json_data = json.dumps(data)
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=bytes(username.encode()),
+        iterations=100000,
+        backend=default_backend()
+        )
+    key = base64.urlsafe_b64encode(kdf.derive(bytes(password.encode())))
+    fernet = Fernet(key)
+    return fernet.encrypt(json_data.encode()).decode()
+
+def decrypt_data(data, password, username):
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=bytes(username.encode()),
+        iterations=100000,
+        backend=default_backend()
+        )
+    key = base64.urlsafe_b64encode(kdf.derive(bytes(password.encode())))
+    fernet = Fernet(key)
+    return json.loads(fernet.decrypt(data.encode()).decode())
+
+def encrypt_data_fast(message, key):
+    return Fernet(bytes.fromhex(key)).encrypt(json.dumps(message).encode())
+
+def decrypt_data_fast(message, key):
+    return json.loads(Fernet(bytes.fromhex(key)).decrypt(message).decode())
+
+def create_password_hash(password):
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).hex()
+
+def verify_password_hash(hash, password):
+    return bcrypt.checkpw(password.encode('utf-8'), bytes.fromhex(hash))
+
+def convert_numbers_to_words(text):
+        return text.replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')
+
+def is_json_serialized(obj):
+    try:
+        json.loads(obj)
+        return True
+    except json.decoder.JSONDecodeError:
+        return False
+
+def is_valid_key(data, id):
+    try:
+        decrypt_data_fast(data, id)
+        return True
+    except InvalidToken:
+        return False
+
+def establish_connection(address):
+    client_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
+    client_public_key = client_private_key.public_key()
+
+    #Serialize the client's public key
+    client_public_key_bytes = client_public_key.public_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+
+    #reate a socket
+    client_socket = socket.socket()
     
-    AuthSesh() connects to database internally\n
-    AuthSesh(Address) connects to backend Auth server at address in path\n
-    AuthSesh(Path) connects to database internally to database at Path location\n
-    repr(AuthSesh) returns the current username\n
+    #get adress and port
+    connection_info = address.split(':')
 
-    The docstrings for this class were written by OpenAI.
+    #Connect to the server
+    client_socket.connect((connection_info[0], int(connection_info[1])))
 
-    Examples
-    --------
-    >>> # Using a context manager
-    >>> with AuthSesh() as auth:
-    >>>     auth.set_vals("username", "password")
-    >>>     auth.login()
-    >>>     user_data = auth.load("user_data/profile")
-    This will create an `AuthSesh` instance that connects to a local database, log in with the provided username and password, and load the data from the location "user_data/profile" on the server. The `AuthSesh` instance will be terminated when exiting the context manager.\n
+    #Send the client's public key to the server
+    client_socket.send(client_public_key_bytes)
 
-    >>> # Without a context manager
-    >>> auth = AuthSesh()
-    >>> auth.set_vals("username", "password")
-    >>> auth.login()
-    >>> user_data = auth.load("user_data/profile")
-    >>> auth.terminate()
-    This will create an `AuthSesh` instance that connects to a local database, log in with the provided username and password, and load the data from the location "user_data/profile" on the server. The `AuthSesh` instance will be terminated manually by calling the `terminate` method.
-    """
-    def __init__(self, Address: str = None, Path: str = None):
-        """Initializes the `AuthSesh` instance.
+    #Wait for the server's public key
+    server_public_key_bytes = client_socket.recv(1024)
 
-        This method can connect to a backend authentication server or a database depending on the arguments provided.
+    #Deserialize the server's public key
+    server_public_key = serialization.load_pem_public_key(
+    server_public_key_bytes, default_backend()
+    )
 
-        Parameters
-        ----------
-        Address : str, optional
-            The address of the backend authentication server. If `Address` is provided, the `AuthSesh` instance will connect to the server at the specified address. If `Address` is not provided, the `AuthSesh` instance will connect to a local database instead.
-        Path : str, optional
-            The path to the local database. This argument is only used if `Address` is not provided.
+    #Calculate the shared secret key using ECDH
+    shared_secret = client_private_key.exchange(ec.ECDH(), server_public_key)
 
-        Returns
-        -------
-        object
-            The newly created `AuthSesh` instance.
+    #Use HKDF to derive a symmetric key from the shared secret
+    kdf = HKDF(
+    algorithm=hashes.SHA256(),
+    length=32,
+    salt=None,
+    info=b"session key",
+    backend=default_backend()
+    )
+    key = kdf.derive(shared_secret)
 
-        Raises
-        ------
-        LocationError
-            If the `AuthSesh` instance fails to connect to the backend authentication server or the local database.
+    #Use the symmetric key to encrypt and decrypt messages
+    f = Fernet(base64.urlsafe_b64encode(key))
+    
+    return f, client_socket
 
-        Examples
-        --------
-        >>> # Connecting to a backend server
-        >>> auth = AuthSesh("authserver.com:5678")
-        >>> # Connecting to a local database
-        >>> auth = AuthSesh("/path/to/database/folder")
-        """
-        self._Path = Path
-        self._Address = Address
-        self._Id = Fernet.generate_key().hex()
+def add_user(id):
+    hash = hashlib.sha512((f'{id}{datetime.now()}').encode("UTF-8")).hexdigest()
+    cache[hash] = {'main':encrypt_data_fast([None,(None,None)],id), 'time':time.time()}
+    return hash
+    
+def find_user(hash, id):
+    if is_valid_key(cache[hash]['main'], id):
+        cache[hash]['time'] = time.time()
+        return decrypt_data_fast(cache[hash]['main'],id)
+    
+    return [False,(False,False)]
+    
+def update_user(hash, id, dbdat):
+    if is_valid_key(cache[hash]['main'], id):
+        cache[hash]['main'] = encrypt_data_fast(dbdat,id)
+        cache[hash]['time'] = time.time()
+        return [None]
 
-        if self._Address == None:
-            self._sesh = frontend_session(self._Path)
-        else:
-            self._sesh = backend_session(self._Address)
+    return [False,(False,False)]
+
+def delete_user(hash, id):
+    if is_valid_key(cache[hash]['main'], id):
+        del cache[hash]
+        return [None]
+
+    return [False,(False,False)]
+
+def sign_up(app, db, User, **data):
+    if data['username'] == '':
+        return {'code':406}
+    
+    if data['username'].isalnum() == False:
+        return {'code':406}
+    
+    with app.app_context():
+        user_from_database = User.query.filter_by(username=data['username']).first()
+    
+    if user_from_database:
+        return {'code':409}
+        
+    with app.app_context():
+        db.session.add(User(username=data['username'], password=create_password_hash(data['password']), data=encrypt_data({}, data['username'], data['password'])))
+        db.session.commit()
+    
+    return {'code':200}
+
+def save_data(**data):
+    user_from_cache = find_user(data['hash'], data['id'])[0]
+    userinfo_from_cache = find_user(data['hash'], data['id'])[1]
+    
+    if user_from_cache == None or user_from_cache == False:
+        return {'code':423}
+    
+    if not is_json_serialized(data['data']):
+        return {'code':420, 'data':data['data'], 'error':'Object is not json serialized'}
+    
+    data_from_request = json.loads(data['data'])
+    
+    if data['location'] == '':
+        update_user(data['hash'], data['id'], [data_from_request, userinfo_from_cache])
+        return {'code':200, 'data':data_from_request}
+    
+    jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).update_or_create(user_from_cache, data_from_request)
+    update_user(data['hash'], data['id'], [user_from_cache, userinfo_from_cache])
+
+    return {'code':200, 'data':user_from_cache}
+
+def delete_data(**data):
+    user_from_cache = find_user(data['hash'], data['id'])[0]
+    userinfo_from_cache = find_user(data['hash'], data['id'])[1]
+    
+    if user_from_cache == None or user_from_cache == False:
+        return {'code':423}
+    
+    if data['location'] == '':
+        update_user(data['hash'], data['id'], [{}, userinfo_from_cache])
+        return {'code':200}
+    
+    parsed_location = jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).find(user_from_cache)
+    
+    if parsed_location == []:
+        return {'code':416}
+    
+    del [match.context for match in parsed_location][0].value[str([match.path for match in parsed_location][0])]
+    update_user(data['hash'], data['id'], [user_from_cache, userinfo_from_cache])
+    
+    return {'code':200}
+
+def log_out(app, db, passfields, User, **data):
+    user_from_cache = find_user(data['hash'], data['id'])[0]
+    username, password = find_user(data['hash'], data['id'])[1]
+
+    if user_from_cache == None or user_from_cache == False:
+        return {'code':200}
+    
+    with app.app_context():
+        user_from_database = User.query.filter_by(username=username).first()
+    
+    if not user_from_database:
+        return {'code':420, 'data':user_from_cache, 'error':'could not find user to logout'}
+    
+    datPass = marshal(user_from_database, passfields)['password']
+    
+    if not verify_password_hash(datPass, password):
+        return {'code': 423}
+
+    with app.app_context():
+        db.session.delete(user_from_database)
+        db.session.add(User(username=username, password=create_password_hash(password), data=encrypt_data(user_from_cache, username, password)))
+        db.session.commit()
+    
+    update_user(data['hash'], data['id'], [None,(None,None)])
+    
+    return {'code':200}
+
+def remove_account(app, db, passfields, User, **data):
+    username, password = find_user(data['hash'], data['id'])[1]
             
-        self._requestHandle(self._sesh(func='create_session',id=self._Id))
-
-    def __repr__(self):
-        return f'AuthSesh({self._Path}).set_vals({self._Name}, {self._Pass})'        
+    with app.app_context():
+        user_from_database = User.query.filter_by(username=username).first()
     
-    def __enter__(self):
-        return self
+    if not user_from_database or username == False:
+        return {'code':423}
     
-    def __exit__(self, type, val, trace):
-        if str(val) != 'Username does not exist':
-            self.terminate()
-        
-    @property
-    def Pass(self):
-        """The password set for the current `AuthSesh` instance.
-
-        Returns
-        -------
-        str
-            The password set for the `AuthSesh` instance.
-
-        Examples
-        --------
-        >>> auth = AuthSesh()
-        >>> auth.set_vals("username", "password")
-        >>> print(auth.Pass)
-        This will print the password set for the `AuthSesh` instance.
-        """
-        return self._Pass
+    datPass = marshal(user_from_database, passfields)['password']
     
-    @property
-    def Name(self):
-        """The username set for the current `AuthSesh` instance.
-
-        Returns
-        -------
-        str
-            The username set for the `AuthSesh` instance.
-
-        Examples
-        --------
-        >>> auth = AuthSesh()
-        >>> auth.set_vals("username", "password")
-        >>> print(auth.Name)
-        This will print the username set for the `AuthSesh` instance.
-        """
-        return self._Name
+    if not verify_password_hash(datPass, password):
+        return {'code':423}
     
-    def set_vals(self, Name: str, Pass:str):
-        """Sets the username and password for the current `AuthSesh` instance.
-
-        Parameters
-        ----------
-        Name : str
-            The desired username.
-        Pass : str
-            The password associated with the given username.
-
-        Returns
-        -------
-        AuthSesh
-            The `AuthSesh` instance with the updated username and password.
-
-        Examples
-        --------
-        >>> auth = AuthSesh()
-        >>> auth.set_vals("username", "password")
-        >>> auth.login()
-        This will set the username and password for the `AuthSesh` instance to "username" and "password" respectively.
-        """
-        self._Name = Name
-        self._Pass = Pass
-        return self
+    with app.app_context():
+        db.session.delete(user_from_database)
+        db.session.commit()
+        
+    update_user(data['hash'], data['id'], [None,(None,None)])
     
-    def save(self, Location: str, data):
-        """Saves the given data to the specified location on the backend authentication server.
+    return {'code':200}
 
-        If the specified location does not exist, it will be created.
-        If no location is specified and the data is a dictionary, it will replace the entire database with the given dictionary.
-        
-        Raises a `DataError` if it fails to save the data to the specified location.
-
-        Parameters
-        ----------
-        Location : str
-            The location on the backend server where the data should be saved.
-        Data : object
-            The data to be saved to the specified location.
-
-        Returns
-        -------
-        object
-            The response from the server indicating whether the data was successfully saved.
-
-        Examples
-        --------
-        >>> auth = AuthSesh()
-        >>> auth.set_vals("username", "password")
-        >>> auth.login()
-        >>> auth.save("user_data/profile", {"name": "John Doe", "age": 30})
-        This will save the dictionary {"name": "John Doe", "age": 30} to the location "user_data/profile" on the backend server.
-        """
-        data = json.dumps(data)
-        
-        return self._requestHandle(self._sesh(func='save_data',location=Location, data=data, hash=self._Hash, id=self._Id))
-    def load(self, Location = ''):
-        """Loads data from the specified location on the backend authentication server.
-
-        Raises a `LocationError` if the specified location does not exist. Rasies `DataError` if there is an error loading the data from the server.
-
-        Parameters
-        ----------
-        Location : str, optional
-            The location on the backend server from which to load data. If no location is specified, the entire database will be loaded.
-
-        Returns
-        -------
-        object
-            The data loaded from the specified location on the backend server.
-
-        Examples
-        --------
-        >>> auth = AuthSesh()
-        >>> auth.set_vals("username", "password")
-        >>> auth.login()
-        >>> user_data = auth.load("user_data/profile")
-        This will load the data from the location "user_data/profile" on the backend server and store it in the `user_data` variable.
-        """
-        return self._requestHandle(self._sesh(func='load_data', location=Location, hash=self._Hash, id=self._Id))
+def log_in(app, datfields, passfields, User, **data):
+    if data['username'] == '':
+        return {'code':406}
     
-    def delete(self, Location: str):
-        """Deletes the data at the specified location on the backend authentication server.
-
-        Raises a `LocationError` if the specified location does not exist. Rasies `DataError` if there is an error deleting the data from the server.
-
-        Parameters
-        ----------
-        Location : str
-            The location on the backend server from which to delete data.
-
-        Returns
-        -------
-        object
-            The response from the server indicating whether the data was successfully deleted.
-
-        Examples
-        --------
-        >>> auth = AuthSesh()
-        >>> auth.set_vals("username", "password")
-        >>> auth.login()
-        >>> auth.delete("user_data/profile")
-        This will delete the data at the location "user_data/profile" on the backend server.
-        """
-        return self._requestHandle(self._sesh(func='delete_user', location=Location, hash=self._Hash, id=self._Id))
-
-    def login(self):
-        """Attempts to log in with the username and password set for the current `AuthSesh` instance.
-
-        Raises a `UsernameError` or `PasswordError`, for example if the username or password is incorrect.
-
-        Returns
-        -------
-        object
-            The response from the server indicating whether the login was successful.
-
-        Examples
-        --------
-        >>> auth = AuthSesh()
-        >>> auth.set_vals("username", "password")
-        >>> auth.login()
-        This will attempt to log in with the username and password set for the `AuthSesh` instance.
-        """
-        self._requestHandle(self._sesh(func='log_out', hash=self._Hash, id=self._Id))
-        return self._requestHandle(self._sesh(func='log_in', username=self._Name, password=self._Pass, hash=self._Hash, id=self._Id))
-        
-    def signup(self):
-        """Attempts to sign up with the username and password set for the current `AuthSesh` instance.
-
-        Raises a `UsernameError` or `PasswordError` if the signup fails, for example if the username is already in use or the password is wrong.
-
-        Returns
-        -------
-        object
-            The response from the server indicating whether the signup was successful.
-
-        Examples
-        --------
-        >>> auth = AuthSesh()
-        >>> auth.set_vals("username", "password")
-        >>> auth.signup()
-        This will attempt to sign up with the username and password set for the `AuthSesh` instance.
-        """
-        return self._requestHandle(self._sesh(func='sign_up', username=self._Name, password=self._Pass))
+    if data['username'].isalnum() == False:
+        return {'code':406}
     
-    def remove(self):
-        """Attempts to remove the user with the username and password set for the current `AuthSesh` instance.
+    with app.app_context():
+        user_from_database = User.query.filter_by(username=data['username']).first()
 
-        Raises a `AuthenticationError` if the removal fails, for example if the username or password is incorrect.
-
-        Returns
-        -------
-        object
-            The response from the server indicating whether the user was successfully removed.
-
-        Examples
-        --------
-        >>> auth = AuthSesh()
-        >>> auth.set_vals("username", "password")
-        >>> auth.remove()
-        This will attempt to remove the user with the username and password set for the `AuthSesh` instance.
-        """
-        return self._requestHandle(self._sesh(func='remove_account', hash=self._Hash, id=self._Id))
+    if not user_from_database:
+        return {'code':404}
     
-    def terminate(self):
-        """Terminates the current `AuthSesh` instance.
-
-        Returns
-        -------
-        object
-            The response from the server indicating whether the `AuthSesh` instance was successfully terminated.
-
-        Examples
-        --------
-        >>> auth = AuthSesh()
-        >>> auth.set_vals("username", "password")
-        >>> auth.login()
-        >>> auth.terminate()
-        This will log in with the username and password set for the `AuthSesh` instance, and then terminate the `AuthSesh` instance.
-        """
-        self._requestHandle(self._sesh(func='log_out', hash=self._Hash, id=self._Id))
-        self._requestHandle(self._sesh(func='end_session', hash=self._Hash, id=self._Id))
-
+    datPass = marshal(user_from_database, passfields)['password']
     
-    def _requestHandle(self, request):
-        if request['code'] == 200:
-            return self
+    if not verify_password_hash(datPass, data['password']):
+        return {'code':401}
         
-        elif request['code'] == 202:
-            return request['data']
-        
-        elif request['code'] == 416:
-            raise LocationError('Loaction does not exist')
-        
-        elif request['code'] == 401:
-            raise PasswordError('Incorrect password')
-        
-        elif request['code'] == 404:
-            raise UsernameError('Username does not exist')
-        
-        elif request['code'] == 406:
-            raise UsernameError('Invalid username')
-        
-        elif request['code'] == 409:
-            raise UsernameError('Username already exists')
-        
-        elif request['code'] == 423:
-            raise AuthenticationError('Failed to authenticate user')
+    if update_user(data['hash'], data['id'], [decrypt_data(marshal(user_from_database, datfields)['data'], data['username'], data['password']), (data['password'], data['username'])])[0] == False:
+        return {'code':423}
+    
+    return {'code':200}
 
-        elif request['code'] == 101:
-            self._Hash = request['hash']
+def load_data(**data):
+    user_from_cache = find_user(data['hash'], data['id'])[0]
+    
+    if user_from_cache == None or user_from_cache == False:
+        return {'code':423}
+    
+    if data['location'] == '':
+        return {'code':202, 'data':user_from_cache}
+    
+    parsed_location = jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).find(user_from_cache)
+    
+    if parsed_location == []:
+        return {'code':416}
+    
+    return {'code':202, 'data':[match.value for match in parsed_location][0]}
+
+def create_session(**data):
+    user_hash = add_user(data['id'])
+    
+    return {'code':101, 'hash':user_hash}
+
+def end_session(**data):
+    if delete_user(data['hash'], data['id'])[0] == False:
+        return {'code':423}
+
+    return {'code':200}
+
+def backend_session(address):
+    f, client_socket = establish_connection(address)
+    def send(**data):
+        client_socket.send(f.encrypt(json.dumps(data).encode('utf-8')))
+        return json.loads(f.decrypt(client_socket.recv(1024)).decode())
+    return send
+
+def frontend_session(path = None):
+    
+    app = Flask(__name__)
+    
+    if path == None:
+        app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.getcwd()}/database.db'
+    
+    else:
+        app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{path}/database.db'
+    
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    db = SQLAlchemy(app)            
+
+    class User(db.Model):
+        username = db.Column(db.String, nullable=False, primary_key = True)
+        password = db.Column(db.String, nullable=False)
+        data = db.Column(db.String)
+
+        def __init__(self, username, password, data):
+            self.username = username
+            self.password = password
+            self.data = data
+
+    if path == None and os.path.isfile(f'{os.getcwd()}/database.db') is False:        
+        with app.app_context():
+            db.create_all()
+
+    elif os.path.isfile(f'{path}/database.db') is False:
+        with app.app_context():
+            db.create_all()
         
-        elif request['code'] == 102:
-            self._certadder(request['server'])
+    datfields = {'data': fields.Raw}
+    passfields = {'password': fields.String}
+    
+    def action(**data):
+        if data['func'] == 'create_session':
+            return create_session(**data)
+        
+        elif data['func'] == 'sign_up':
+            return sign_up(app, db, User, **data)
+        
+        elif data['func'] == 'save_data':
+            return save_data(**data)
+
+        elif data['func'] == 'delete_data':
+            return delete_data(**data)
             
-        elif request['code'] == 420:
-            raise DataError(f"An error occured during the request, here is the data we could recover: {request['data']}/n Error: {request['error']}" )
+        elif data['func'] == 'log_out':
+            return log_out(app, db, passfields, User, **data)
             
+        elif data['func'] == 'remove_account':
+            return remove_account(app, db, passfields, User, **data)
+    
+        elif data['func'] == 'log_in':
+            return log_in(app, datfields, passfields, User, **data)
+            
+        elif data['func'] == 'load_data':
+            return load_data(**data)
+        
+        elif data['func'] == 'end_session':
+            return end_session(**data)
+    
+    return action
+
+def start_server(host, port, cache_threshold = 300, debug = False):
+    
+    logging.basicConfig(filename='app.log', filemode='w', format='%(name)s - %(levelname)s - %(message)s')
+    
+    logger1 = logging.getLogger('logger1')
+    logger2 = logging.getLogger('logger2')
+
+    # Set the logging level for both loggers
+    logger1.setLevel(logging.INFO)
+    logger2.setLevel(logging.INFO)
+
+    # Create two separate handler objects
+    handler1 = logging.StreamHandler()
+    handler2 = logging.StreamHandler()
+
+    # Attach the handlers to the loggers
+    logger1.addHandler(handler1)
+    logger2.addHandler(handler2)
+    # Run the server
+    # Create a frontend session for the server
+    session = frontend_session()
+    stop_flag = threading.Event()
+    
+    t = threading.Thread(target=check_and_remove, args=(cache, cache_threshold, stop_flag))
+    t.start()
+    
+    #Generate an ECDH key pair for the server
+    server_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
+    server_public_key = server_private_key.public_key()
+
+    #Serialize the server's public key
+    server_public_key_bytes = server_public_key.public_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PublicFormat.SubjectPublicKeyInfo)
+
+    clients = []
+    def exit():
+        stop_flag.set()
+        t.join()
+        for client_s, client_t in clients:
+            client_s.close()
+            client_t.exit()
+            
+    # Create a socket object
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    #HMM
+    server_socket.setblocking(0)
+    
+    # Bind the socket to the port
+    server_socket.bind((host, port))
+
+    # Listen for incoming connections
+    server_socket.listen()
+
+    print('Press Ctrl+C to exit')
+    print(f"Listening for incoming connections on {host}:{port}...")
+
+    def handle_client(client_socket, f, client_address, session):
+    # Pass requests from the client to the servers database session
+        while True:
+            # Get client request
+            try:
+                recv = client_socket.recv(1024)
+                if debug:
+                    print(f"Received data from client: {client_address}")
+                if recv != None:
+                    # Decrpyt request 
+                    data = json.loads(f.decrypt(recv).decode())
+                    # This is a special case for when the client requests to end the session
+                    try:
+                        if data['func'] == 'end_session':
+                            # Send request to server session and then check the return status
+                            end = session(**data)
+                            client_socket.send(f.encrypt(json.dumps(end).encode('utf-8')))
+                            # If good then close connection
+                            if end['code'] == 200:
+                                break
+                        # Normal handling of client requests
+                        else:
+                            # Just pass the request to the session and return to the client
+                            client_socket.send(f.encrypt(json.dumps(session(**data)).encode('utf-8')))
+                    except Exception as err:
+                        client_socket.send(f.encrypt(str(err).encode('utf-8')))
+                        break
+                else:
+                    break
+            except BlockingIOError:
+                pass
+        # End the connection when loop breaks
+        if debug:
+            print(f"Closed connection from {client_address}")
+        client_socket.close()
+    #Accept an incoming connection
+    while True:
+        try:
+            client_socket, client_address = server_socket.accept()
+            #Wait for the client's public key
+            client_public_key_bytes = client_socket.recv(1024)
+            
+            #Deserialize the client's public key
+            client_public_key = serialization.load_pem_public_key(
+            client_public_key_bytes, default_backend())
+
+            #Send the server's public key to the client
+            client_socket.send(server_public_key_bytes)
+
+            #Calculate the shared secret key using ECDH
+            shared_secret = server_private_key.exchange(ec.ECDH(), client_public_key)
+
+            #Use HKDF to derive a symmetric key from the shared secret
+            kdf = HKDF(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=None,
+            info=b"session key",
+            backend=default_backend()
+            )
+            key = kdf.derive(shared_secret)
+
+            #Use the symmetric key to encrypt and decrypt messages
+            f = Fernet(base64.urlsafe_b64encode(key))
+            if debug:
+                print(f"Received incoming connection from {client_address}")
+            
+            #Create a new thread to handle the incoming connection
+            client_thread = threading.Thread(target=handle_client, args=(client_socket, f, client_address, session))
+            client_thread.start()
+            clients.append((client_socket, client_thread))
+        except BlockingIOError:
+            pass
+        except KeyboardInterrupt:
+            break
+        except BaseException as err:
+            exit()
+            raise err()
+    exit()
+    print('Exited')
