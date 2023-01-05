@@ -379,11 +379,7 @@ def frontend_session(path = os.getcwd()):
             self.password = password
             self.data = data
 
-    if path == None and os.path.isfile(f'{os.getcwd()}/database.db') is False:        
-        with app.app_context():
-            db.create_all()
-
-    elif os.path.isfile(f'{path}/database.db') is False:
+    if not os.path.isfile(f'{path}/database.db'):
         with app.app_context():
             db.create_all()
         
