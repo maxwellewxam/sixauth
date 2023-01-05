@@ -31,30 +31,32 @@ class DataError(BaseException): ...
 cache = {}
 
 server_console = logging.getLogger('server_console')
-server_file = logging.getLogger('server_file')
+server_logger = logging.getLogger('server_logger')
 client_console = logging.getLogger('client_console')
-client_file = logging.getLogger('client_file')
+client_logger = logging.getLogger('client_logger')
 
 server_console.setLevel(logging.INFO)
-server_file.setLevel(logging.INFO)
+server_logger.setLevel(logging.INFO)
 client_console.setLevel(logging.INFO)
-client_file.setLevel(logging.INFO)
+client_logger.setLevel(logging.INFO)
 
 console_handler = logging.StreamHandler()
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-def log_paths(client_file_location = os.path.dirname(logs.__file__), server_file_location = os.getcwd()): 
-    global server_file_handler
-    global client_file_handler
-    server_file_handler = logging.FileHandler(server_file_location+'/server.log')
-    client_file_handler = logging.FileHandler(client_file_location+'/client.log')
-    server_file_handler.setFormatter(formatter)
-    client_file_handler.setFormatter(formatter)
-    server_console.addHandler(server_file_handler)
+def log_paths(client_logger_location = os.path.dirname(logs.__file__), server_logger_location = os.getcwd()): 
+    global server_logger_handler
+    global client_logger_handler
+    server_logger_handler = logging.FileHandler(server_logger_location+'/server.log')
+    client_logger_handler = logging.FileHandler(client_logger_location+'/client.log')
+    server_console.addHandler(server_logger_handler)
     server_console.addHandler(console_handler)
-    server_file.addHandler(server_file_handler)
-    client_console.addHandler(client_file_handler)
-    client_file.addHandler(client_file_handler)
+    server_logger.addHandler(server_logger_handler)
+    client_console.addHandler(client_logger_handler)
+    client_logger.addHandler(client_logger_handler)
+    server_logger.info('VVV---------BEGIN-NEW-LOG----------VVV')
+    client_logger.info('VVV---------BEGIN-NEW-LOG----------VVV')
+    server_logger_handler.setFormatter(formatter)
+    client_logger_handler.setFormatter(formatter)
 
 log_paths()
 
@@ -419,16 +421,17 @@ def frontend_session(path = os.getcwd()):
 def start_server(host, port, cache_threshold = 300, debug = False):
     
     if debug:
-        server_file.addHandler(console_handler)
-        client_file.addHandler(console_handler)
-    client_file.addHandler(server_file_handler)
+        server_logger.addHandler(console_handler)
+        client_logger.addHandler(console_handler)
+        server_console.info('Debug mode active')
+    client_logger.addHandler(server_logger_handler)
     
     # Run the server
     # Create a frontend session for the server
     session = frontend_session()
-    stop_flag = threading.Event()
+    stop_flag1 = threading.Event()
     
-    t = threading.Thread(target=check_and_remove, args=(cache, cache_threshold, stop_flag))
+    t = threading.Thread(target=check_and_remove, args=(cache, cache_threshold, stop_flag1))
     t.start()
     
     #Generate an ECDH key pair for the server
@@ -442,11 +445,13 @@ def start_server(host, port, cache_threshold = 300, debug = False):
 
     clients = []
     def exit():
-        stop_flag.set()
+        stop_flag1.set()
         t.join()
+        server_logger.info('Cache thread exited')
         for client_s, client_t in clients:
             client_s.close()
-            client_t.exit()
+            client_t.join()
+        server_logger.info('All client threads exited')
             
     # Create a socket object
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -463,44 +468,49 @@ def start_server(host, port, cache_threshold = 300, debug = False):
     server_console.info('Press Ctrl+C to exit')
     server_console.info(f"Listening for incoming connections on {host}:{port}...")
 
-    def handle_client(client_socket, f, client_address, session):
+    def handle_client(client_socket, f, client_address, session, stop_flag, clients):
     # Pass requests from the client to the servers database session
-        while True:
-            # Get client request
-            try:
-                recv = client_socket.recv(1024)
-                if debug:
-                    server_console.info(f"Received data from client: {client_address}")
-                if recv != None:
-                    # Decrpyt request 
-                    data = json.loads(f.decrypt(recv).decode())
-                    # This is a special case for when the client requests to end the session
-                    try:
-                        if data['func'] == 'end_session':
-                            # Send request to server session and then check the return status
-                            end = session(**data)
-                            client_socket.send(f.encrypt(json.dumps(end).encode('utf-8')))
-                            # If good then close connection
-                            if end['code'] == 200:
-                                break
-                        # Normal handling of client requests
-                        else:
-                            # Just pass the request to the session and return to the client
-                            client_socket.send(f.encrypt(json.dumps(session(**data)).encode('utf-8')))
-                    except Exception as err:
-                        client_socket.send(f.encrypt(str(err).encode('utf-8')))
-                        break
-                else:
-                    break
-            except BlockingIOError:
-                pass
-        # End the connection when loop breaks
-        if debug:
-            server_console.info(f"Closed connection from {client_address}")
-        client_socket.close()
-    #Accept an incoming connection
-    while True:
         try:
+            while not stop_flag.is_set():
+                # Get client request
+                try:
+                    recv = client_socket.recv(1024)
+                    server_logger.info(f"Received data from client: {client_address}")
+                    if recv != None:
+                        # Decrpyt request 
+                        data = json.loads(f.decrypt(recv).decode())
+                        # This is a special case for when the client requests to end the session
+                        try:
+                            if data['func'] == 'end_session':
+                                # Send request to server session and then check the return status
+                                end = session(**data)
+                                client_socket.send(f.encrypt(json.dumps(end).encode('utf-8')))
+                                # If good then close connection
+                                if end['code'] == 200:
+                                    break
+                            # Normal handling of client requests
+                            else:
+                                # Just pass the request to the session and return to the client
+                                client_socket.send(f.encrypt(json.dumps(session(**data)).encode('utf-8')))
+                        except Exception as err:
+                            client_socket.send(f.encrypt(str(err).encode('utf-8')))
+                            break
+                    else:
+                        break
+                except BlockingIOError:
+                    pass
+        except BaseException as err:
+            server_console.info('Client thread did not exit successfully, Error: {err}')
+        # End the connection when loop breaks
+        server_logger.info(f"Closed connection from {client_address}")
+        client_socket.close()
+        clients = list(filter(lambda x: x != (client_socket, client_thread), clients))
+        server_logger.info('Current clients:')
+        for client in clients:
+            server_logger.info(str(client))
+    #Accept an incoming connection
+    try:
+        while True:
             try:
                 client_socket, client_address = server_socket.accept()
 
@@ -529,19 +539,21 @@ def start_server(host, port, cache_threshold = 300, debug = False):
 
                 #Use the symmetric key to encrypt and decrypt messages
                 f = Fernet(base64.urlsafe_b64encode(key))
-                if debug:
-                    server_console.info(f"Received incoming connection from {client_address}")
+                server_logger.info(f"Received incoming connection from {client_address}")
                 
                 #Create a new thread to handle the incoming connection
-                client_thread = threading.Thread(target=handle_client, args=(client_socket, f, client_address, session))
+                client_thread = threading.Thread(target=handle_client, args=(client_socket, f, client_address, session, stop_flag1, clients))
                 client_thread.start()
+                server_logger.info('Client thread started')
                 clients.append((client_socket, client_thread))
+                server_logger.info('Current clients:')
+                for client in clients:
+                    server_logger.info(str(client))
             except BlockingIOError:
                 pass
-        except KeyboardInterrupt:
-            break
-        except BaseException as err:
-            exit()
-            raise err()
-    exit()
-    server_console.info('Exited')
+    except KeyboardInterrupt:
+        exit()
+        server_console.info('Exited')
+    except BaseException as err:
+        exit()
+        server_console.info(f'Program did not exit successfully, Error: {err}')
