@@ -29,7 +29,7 @@ class AuthSesh:
     >>> auth.terminate()
     This will create an `AuthSesh` instance that connects to a local database, log in with the provided username and password, and load the data from the location "user_data/profile" on the server. The `AuthSesh` instance will be terminated manually by calling the `terminate` method.
     """
-    def __init__(self, Address: str = None, Path: str = None):
+    def __init__(self, Address: str = None, Path: str = os.getcwd()):
         """Initializes the `AuthSesh` instance.
 
         This method can connect to a backend authentication server or a database depending on the arguments provided.
