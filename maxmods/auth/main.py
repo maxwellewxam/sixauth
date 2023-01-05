@@ -20,6 +20,8 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.backends import default_backend
 from cryptography.fernet import Fernet, InvalidToken
 
+from . import logs
+
 class LocationError(BaseException): ...
 class AuthenticationError(BaseException): ...
 class UsernameError(AuthenticationError): ...
@@ -27,6 +29,34 @@ class PasswordError(AuthenticationError): ...
 class DataError(BaseException): ...
 
 cache = {}
+
+server_console = logging.getLogger('server_console')
+server_file = logging.getLogger('server_file')
+client_console = logging.getLogger('client_console')
+client_file = logging.getLogger('client_file')
+
+server_console.setLevel(logging.INFO)
+server_file.setLevel(logging.INFO)
+client_console.setLevel(logging.INFO)
+client_file.setLevel(logging.INFO)
+
+console_handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+def log_paths(client_file_location = os.path.dirname(logs.__file__), server_file_location = os.getcwd()): 
+    global server_file_handler
+    global client_file_handler
+    server_file_handler = logging.FileHandler(server_file_location+'/server.log')
+    client_file_handler = logging.FileHandler(client_file_location+'/client.log')
+    server_file_handler.setFormatter(formatter)
+    client_file_handler.setFormatter(formatter)
+    server_console.addHandler(server_file_handler)
+    server_console.addHandler(console_handler)
+    server_file.addHandler(server_file_handler)
+    client_console.addHandler(client_file_handler)
+    client_file.addHandler(client_file_handler)
+
+log_paths()
 
 def check_and_remove(d, threshold, stop_flag):
     while not stop_flag.is_set():
@@ -331,15 +361,10 @@ def backend_session(address):
         return json.loads(f.decrypt(client_socket.recv(1024)).decode())
     return send
 
-def frontend_session(path = None):
+def frontend_session(path = os.getcwd()):
     
     app = Flask(__name__)
-    
-    if path == None:
-        app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.getcwd()}/database.db'
-    
-    else:
-        app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{path}/database.db'
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{path}/database.db'
     
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     db = SQLAlchemy(app)            
@@ -397,22 +422,11 @@ def frontend_session(path = None):
 
 def start_server(host, port, cache_threshold = 300, debug = False):
     
-    logging.basicConfig(filename='app.log', filemode='w', format='%(name)s - %(levelname)s - %(message)s')
+    if debug:
+        server_file.addHandler(console_handler)
+        client_file.addHandler(console_handler)
+    client_file.addHandler(server_file_handler)
     
-    logger1 = logging.getLogger('logger1')
-    logger2 = logging.getLogger('logger2')
-
-    # Set the logging level for both loggers
-    logger1.setLevel(logging.INFO)
-    logger2.setLevel(logging.INFO)
-
-    # Create two separate handler objects
-    handler1 = logging.StreamHandler()
-    handler2 = logging.StreamHandler()
-
-    # Attach the handlers to the loggers
-    logger1.addHandler(handler1)
-    logger2.addHandler(handler2)
     # Run the server
     # Create a frontend session for the server
     session = frontend_session()
@@ -450,8 +464,8 @@ def start_server(host, port, cache_threshold = 300, debug = False):
     # Listen for incoming connections
     server_socket.listen()
 
-    print('Press Ctrl+C to exit')
-    print(f"Listening for incoming connections on {host}:{port}...")
+    server_console.info('Press Ctrl+C to exit')
+    server_console.info(f"Listening for incoming connections on {host}:{port}...")
 
     def handle_client(client_socket, f, client_address, session):
     # Pass requests from the client to the servers database session
@@ -460,7 +474,7 @@ def start_server(host, port, cache_threshold = 300, debug = False):
             try:
                 recv = client_socket.recv(1024)
                 if debug:
-                    print(f"Received data from client: {client_address}")
+                    server_console.info(f"Received data from client: {client_address}")
                 if recv != None:
                     # Decrpyt request 
                     data = json.loads(f.decrypt(recv).decode())
@@ -486,50 +500,52 @@ def start_server(host, port, cache_threshold = 300, debug = False):
                 pass
         # End the connection when loop breaks
         if debug:
-            print(f"Closed connection from {client_address}")
+            server_console.info(f"Closed connection from {client_address}")
         client_socket.close()
     #Accept an incoming connection
     while True:
         try:
-            client_socket, client_address = server_socket.accept()
-            #Wait for the client's public key
-            client_public_key_bytes = client_socket.recv(1024)
-            
-            #Deserialize the client's public key
-            client_public_key = serialization.load_pem_public_key(
-            client_public_key_bytes, default_backend())
+            try:
+                client_socket, client_address = server_socket.accept()
 
-            #Send the server's public key to the client
-            client_socket.send(server_public_key_bytes)
+                #Wait for the client's public key
+                client_public_key_bytes = client_socket.recv(1024)
+                
+                #Deserialize the client's public key
+                client_public_key = serialization.load_pem_public_key(
+                client_public_key_bytes, default_backend())
 
-            #Calculate the shared secret key using ECDH
-            shared_secret = server_private_key.exchange(ec.ECDH(), client_public_key)
+                #Send the server's public key to the client
+                client_socket.send(server_public_key_bytes)
 
-            #Use HKDF to derive a symmetric key from the shared secret
-            kdf = HKDF(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=None,
-            info=b"session key",
-            backend=default_backend()
-            )
-            key = kdf.derive(shared_secret)
+                #Calculate the shared secret key using ECDH
+                shared_secret = server_private_key.exchange(ec.ECDH(), client_public_key)
 
-            #Use the symmetric key to encrypt and decrypt messages
-            f = Fernet(base64.urlsafe_b64encode(key))
-            if debug:
-                print(f"Received incoming connection from {client_address}")
-            
-            #Create a new thread to handle the incoming connection
-            client_thread = threading.Thread(target=handle_client, args=(client_socket, f, client_address, session))
-            client_thread.start()
-            clients.append((client_socket, client_thread))
-        except BlockingIOError:
-            pass
+                #Use HKDF to derive a symmetric key from the shared secret
+                kdf = HKDF(
+                algorithm=hashes.SHA256(),
+                length=32,
+                salt=None,
+                info=b"session key",
+                backend=default_backend()
+                )
+                key = kdf.derive(shared_secret)
+
+                #Use the symmetric key to encrypt and decrypt messages
+                f = Fernet(base64.urlsafe_b64encode(key))
+                if debug:
+                    server_console.info(f"Received incoming connection from {client_address}")
+                
+                #Create a new thread to handle the incoming connection
+                client_thread = threading.Thread(target=handle_client, args=(client_socket, f, client_address, session))
+                client_thread.start()
+                clients.append((client_socket, client_thread))
+            except BlockingIOError:
+                pass
         except KeyboardInterrupt:
             break
         except BaseException as err:
             exit()
             raise err()
     exit()
-    print('Exited')
+    server_console.info('Exited')

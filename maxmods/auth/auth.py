@@ -67,7 +67,7 @@ class AuthSesh:
         else:
             self._sesh = backend_session(self._Address)
             
-        self._requestHandle(self._sesh(func='create_session',id=self._Id))
+        self._requestHandle(self._sesh(func='create_session', id=self._Id))
 
     def __repr__(self):
         return f'AuthSesh({self._Path}).set_vals({self._Name}, {self._Pass})'        
@@ -171,7 +171,7 @@ class AuthSesh:
         """
         data = json.dumps(data)
         
-        return self._requestHandle(self._sesh(func='save_data',location=Location, data=data, hash=self._Hash, id=self._Id))
+        return self._requestHandle(self._sesh(func='save_data', location=Location, data=data, hash=self._Hash, id=self._Id))
     def load(self, Location = ''):
         """Loads data from the specified location on the backend authentication server.
 
