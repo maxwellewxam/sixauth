@@ -67,6 +67,7 @@ def check_and_remove(d, threshold, stop_flag):
         for key in list(d):  # make a copy of the keys to avoid modifying the dict while iterating
             if time.time() - d[key]['time'] > threshold:
                 del d[key]
+                server_logger.info(f'Current cache: {d}')
         time.sleep(1)  # check every 1 second
 
 def encrypt_data(data, password, username):
@@ -174,6 +175,7 @@ def establish_connection(address):
 def add_user(id):
     hash = hashlib.sha512((f'{id}{datetime.now()}').encode("UTF-8")).hexdigest()
     cache[hash] = {'main':encrypt_data_fast([None,(None,None)],id), 'time':time.time()}
+    client_logger.info(f'Current cache: {cache}')
     return hash
     
 def find_user(hash, id):
@@ -187,6 +189,7 @@ def update_user(hash, id, dbdat):
     if is_valid_key(cache[hash]['main'], id):
         cache[hash]['main'] = encrypt_data_fast(dbdat,id)
         cache[hash]['time'] = time.time()
+        client_logger.info(f'Current cache: {cache}')
         return [None]
 
     return [False,(False,False)]
@@ -194,6 +197,7 @@ def update_user(hash, id, dbdat):
 def delete_user(hash, id):
     if is_valid_key(cache[hash]['main'], id):
         del cache[hash]
+        client_logger.info(f'Current cache: {cache}')
         return [None]
 
     return [False,(False,False)]
@@ -488,9 +492,9 @@ def server(host, port, cache_threshold = 300, debug = False, log_senseitive_info
                             data = json.loads(f.decrypt(recv).decode())
                             
                             if log_senseitive_info:
-                                server_logger.info(f"Recived: {data}")
+                                server_logger.info(f"Received: {data}")
                             elif data['func'] != 'sign_up' and data['func'] != 'create_session':
-                                server_logger.info(f"Recived: {data['func']}, {data['hash']}")
+                                server_logger.info(f"Received: {data['func']}, {data['hash']}")
                             
                             response = session(**data)
                             
@@ -502,7 +506,11 @@ def server(host, port, cache_threshold = 300, debug = False, log_senseitive_info
                                 break
                         
                         except BaseException as err:
-                            client_socket.send(f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
+                            if type(err) == KeyError:
+                                client_socket.send(f.encrypt(json.dumps({'code':420, 'data':None, 'error':f'Couldnt find user in cache, contact owner to recover any data, use this key: {str(err)}'}).encode('utf-8')))
+                                
+                            else:
+                                client_socket.send(f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
                             tb = traceback.extract_tb(sys.exc_info()[2])
                             line_number = tb[-1][1]
                             server_logger.info(f'Request prossesing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')
@@ -526,7 +534,7 @@ def server(host, port, cache_threshold = 300, debug = False, log_senseitive_info
             server_logger.info(str(client))
     #Accept an incoming connection
     try:
-        while True:
+        while not stop_flag1.is_set():
             try:
                 client_socket, client_address = server_socket.accept()
 

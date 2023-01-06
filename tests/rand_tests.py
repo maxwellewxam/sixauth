@@ -1,12 +1,16 @@
 import sys
 import os
+import time
 HERE = os.path.abspath(os.getcwd())
 sys.path.append(HERE)
-from maxmods.auth import *
-from maxmods.auth.imports import *
+from maxmods.auth import AuthSesh
 
-hmm = backend_session('127.0.0.1:5678')
-id = Fernet.generate_key().hex()
-hash = hmm(func='create_session', id=id)['hash']
-hmm(func='end_session', id=id, hash=hash)
-# hmm = AuthSesh(Address='127.0.0.1:5678')
+ash = AuthSesh('127.0.0.1:5678')
+ash.set_vals('max', 'max')
+#ash.signup()
+ash.login()
+ash.save('','sensitive data')
+time.sleep(10)
+print(ash.load())
+ash.remove()
+ash.terminate()
