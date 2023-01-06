@@ -1,6 +1,7 @@
 import hashlib
 import jsonpath_ng
 import os
+import sys
 import json
 import base64
 import bcrypt
@@ -8,6 +9,7 @@ import socket
 import time
 import threading
 import logging
+import traceback
 
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
@@ -418,12 +420,16 @@ def frontend_session(path = os.getcwd()):
     
     return action
 
-def start_server(host, port, cache_threshold = 300, debug = False):
+def server(host, port, cache_threshold = 300, debug = False, log_senseitive_info = False):
     
     if debug:
         server_logger.addHandler(console_handler)
         client_logger.addHandler(console_handler)
         server_console.info('Debug mode active')
+        
+    if log_senseitive_info:
+        server_console.info('WARNING: SENSEITIVE INFORMATION BEING LOGGED')
+        
     client_logger.addHandler(server_logger_handler)
     
     # Run the server
@@ -464,48 +470,58 @@ def start_server(host, port, cache_threshold = 300, debug = False):
 
     # Listen for incoming connections
     server_socket.listen()
-
+    server_console.info('Server started')
     server_console.info('Press Ctrl+C to exit')
-    server_console.info(f"Listening for incoming connections on {host}:{port}...")
+    server_console.info(f"Listening for incoming connections on {host}:{port}")
 
     def handle_client(client_socket, f, client_address, session, stop_flag, clients):
     # Pass requests from the client to the servers database session
         try:
             while not stop_flag.is_set():
-                # Get client request
+
                 try:
                     recv = client_socket.recv(1024)
                     server_logger.info(f"Received data from client: {client_address}")
+                    
                     if recv != None:
-                        # Decrpyt request 
-                        data = json.loads(f.decrypt(recv).decode())
-                        # This is a special case for when the client requests to end the session
                         try:
-                            if data['func'] == 'end_session':
-                                # Send request to server session and then check the return status
-                                end = session(**data)
-                                client_socket.send(f.encrypt(json.dumps(end).encode('utf-8')))
-                                # If good then close connection
-                                if end['code'] == 200:
-                                    break
-                            # Normal handling of client requests
-                            else:
-                                # Just pass the request to the session and return to the client
-                                client_socket.send(f.encrypt(json.dumps(session(**data)).encode('utf-8')))
-                        except Exception as err:
-                            client_socket.send(f.encrypt(str(err).encode('utf-8')))
+                            data = json.loads(f.decrypt(recv).decode())
+                            
+                            if log_senseitive_info:
+                                server_logger.info(f"Recived: {data}")
+                            elif data['func'] != 'sign_up' and data['func'] != 'create_session':
+                                server_logger.info(f"Recived: {data['func']}, {data['hash']}")
+                            
+                            response = session(**data)
+                            
+                            server_logger.info(f'Response: {response["code"]}')
+                            
+                            client_socket.send(f.encrypt(json.dumps(response).encode('utf-8')))
+                            
+                            if data['func'] == 'end_session' and response['code'] == 200:
+                                break
+                        
+                        except BaseException as err:
+                            client_socket.send(f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
+                            tb = traceback.extract_tb(sys.exc_info()[2])
+                            line_number = tb[-1][1]
+                            server_logger.info(f'Request prossesing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')
                             break
                     else:
                         break
+                    
                 except BlockingIOError:
                     pass
+                
         except BaseException as err:
-            server_console.info('Client thread did not exit successfully, Error: {err}')
+            server_console.info(f'Client thread did not exit successfully, Error: {err}')
         # End the connection when loop breaks
         server_logger.info(f"Closed connection from {client_address}")
         client_socket.close()
         clients = list(filter(lambda x: x != (client_socket, client_thread), clients))
         server_logger.info('Current clients:')
+        if not clients:
+            server_logger.info('None')
         for client in clients:
             server_logger.info(str(client))
     #Accept an incoming connection
@@ -547,6 +563,8 @@ def start_server(host, port, cache_threshold = 300, debug = False):
                 server_logger.info('Client thread started')
                 clients.append((client_socket, client_thread))
                 server_logger.info('Current clients:')
+                if not clients:
+                    server_logger.info('None')
                 for client in clients:
                     server_logger.info(str(client))
             except BlockingIOError:

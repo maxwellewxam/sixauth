@@ -1,8 +1,10 @@
 
 import sys
 import os
-#HERE = os.path.abspath('../')
-HERE = os.path.abspath(os.getcwd())
+if sys.platform == 'win32':
+    HERE = os.path.abspath('../')
+else:
+    HERE = os.path.abspath(os.getcwd())
 sys.path.append(HERE)
-from maxmods.auth.main import start_server
-start_server('127.0.0.1', 5678)
+from maxmods.auth.main import server
+server('127.0.0.1', 5678, log_senseitive_info = True)

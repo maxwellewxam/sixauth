@@ -327,10 +327,7 @@ class AuthSesh:
 
         elif request['code'] == 101:
             self._Hash = request['hash']
-        
-        elif request['code'] == 102:
-            self._certadder(request['server'])
             
         elif request['code'] == 420:
-            raise DataError(f"An error occured during the request, here is the data we could recover: {request['data']}/n Error: {request['error']}" )
+            raise DataError(f"An error occured during the request, here is the data we could recover: {request['data']}\n Error: {request['error']}" )
             
