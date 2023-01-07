@@ -67,6 +67,7 @@ def check_and_remove(d, threshold, stop_flag):
         for key in list(d):  # make a copy of the keys to avoid modifying the dict while iterating
             if time.time() - d[key]['time'] > threshold:
                 del d[key]
+                server_logger.info('A user timed out')
                 server_logger.info(f'Current cache: {d}')
         time.sleep(1)  # check every 1 second
 
@@ -122,6 +123,7 @@ def is_valid_key(data, id):
         decrypt_data_fast(data, id)
         return True
     except InvalidToken:
+        client_logger.info(f'Key invalid, {id}')
         return False
 
 def establish_connection(address):
@@ -181,13 +183,15 @@ def add_user(id):
 def find_user(hash, id):
     if is_valid_key(cache[hash]['main'], id):
         cache[hash]['time'] = time.time()
+        client_logger.info(f'Current cache: {cache}')
         return decrypt_data_fast(cache[hash]['main'],id)
-    
+
     return [False,(False,False)]
     
 def update_user(hash, id, dbdat):
     if is_valid_key(cache[hash]['main'], id):
         cache[hash]['main'] = encrypt_data_fast(dbdat,id)
+        client_logger.info(f'Data goin to cache: {dbdat}')
         cache[hash]['time'] = time.time()
         client_logger.info(f'Current cache: {cache}')
         return [None]
@@ -199,7 +203,6 @@ def delete_user(hash, id):
         del cache[hash]
         client_logger.info(f'Current cache: {cache}')
         return [None]
-
     return [False,(False,False)]
 
 def sign_up(app, db, User, **data):
@@ -218,7 +221,6 @@ def sign_up(app, db, User, **data):
     with app.app_context():
         db.session.add(User(username=data['username'], password=create_password_hash(data['password']), data=encrypt_data({}, data['username'], data['password'])))
         db.session.commit()
-    
     return {'code':200}
 
 def save_data(**data):
@@ -239,7 +241,6 @@ def save_data(**data):
     
     jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).update_or_create(user_from_cache, data_from_request)
     update_user(data['hash'], data['id'], [user_from_cache, userinfo_from_cache])
-
     return {'code':200, 'data':user_from_cache}
 
 def delete_data(**data):
@@ -260,7 +261,6 @@ def delete_data(**data):
     
     del [match.context for match in parsed_location][0].value[str([match.path for match in parsed_location][0])]
     update_user(data['hash'], data['id'], [user_from_cache, userinfo_from_cache])
-    
     return {'code':200}
 
 def log_out(app, db, passfields, User, **data):
@@ -287,15 +287,14 @@ def log_out(app, db, passfields, User, **data):
         db.session.commit()
     
     update_user(data['hash'], data['id'], [None,(None,None)])
-    
     return {'code':200}
 
 def remove_account(app, db, passfields, User, **data):
     username, password = find_user(data['hash'], data['id'])[1]
-            
+    #client_logger.info(f'Username from cache: {username}') 
     with app.app_context():
         user_from_database = User.query.filter_by(username=username).first()
-    
+        #client_logger.info(f'Username from database: {user_from_database}')
     if not user_from_database or username == False:
         return {'code':423}
     
@@ -309,7 +308,6 @@ def remove_account(app, db, passfields, User, **data):
         db.session.commit()
         
     update_user(data['hash'], data['id'], [None,(None,None)])
-    
     return {'code':200}
 
 def log_in(app, datfields, passfields, User, **data):
@@ -330,9 +328,8 @@ def log_in(app, datfields, passfields, User, **data):
     if not verify_password_hash(datPass, data['password']):
         return {'code':401}
         
-    if update_user(data['hash'], data['id'], [decrypt_data(marshal(user_from_database, datfields)['data'], data['username'], data['password']), (data['password'], data['username'])])[0] == False:
+    if update_user(data['hash'], data['id'], [decrypt_data(marshal(user_from_database, datfields)['data'], data['username'], data['password']), (data['username'], data['password'])])[0] == False:
         return {'code':423}
-    
     return {'code':200}
 
 def load_data(**data):
@@ -347,23 +344,26 @@ def load_data(**data):
     parsed_location = jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).find(user_from_cache)
     
     if parsed_location == []:
-        return {'code':416}
-    
+
+            return {'code':416}
+
     return {'code':202, 'data':[match.value for match in parsed_location][0]}
 
 def create_session(**data):
     user_hash = add_user(data['id'])
-    
+
     return {'code':101, 'hash':user_hash}
 
 def end_session(**data):
     if delete_user(data['hash'], data['id'])[0] == False:
+
         return {'code':423}
 
     return {'code':200}
 
 def backend_session(address):
     f, client_socket = establish_connection(address)
+    client_logger.info(f'Connected to: {address}')
     def send(**data):
         client_socket.send(f.encrypt(json.dumps(data).encode('utf-8')))
         return json.loads(f.decrypt(client_socket.recv(1024)).decode())
@@ -373,7 +373,7 @@ def frontend_session(path = os.getcwd()):
     
     app = Flask(__name__)
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{path}/database.db'
-    
+    client_logger.info(f'Database located at: sqlite:///{path}/database.db')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     db = SQLAlchemy(app)            
 
@@ -387,9 +387,8 @@ def frontend_session(path = os.getcwd()):
             self.password = password
             self.data = data
 
-    if not os.path.isfile(f'{path}/database.db'):
-        with app.app_context():
-            db.create_all()
+    with app.app_context():
+        db.create_all()
         
     datfields = {'data': fields.Raw}
     passfields = {'password': fields.String}
@@ -454,6 +453,7 @@ def server(host, port, cache_threshold = 300, debug = False, log_senseitive_info
     format=serialization.PublicFormat.SubjectPublicKeyInfo)
 
     clients = []
+    
     def exit():
         stop_flag1.set()
         t.join()
@@ -478,16 +478,16 @@ def server(host, port, cache_threshold = 300, debug = False, log_senseitive_info
     server_console.info('Press Ctrl+C to exit')
     server_console.info(f"Listening for incoming connections on {host}:{port}")
 
-    def handle_client(client_socket, f, client_address, session, stop_flag, clients):
+    def handle_client(client_socket, f, client_address, session, stop_flag):
     # Pass requests from the client to the servers database session
         try:
             while not stop_flag.is_set():
 
                 try:
                     recv = client_socket.recv(1024)
-                    server_logger.info(f"Received data from client: {client_address}")
+                    server_logger.info(f"Received data from client: {client_address}: {recv}")
                     
-                    if recv != None:
+                    if recv != b'':
                         try:
                             data = json.loads(f.decrypt(recv).decode())
                             
@@ -507,13 +507,13 @@ def server(host, port, cache_threshold = 300, debug = False, log_senseitive_info
                         
                         except BaseException as err:
                             if type(err) == KeyError:
-                                client_socket.send(f.encrypt(json.dumps({'code':420, 'data':None, 'error':f'Couldnt find user in cache, contact owner to recover any data, use this key: {str(err)}'}).encode('utf-8')))
-                                
+                                client_socket.send(f.encrypt(json.dumps({'code':420, 'data':None, 'error':f'Couldnt find user in cache, contact owner to recover any data, \nuse this key: {str(err)}\nuse this id: \'{str(data["id"])}\''}).encode('utf-8')))
                             else:
                                 client_socket.send(f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
+                            
                             tb = traceback.extract_tb(sys.exc_info()[2])
                             line_number = tb[-1][1]
-                            server_logger.info(f'Request prossesing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')
+                            server_logger.info(f'Request prossesing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}\n{str(tb)}')
                             break
                     else:
                         break
@@ -526,12 +526,9 @@ def server(host, port, cache_threshold = 300, debug = False, log_senseitive_info
         # End the connection when loop breaks
         server_logger.info(f"Closed connection from {client_address}")
         client_socket.close()
-        clients = list(filter(lambda x: x != (client_socket, client_thread), clients))
-        server_logger.info('Current clients:')
-        if not clients:
-            server_logger.info('None')
-        for client in clients:
-            server_logger.info(str(client))
+        for sock, thread in clients:
+            if sock == client_socket:
+                clients.remove((client_socket, thread))
     #Accept an incoming connection
     try:
         while not stop_flag1.is_set():
@@ -566,15 +563,10 @@ def server(host, port, cache_threshold = 300, debug = False, log_senseitive_info
                 server_logger.info(f"Received incoming connection from {client_address}")
                 
                 #Create a new thread to handle the incoming connection
-                client_thread = threading.Thread(target=handle_client, args=(client_socket, f, client_address, session, stop_flag1, clients))
+                client_thread = threading.Thread(target=handle_client, args=(client_socket, f, client_address, session, stop_flag1))
                 client_thread.start()
                 server_logger.info('Client thread started')
                 clients.append((client_socket, client_thread))
-                server_logger.info('Current clients:')
-                if not clients:
-                    server_logger.info('None')
-                for client in clients:
-                    server_logger.info(str(client))
             except BlockingIOError:
                 pass
     except KeyboardInterrupt:
