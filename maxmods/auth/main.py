@@ -1,6 +1,6 @@
 # so you wanna know whats going on in this file eh
-# basically these are all functions the auth module uses to manage ya thing
-# because this is my file and im not regulated by sum comunity
+# basically these are all functions the auth module uses to manage ya things
+# because this is my file and im not regulated by sum community
 # im gonna make the comments for this my way bozo
 # you should still beable to understand it but youll def have fun reading it lmao
 # ion finna be rude or out rageous or nun, you can lowk read this to your grandma no problem
@@ -229,7 +229,6 @@ def find_user(hash, id):
 def update_user(hash, id, dbdat):
     if is_valid_key(cache[hash]['main'], id):
         cache[hash]['main'] = encrypt_data_fast(dbdat,id)
-        client_logger.info(f'Data goin to cache: {dbdat}')
         cache[hash]['time'] = time.time()
         client_logger.info(f'Current cache: {cache}')
         return [None]
