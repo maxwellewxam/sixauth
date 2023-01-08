@@ -1,3 +1,24 @@
+# so you wanna know whats going on in this file eh
+# basically these are all functions the auth module uses to manage ya thing
+# because this is my file and im not regulated by sum comunity
+# im gonna make the comments for this my way bozo
+# you should still beable to understand it but youll def have fun reading it lmao
+# ion finna be rude or out rageous or nun, you can lowk read this to your grandma no problem
+# also if anyone sees this, please lemme know of any improvements i can make to the code, not the comments
+# also also i made this whole file without classes because i felt like it
+# object oriented programming is cool and all, and by the gods i love classes
+# but i challenged myself to make this without them and i also remember sum vid i watch about
+# O.O.P. being bas so i decided to not use it
+# only ecxeption to this rule is that the code used for the database connection uses a class
+# i lowk dont know a different way without rewriting the whole database connection with a different module or sum 
+
+# ok so these are all the imports i use
+# my fav lowk being josnpath_ng or cryptography
+# the two modules that really pull their weight arround here
+# like flask was lowk only used in earlier versions for the online server connections
+# it came preloaded with a fye ass database api and so it became heavily ingraned into the base of alot of the functions
+# but now i use sockets and cryptography, and i just havent felt the need to rewrite alot of the database code
+# i mean it shouldnt be hard but im here now an nun else we gonna do
 import hashlib
 import jsonpath_ng
 import os
@@ -22,14 +43,25 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.backends import default_backend
 from cryptography.fernet import Fernet, InvalidToken
 
+# this lil john here is just used to get a file path to a folder where the module is stored
 from . import logs
 
+# these are all the exceptions that this module will raise
+# i could use like built in ones but ion feel like it so...
 class LocationError(BaseException): ...
 class AuthenticationError(BaseException): ...
 class UsernameError(AuthenticationError): ...
 class PasswordError(AuthenticationError): ...
 class DataError(BaseException): ...
 
+# alr alr so first real thing here is this cache dict
+# so this john will hold all the active users data for way quicker access
+# the database holds the users data with a really strong encryption thats tough to compute
+# and so we to pull the johns data from the db and and decrypt it once
+# then store it in the cache with a weaker but way faster encryption
+# this also means that if the john doesnt properly exit, any change made to the data before its saved will be lost
+# a sacrifice im willing to make, also with i could put emoji's in here lol
+# i lowk dont like just creating this thing like this but ion know a better way with out classes and whatnot
 cache = {}
 
 server_console = logging.getLogger('server_console')
