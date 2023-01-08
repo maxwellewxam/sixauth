@@ -94,14 +94,20 @@ def log_paths(client_logger_location = os.path.dirname(logs.__file__), server_lo
 
 log_paths()
 
-def check_and_remove(d, threshold, stop_flag):
+def check_and_remove(threshold, stop_flag):
     while not stop_flag.is_set():
-        for key in list(d):  # make a copy of the keys to avoid modifying the dict while iterating
-            if time.time() - d[key]['time'] > threshold:
-                del d[key]
+        for key in list(cache):  # make a copy of the keys to avoid modifying the dict while iterating
+            if time.time() - cache[key]['time'] > threshold:
+                del cache[key]
                 server_logger.info('A user timed out')
-                server_logger.info(f'Current cache: {d}')
+                server_logger.info(f'Current cache: {cache}')
         time.sleep(1)  # check every 1 second
+
+def keep_alive(cache_threshold, stop_flag):
+    while not stop_flag.is_set():
+        t = threading.Thread(target=check_and_remove, args=(cache_threshold, stop_flag))
+        t.start()
+        t.join()
 
 def encrypt_data(data, password, username):
     json_data = json.dumps(data)
@@ -472,7 +478,7 @@ def server(host, port, cache_threshold = 300, debug = False, log_senseitive_info
     session = frontend_session()
     stop_flag1 = threading.Event()
     
-    t = threading.Thread(target=check_and_remove, args=(cache, cache_threshold, stop_flag1))
+    t = threading.Thread(target=keep_alive, args=(cache_threshold, stop_flag1))
     t.start()
     
     #Generate an ECDH key pair for the server

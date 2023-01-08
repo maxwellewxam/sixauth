@@ -8,31 +8,24 @@ sys.path.append(HERE)
 from maxmods.auth import AuthSesh
 
 with AuthSesh('127.0.0.1:5678') as ash:
-    ash.set_vals('max', 'max')
-    ash.signup()
+    ash.set_vals('lauren', 'supersecretpassword')
+    #ash.signup()
+
 
 
 def foobar(count,hmmm):
-    ash = AuthSesh('127.0.0.1:5678')
-    ash.set_vals(f'max{count}', 'max')
-    ash.signup()
-    ash.login()
-    ash.save('',f'sensitive data{count}')
-    print(ash.load())
-    ash.set_vals('max', 'max')
-    ash.login()
-    ash.save(f'lol/{count}/die{hmmm}',f'sensitive data{count}')
-    ash.set_vals(f'max{count}', 'max')
-    ash.login()
-    print(ash.load())
-    ash.remove()
-    ash.terminate()
+        with AuthSesh('127.0.0.1:5678') as user2:
+            user2.set_vals(f'test{count}', 'test')
+            user2.signup()
+            user2.login()
+            user2.remove()
 
 threads=[]
 
-for i in range(500):
+for i in range(1000):
     client_thread = threading.Thread(target=foobar, args=(i,random.random()))
     client_thread.start()
+    time.sleep(0.1)
     threads.append(client_thread)
 for thread in threads:
     thread.join()
