@@ -18,4 +18,28 @@ class Timer:
             return val
         else:
             raise Exception("function not callable")
-        
+
+import robot
+with robot.Connect() as bot:
+    for _ in range(3):
+        bot.MOVE_FORWARD()
+    bot.ROTATE_LEFT()
+    for _ in range(2):
+        bot.MOVE_FORWARD()
+with robot.Connect() as bot:
+    def right(self):
+        for _ in range(3):
+            self.ROTATE_LEFT()
+    bot.ROTATE_RIGHT = right
+    for _ in range(2):
+        bot.MOVE_FORWARD()
+    bot.ROTATE_LEFT()
+    for _ in range(4):
+        bot.MOVE_FORWARD()
+    bot.ROTATE_RIGHT()
+    for _ in range(2):
+        bot.MOVE_FORWARD()
+
+x, y = (1,2)
+x, y = (y,x)
+print(x, y)
