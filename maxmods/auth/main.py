@@ -44,6 +44,8 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.fernet import Fernet, InvalidToken
 
 # this lil john here is just used to get a file path to a folder where the module is stored
+# for logging purposes, it just makes more sense to me to have logs stored in the module folder
+# instead of the cwd, but i also made it user defined
 from . import logs
 
 # these are all the exceptions that this module will raise
@@ -64,20 +66,31 @@ class DataError(BaseException): ...
 # i lowk dont like just creating this thing like this but ion know a better way with out classes and whatnot
 cache = {}
 
+# here we begin to set up the loggers
+# i have four different loggers, one for console 
+# and one for debugging, then the same thing for the client side
+# i want to change the client console logger to be
+# a more indepth server logger and then reduce the amount of things
+# logged by the server, cause rn if you have like 100 clients connect to the server and 
+# manipulate data, log files get into he gigabytes of size
+# im actually gonna do that now which makes all of what i said irrelevant 
+# but atleast you get to see my thought prosses
+# ok but here we define the names, levels, and formats of the loggers
 server_console = logging.getLogger('server_console')
 server_logger = logging.getLogger('server_logger')
-client_console = logging.getLogger('client_console')
+server_big_logger = logging.getLogger('server_big_logger')
 client_logger = logging.getLogger('client_logger')
-
 server_console.setLevel(logging.INFO)
 server_logger.setLevel(logging.INFO)
-client_console.setLevel(logging.INFO)
+server_big_logger.setLevel(logging.INFO)
 client_logger.setLevel(logging.INFO)
-
 console_handler = logging.StreamHandler()
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-def log_paths(client_logger_location = os.path.dirname(logs.__file__), server_logger_location = os.getcwd()): 
+# here we define the function that sets up the loggers and their default states
+# we set things like log file paths and how much to log, the only changable things
+# we also log that we have started a newlog and what handlers go to what loggers
+def log_paths(client_logger_location = os.path.dirname(logs.__file__), server_logger_location = os.getcwd(), inDepthLogs = False): 
     global server_logger_handler
     global client_logger_handler
     server_logger_handler = logging.FileHandler(server_logger_location+'/server.log')
@@ -85,30 +98,77 @@ def log_paths(client_logger_location = os.path.dirname(logs.__file__), server_lo
     server_console.addHandler(server_logger_handler)
     server_console.addHandler(console_handler)
     server_logger.addHandler(server_logger_handler)
-    client_console.addHandler(client_logger_handler)
+    if inDepthLogs:
+        server_big_logger.addHandler(server_logger_handler)
     client_logger.addHandler(client_logger_handler)
     server_logger.info('VVV---------BEGIN-NEW-LOG----------VVV')
     client_logger.info('VVV---------BEGIN-NEW-LOG----------VVV')
     server_logger_handler.setFormatter(formatter)
     client_logger_handler.setFormatter(formatter)
 
+# and here we just run the defult state so that we are always logging something
+# we can run the function above at anytime during runtime to change this
+# it will show in the logs that a new log has started
+# and from then on all the loggers will have the new paths and states
 log_paths()
 
+# now for the first big function here
+# this is the cache check loop that we run in a separate thread
+# we setup and run this only when starting a server but if you wanted
+# you could run this on a thread of your own for the client or the server
+# but what this john does is pretty important for a server
+# when a user establishes a connection to a server, a cache is made
+# this makes things faster, however the cache is only removed when the connection is properly exitied
+# if an error occurs and the cach is never removed there is no way for it to be removed
+# except for this function, everytime a user does anything involving the cache
+# we update the current time of that users cache, and then this function constanly 
+# checks how long its been since the time was set
+# if the time is past a defined threshold, then we delete it and declare in the log that a user timed out
+# so save resources we only run this chack once a second
+# also the stop flag stops this thread from the main thread
 def check_and_remove(threshold, stop_flag):
     while not stop_flag.is_set():
-        for key in list(cache):  # make a copy of the keys to avoid modifying the dict while iterating
+        for key in list(cache):
             if time.time() - cache[key]['time'] > threshold:
                 del cache[key]
                 server_logger.info('A user timed out')
-                server_logger.info(f'Current cache: {cache}')
-        time.sleep(1)  # check every 1 second
+                server_big_logger.info(f'Current cache: {cache}')
+        time.sleep(1)
 
+# the only known issue with the checker is that
+# if someone happens to terminate their session inbetween the time 
+# the the checker checks how long its been inactive for
+# and when the chacker actually goes to delete the cache
+# the thread with throw a key error and then the server wouldnt have a 
+# cache checker and the cache could then be targeted and bloated
+# so this thread will restart the checker should that happen
+# also i know i could put a try and accept statement with a pass
+# but this way the thread will log the exception to the servers console
+# and then i (or anyone else) can tell why the thread had an issue
+# cause i lowk dont know if there are other potential problems with the checker
+# ok but this is just a loop that will brake if the same stop flag from the checker loop
+# is set, and the loop defines the thread and runs it
+# then when the thread joines back to the keep alive thread
+# it will loop and start a new checker thread
+# should also mention that this is run in its own thread much like the checker is
 def keep_alive(cache_threshold, stop_flag):
     while not stop_flag.is_set():
         t = threading.Thread(target=check_and_remove, args=(cache_threshold, stop_flag))
         t.start()
         t.join()
 
+# and here is one of the first functions ever made in this file
+# the is the encrypt function, the hard to compute one
+# this function should be called with the username and password and keys and salt
+# this will return the data but encrypted to be stored in the database for long term
+# not much to say other then that age and what not
+# when this function was made it was very much a black box to me
+# just put inputs get outputs
+# however i now know more about how encrypting works with the cyrptography module
+# so first we take the data, a dict, and convert it to bytes with the json module
+# then we define a key driver object and derive the key from the password
+# then create a fernet object with with the key and then encrypt the data 
+# with the fernet object, and then return it, easy!
 def encrypt_data(data, password, username):
     json_data = json.dumps(data)
     kdf = PBKDF2HMAC(
