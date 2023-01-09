@@ -4,11 +4,12 @@
 # im gonna make the comments for this my way bozo
 # you should still beable to understand it but youll def have fun reading it lmao
 # ion finna be rude or out rageous or nun, you can lowk read this to your grandma no problem
-# also if anyone sees this, please lemme know of any improvements i can make to the code, not the comments
+# also if anyone sees this, please lemme know of any improvements i can make to the code, not the comments lol
+# however if something doesnt make sense or i made a grammatical error, please tell me!
 # also also i made this whole file without classes because i felt like it
 # object oriented programming is cool and all, and by the gods i love classes
 # but i challenged myself to make this without them and i also remember sum vid i watch about
-# O.O.P. being bas so i decided to not use it
+# O.O.P. being bad so i decided to not use it
 # only ecxeption to this rule is that the code used for the database connection uses a class
 # i lowk dont know a different way without rewriting the whole database connection with a different module or sum 
 
@@ -176,39 +177,73 @@ def encrypt_data(data, password, username):
         length=32,
         salt=bytes(username.encode()),
         iterations=100000,
-        backend=default_backend()
-        )
+        backend=default_backend())
     key = base64.urlsafe_b64encode(kdf.derive(bytes(password.encode())))
     fernet = Fernet(key)
     return fernet.encrypt(json_data.encode()).decode()
 
+# alr now this function is like part two of the encrypt function
+# all the same info about it, first function like ever and yada yada
+# only difference is that this function decrypts the data instead
+# we make a key deriving object then derive the key from the password
+# then make a fernet object with that key and decrypt the data and then turn it back into a dict
+# return that dict and easy money
+# for the both of these functions tho, i dont know if they are the best way to do this
+# its the way we have and untill told otherwise im not changing it lol
 def decrypt_data(data, password, username):
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=32,
         salt=bytes(username.encode()),
         iterations=100000,
-        backend=default_backend()
-        )
+        backend=default_backend())
     key = base64.urlsafe_b64encode(kdf.derive(bytes(password.encode())))
     fernet = Fernet(key)
     return json.loads(fernet.decrypt(data.encode()).decode())
 
+# now here we have a much faster encrypt and decrypt function pair
+# just have the message and the key
+# very quickly do everything that the above functions do 
+# except for derive the key
 def encrypt_data_fast(message, key):
     return Fernet(bytes.fromhex(key)).encrypt(json.dumps(message).encode())
 
+# the key is sent by the client and the server doesnt have to do any work to make it
+# this is way less secure and doesnt last any longer than one run of the client
+# as the key is never stored on the client outside of the client script
+# but because the data is not stored in a file this way it shouldnt need to be too secure i think
 def decrypt_data_fast(message, key):
     return json.loads(Fernet(bytes.fromhex(key)).decrypt(message).decode())
 
+# here are the password hashing functions
+# these used to be baked into all the functions and hard to get to
+# after doing more research about security with these kind of apps
+# i realized i should move these outside of the functions to one place
+# as these are ever changing as hardware and software change
+# will be easier to update these when better hashing algorithms come out
 def create_password_hash(password):
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).hex()
 
+# as for now, bcrypt is the best password hashing lib
+# and one of the easiest ones to use
+# just hash the john then check if the password and the hash match
+# obviously more than that happens, but this isnt a course on cryptograghy lol
 def verify_password_hash(hash, password):
     return bcrypt.checkpw(password.encode('utf-8'), bytes.fromhex(hash))
 
+# ok this function converts a numbers to their letter form
+# we have this in a function because we use it alot and its really long
+# and we use it because the jsonpath_ng module doesnt allow numbers in the 
+# parser configuration, just do this regular conversion and the end user never knows we did it
+# unless they look at the raw dict lol
 def convert_numbers_to_words(text):
         return text.replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')
 
+# this lil john just checks if an object 
+# is json serialized
+# we do this because we make this check alot and i dont like
+# try and except statements in like main code ya know
+# rather have it in a dedicated function
 def is_json_serialized(obj):
     try:
         json.loads(obj)
@@ -216,105 +251,116 @@ def is_json_serialized(obj):
     except json.decoder.JSONDecodeError:
         return False
 
+# this function is used for the cache
+# just like i said above, i dont like try and except statements in like main code
+# just moved it to its own function
+# we use this in the cache functions to check if the key provided by the client works for 
+# the hash they are trying to access, if not, boot them
 def is_valid_key(data, id):
     try:
         decrypt_data_fast(data, id)
         return True
     except InvalidToken:
-        client_logger.info(f'Key invalid, {id}')
+        server_big_logger.info(f'Key invalid, {id}')
         return False
 
+# now this is a big one lol
+# so this is the function the client uses to establish a connection to the server
+# this will return a fernet object that can be used to encrypt and decrypt messages for the server
+# so the first thing we do is create a public and private key pair
+# then make the socket, and send the server the clients public key
+# then the server sends back its public key
+# then we create the shared key based on the client private key and the servers public key
+# then we make another key deriving object and derive the key from the shared key
+# then make the fernet object with that derived key and now we can send encrypted messages
+# we also return the socket connection with the server so you can send and recive messages
+# actually not that big ngl, just alot of data moving to securly get a shared key
+# this code was half created by the chatGPT bot, was using ssl before this and was having trouble with certs
 def establish_connection(address):
     client_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
     client_public_key = client_private_key.public_key()
-
-    #Serialize the client's public key
     client_public_key_bytes = client_public_key.public_bytes(
     encoding=serialization.Encoding.PEM,
-    format=serialization.PublicFormat.SubjectPublicKeyInfo
-    )
-
-    #reate a socket
+    format=serialization.PublicFormat.SubjectPublicKeyInfo)
     client_socket = socket.socket()
-    
-    #get adress and port
     connection_info = address.split(':')
-
-    #Connect to the server
     client_socket.connect((connection_info[0], int(connection_info[1])))
-
-    #Send the client's public key to the server
     client_socket.send(client_public_key_bytes)
-
-    #Wait for the server's public key
     server_public_key_bytes = client_socket.recv(1024)
-
-    #Deserialize the server's public key
     server_public_key = serialization.load_pem_public_key(
-    server_public_key_bytes, default_backend()
-    )
-
-    #Calculate the shared secret key using ECDH
+    server_public_key_bytes, default_backend())
     shared_secret = client_private_key.exchange(ec.ECDH(), server_public_key)
-
-    #Use HKDF to derive a symmetric key from the shared secret
     kdf = HKDF(
     algorithm=hashes.SHA256(),
     length=32,
     salt=None,
     info=b"session key",
-    backend=default_backend()
-    )
+    backend=default_backend())
     key = kdf.derive(shared_secret)
-
-    #Use the symmetric key to encrypt and decrypt messages
     f = Fernet(base64.urlsafe_b64encode(key))
-    
     return f, client_socket
 
+# the first of the cache functions
+# the chache has become one of the central points of this file lol
+# all this does is creat a cache pointer for the user based on the id provided
+# with the id being the key used to decrypt and encrypt things in the cache
+# we also log what is in the cache if we are logging big things
 def add_user(id):
     hash = hashlib.sha512((f'{id}{datetime.now()}').encode("UTF-8")).hexdigest()
     cache[hash] = {'main':encrypt_data_fast([None,(None,None)],id), 'time':time.time()}
-    client_logger.info(f'Current cache: {cache}')
+    server_big_logger.info(f'Current cache: {cache}')
     return hash
-    
+
+# this john here returns the data in the cache for a user
+# we first chack to make sure that we have the right hash id pair
+# then decrypt the data in the cache with the id and return
+# a really easy and fast function
 def find_user(hash, id):
     if is_valid_key(cache[hash]['main'], id):
         cache[hash]['time'] = time.time()
-        client_logger.info(f'Current cache: {cache}')
+        server_big_logger.info(f'Current cache: {cache}')
         return decrypt_data_fast(cache[hash]['main'],id)
-
     return [False,(False,False)]
-    
+
+# this fuction is pretty cool too
+# we do the same check, then we encrypt the data given and replace 
+# the data in the cache with it
+# all the cache functions are really easy
+# and thats why its so fast
 def update_user(hash, id, dbdat):
     if is_valid_key(cache[hash]['main'], id):
         cache[hash]['main'] = encrypt_data_fast(dbdat,id)
         cache[hash]['time'] = time.time()
-        client_logger.info(f'Current cache: {cache}')
+        server_big_logger.info(f'Current cache: {cache}')
         return [None]
-
     return [False,(False,False)]
 
+# and this last john just removes the users cache
+# if we pass that key check again
+# oh yeah also we log the changes in the cache
 def delete_user(hash, id):
     if is_valid_key(cache[hash]['main'], id):
         del cache[hash]
-        client_logger.info(f'Current cache: {cache}')
+        server_big_logger.info(f'Current cache: {cache}')
         return [None]
     return [False,(False,False)]
 
+# this is the first of the many main opperations the user can preform
+# this function will create a users account if it passes a bunch of checks
+# basically all these functions are based on a code ssytem
+# we send data and then we return a code and any other information needed
+# so first we check that the username is a valid username
+# then we check that the user doesnt exsist in the database already
+# if all checks pass, the we create the users account and return a success code
 def sign_up(app, db, User, **data):
     if data['username'] == '':
         return {'code':406}
-    
     if data['username'].isalnum() == False:
         return {'code':406}
-    
     with app.app_context():
         user_from_database = User.query.filter_by(username=data['username']).first()
-    
     if user_from_database:
         return {'code':409}
-        
     with app.app_context():
         db.session.add(User(username=data['username'], password=create_password_hash(data['password']), data=encrypt_data({}, data['username'], data['password'])))
         db.session.commit()
