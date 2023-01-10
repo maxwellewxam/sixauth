@@ -305,22 +305,35 @@ def establish_connection(address):
 # all this does is creat a cache pointer for the user based on the id provided
 # with the id being the key used to decrypt and encrypt things in the cache
 # we also log what is in the cache if we are logging big things
+# oh and this returns the a dict with a succsess code and pointer, i call it hash just because its the hash of the id plus datetime as a way of ensuring 
+# no two hashes are the same
 def add_user(id):
     hash = hashlib.sha512((f'{id}{datetime.now()}').encode("UTF-8")).hexdigest()
     cache[hash] = {'main':encrypt_data_fast([None,(None,None)],id), 'time':time.time()}
     server_big_logger.info(f'Current cache: {cache}')
-    return hash
+    return {'code':200, 'hash':hash}
 
 # this john here returns the data in the cache for a user
 # we first chack to make sure that we have the right hash id pair
 # then decrypt the data in the cache with the id and return
 # a really easy and fast function
+# also in this function we do a check to see if the user
+# has info in the cache or if they just have a empty cache instance
+# this is used for certain validations in functions
+# so like if the user creates a cache but then tries to save data 
+# that code with throw, otherwise if the user updates the cache with their database info
+# then that code will no longer throw, also when the user logs out, the info in the cache
+# is set the same way as when their first added, so [None,(None,None)]
+# the default state of the cache
 def find_user(hash, id):
-    if is_valid_key(cache[hash]['main'], id):
-        cache[hash]['time'] = time.time()
-        server_big_logger.info(f'Current cache: {cache}')
-        return decrypt_data_fast(cache[hash]['main'],id)
-    return [False,(False,False)]
+    if not is_valid_key(cache[hash]['main'], id):
+        return {'code':500}
+    cache[hash]['time'] = time.time()
+    server_big_logger.info(f'Current cache: {cache}')
+    data = decrypt_data_fast(cache[hash]['main'],id)
+    if data[0] == None:
+        return {'code':500}
+    return {'code':200, 'data':data}
 
 # this fuction is pretty cool too
 # we do the same check, then we encrypt the data given and replace 
@@ -332,8 +345,8 @@ def update_user(hash, id, dbdat):
         cache[hash]['main'] = encrypt_data_fast(dbdat,id)
         cache[hash]['time'] = time.time()
         server_big_logger.info(f'Current cache: {cache}')
-        return [None]
-    return [False,(False,False)]
+        return {'code':200}
+    return {'code':500}
 
 # and this last john just removes the users cache
 # if we pass that key check again
@@ -342,8 +355,8 @@ def delete_user(hash, id):
     if is_valid_key(cache[hash]['main'], id):
         del cache[hash]
         server_big_logger.info(f'Current cache: {cache}')
-        return [None]
-    return [False,(False,False)]
+        return {'code':200}
+    return {'code':500}
 
 # this is the first of the many main opperations the user can preform
 # this function will create a users account if it passes a bunch of checks
@@ -378,59 +391,64 @@ def sign_up(app, db, User, **data):
 # send this updated dict back to the cache and then return the function with 200
 def save_data(**data):
     user_from_cache = find_user(data['hash'], data['id'])
-    if user_from_cache[0] == None or user_from_cache[0] == False:
+    if user_from_cache['code'] == 500:
         return {'code':423}
     if not is_json_serialized(data['data']):
         return {'code':420, 'data':data['data'], 'error':'Object is not json serialized'}
     data_from_request = json.loads(data['data'])
     if data['location'] == '':
-        update_user(data['hash'], data['id'], [{'':data_from_request}, user_from_cache[1]])
+        update_user(data['hash'], data['id'], [{'':data_from_request}, user_from_cache['data'][1]])
         return {'code':200, 'data':data_from_request}
-    jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).update_or_create(user_from_cache[0], data_from_request)
-    update_user(data['hash'], data['id'], [user_from_cache[0], user_from_cache[1]])
-    return {'code':200, 'data':user_from_cache[0]}
+    jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).update_or_create(user_from_cache['data'][0], data_from_request)
+    update_user(data['hash'], data['id'], [user_from_cache['data'][0], user_from_cache['data'][1]])
+    return {'code':200, 'data':user_from_cache['data'][0]}
 
 def delete_data(**data):
     user_from_cache = find_user(data['hash'], data['id'])
-    if user_from_cache[0] == None or user_from_cache[0] == False:
+    if user_from_cache['code'] == 500:
         return {'code':423}
     if data['location'] == '':
-        update_user(data['hash'], data['id'], [{}, user_from_cache[1]])
+        update_user(data['hash'], data['id'], [{}, user_from_cache['data'][1]])
         return {'code':200}
-    parsed_location = jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).find(user_from_cache[0])
+    parsed_location = jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).find(user_from_cache['data'][0])
     if parsed_location == []:
         return {'code':416}
     del [match.context for match in parsed_location][0].value[str([match.path for match in parsed_location][0])]
-    update_user(data['hash'], data['id'], [user_from_cache[0], user_from_cache[1]])
+    update_user(data['hash'], data['id'], [user_from_cache['data'][0], user_from_cache['data'][1]])
     return {'code':200}
 
 def log_out(app, db, passfields, User, **data):
-    user_from_cache = find_user(data['hash'], data['id'])[0]
-    username, password = find_user(data['hash'], data['id'])[1]
-    if user_from_cache == None or user_from_cache == False:
+    user_from_cache = find_user(data['hash'], data['id'])
+    if user_from_cache['code'] == 500:
         return {'code':200}
     with app.app_context():
-        user_from_database = User.query.filter_by(username=username).first()
+        user_from_database = User.query.filter_by(username=user_from_cache['data'][1][0]).first()
     if not user_from_database:
-        return {'code':420, 'data':user_from_cache, 'error':'could not find user to logout'}
+        return {'code':420, 'data':user_from_cache['data'], 'error':'could not find user to logout'}
     datPass = marshal(user_from_database, passfields)['password']
-    if not verify_password_hash(datPass, password):
+    if not verify_password_hash(datPass, user_from_cache['data'][1][1]):
         return {'code': 423}
     with app.app_context():
         db.session.delete(user_from_database)
-        db.session.add(User(username=username, password=create_password_hash(password), data=encrypt_data(user_from_cache, username, password)))
+        db.session.add(User(username=user_from_cache['data'][1][0], 
+                            password=create_password_hash(user_from_cache['data'][1][1]), 
+                            data=encrypt_data(user_from_cache['data'][0], 
+                                              user_from_cache['data'][1][0], 
+                                              user_from_cache['data'][1][1])))
         db.session.commit()
     update_user(data['hash'], data['id'], [None,(None,None)])
     return {'code':200}
 
 def remove_account(app, db, passfields, User, **data):
-    username, password = find_user(data['hash'], data['id'])[1]
+    user_from_cache = find_user(data['hash'], data['id'])
+    if user_from_cache['code'] == 500:
+        return{'code':423}
     with app.app_context():
-        user_from_database = User.query.filter_by(username=username).first()
-    if not user_from_database or username == False:
+        user_from_database = User.query.filter_by(username=user_from_cache['data'][1][0]).first()
+    if not user_from_database:
         return {'code':423}
     datPass = marshal(user_from_database, passfields)['password']
-    if not verify_password_hash(datPass, password):
+    if not verify_password_hash(datPass, user_from_cache['data'][1][1]):
         return {'code':423}
     with app.app_context():
         db.session.delete(user_from_database)
@@ -450,27 +468,28 @@ def log_in(app, datfields, passfields, User, **data):
     datPass = marshal(user_from_database, passfields)['password']
     if not verify_password_hash(datPass, data['password']):
         return {'code':401}   
-    if update_user(data['hash'], data['id'], [decrypt_data(marshal(user_from_database, datfields)['data'], data['username'], data['password']), (data['username'], data['password'])])[0] == False:
+    cache_data = [decrypt_data(marshal(user_from_database, datfields)['data'], data['username'], data['password']), (data['username'], data['password'])]
+    if update_user(data['hash'], data['id'], cache_data)['code'] == 500:
         return {'code':423}
     return {'code':200}
 
 def load_data(**data):
-    user_from_cache = find_user(data['hash'], data['id'])[0]
-    if user_from_cache == None or user_from_cache == False:
+    user_from_cache = find_user(data['hash'], data['id'])
+    if user_from_cache['code'] == 500:
         return {'code':423}
     if data['location'] == '':
-        return {'code':202, 'data':user_from_cache['']}
-    parsed_location = jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).find(user_from_cache)
+        return {'code':202, 'data':user_from_cache['data'][0]['']}
+    parsed_location = jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).find(user_from_cache['data'][0])
     if parsed_location == []:
             return {'code':416}
     return {'code':202, 'data':[match.value for match in parsed_location][0]}
 
 def create_session(**data):
-    user_hash = add_user(data['id'])
+    user_hash = add_user(data['id'])['hash']
     return {'code':101, 'hash':user_hash}
 
 def end_session(**data):
-    if delete_user(data['hash'], data['id'])[0] == False:
+    if delete_user(data['hash'], data['id'])['code'] == 500:
         return {'code':423}
     return {'code':200}
 
