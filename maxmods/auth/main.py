@@ -11,7 +11,12 @@
 # but i challenged myself to make this without them and i also remember sum vid i watch about
 # O.O.P. being bad so i decided to not use it
 # only ecxeption to this rule is that the code used for the database connection uses a class
-# i lowk dont know a different way without rewriting the whole database connection with a different module or sum 
+# i lowk dont know a different way without rewriting the whole database connection with a different module or sum
+# also if you want to know useage for these raw functions instead of using the auth file
+# i will have the useage to the 'server', 'frontend_session', and 'backend_session' functions in the comments on them
+# and for all the other functions
+# well if you want to use those you should beable to understand how to use them from their comments too
+# and if you dont then you probably shouldnt use them
 
 # ok so these are all the imports i use
 # my fav lowk being josnpath_ng or cryptography
@@ -44,9 +49,9 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.backends import default_backend
 from cryptography.fernet import Fernet, InvalidToken
 
-# this lil john here is just used to get a file path to a folder where the module is stored
+# this lil john here is just used to get a file path to the folder where the module is stored
 # for logging purposes, it just makes more sense to me to have logs stored in the module folder
-# instead of the cwd, but i also made it user defined
+# instead of the cwd, but i also made it user defined if you so choose
 from . import logs
 
 # these are all the exceptions that this module will raise
@@ -499,7 +504,7 @@ def load_data(**data):
     if user_from_cache['code'] == 500:
         return {'code':423}
     if data['location'] == '':
-        return {'code':202, 'data':user_from_cache['data'][0]['']}
+        return {'code':202, 'data':user_from_cache['data'][0]}
     parsed_location = jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).find(user_from_cache['data'][0])
     if parsed_location == []:
             return {'code':416}
@@ -522,7 +527,7 @@ def backend_session(address):
         return json.loads(f.decrypt(client_socket.recv(1024)).decode())
     return send
 
-def frontend_session(path = os.getcwd()):
+def frontend_session(path = os.getcwd(), test_mode = False):
     app = Flask(__name__)
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{path}/database.db'
     client_logger.info(f'Database located at: sqlite:///{path}/database.db')
@@ -568,10 +573,14 @@ def frontend_session(path = os.getcwd()):
         
         elif data['func'] == 'end_session':
             return end_session(**data)
+
+        elif data['func'] == 'test':
+            if test_mode:
+                return {'code':200, 'data':data}
     
     return action
 
-def server(host, port, cache_threshold = 300, debug = False, log_senseitive_info = False):
+def server(host, port, cache_threshold = 300, debug = False, log_senseitive_info = False, test_mode = False):
     
     if debug:
         server_logger.addHandler(console_handler)
@@ -585,7 +594,7 @@ def server(host, port, cache_threshold = 300, debug = False, log_senseitive_info
     
     # Run the server
     # Create a frontend session for the server
-    session = frontend_session()
+    session = frontend_session(test_mode=test_mode)
     stop_flag1 = threading.Event()
     
     t = threading.Thread(target=keep_alive, args=(cache_threshold, stop_flag1))
