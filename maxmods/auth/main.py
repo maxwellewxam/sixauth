@@ -360,11 +360,11 @@ def delete_user(hash, id):
 
 # this is the first of the many main opperations the user can preform
 # this function will create a users account if it passes a bunch of checks
-# basically all these functions are based on a code ssytem
+# basically all these functions are based on a code system
 # we send data and then we return a code and any other information needed
 # so first we check that the username is a valid username
 # then we check that the user doesnt exsist in the database already
-# if all checks pass, the we create the users account and return a success code
+# if all checks pass, then we create the users account and return a success code
 def sign_up(app, db, User, **data):
     if data['username'] == '':
         return {'code':406}
@@ -403,6 +403,13 @@ def save_data(**data):
     update_user(data['hash'], data['id'], [user_from_cache['data'][0], user_from_cache['data'][1]])
     return {'code':200, 'data':user_from_cache['data'][0]}
 
+# now for deleting data from the database
+# we kinda so the same things
+# fetch the user from the cache, check to makesure that was successful
+# then we have a special case whene the location is '' where we just put an empty dict into the cache
+# otherwise we use jsonpath_ng to run through the dict of users data and then delete what data it finds
+# oh and if jsonpath_ng cant find the location then we return an error code for that
+# then we put the updated dict back into the cache and return the success code
 def delete_data(**data):
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
@@ -417,6 +424,15 @@ def delete_data(**data):
     update_user(data['hash'], data['id'], [user_from_cache['data'][0], user_from_cache['data'][1]])
     return {'code':200}
 
+# ok this is the logout function, this function is very important as its the only way to save info to the database
+# in the auth file we run logout before every login anf terminate call, this is to eensure that the previous user is saved
+# ok so first thing we do is fetch the data from the cache, very typical for these functions
+# make sure that the fetch didnt return an error code
+# then we fetch the user from the database
+# makesure that the user actually exists in the database, and if they dont we return the data in the cache for saftey
+# then we chack that the password in the cache is the same as in the database
+# then we update the database with the data in the cache
+# we clear the data in the cache and return a succsess code
 def log_out(app, db, passfields, User, **data):
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
@@ -439,6 +455,11 @@ def log_out(app, db, passfields, User, **data):
     update_user(data['hash'], data['id'], [None,(None,None)])
     return {'code':200}
 
+# for removing an account its very simmilar 
+# fetch cache and check status then fetch database and check status
+# run cross checks on database data and cache data
+# then remove the user from the database
+# and return success code
 def remove_account(app, db, passfields, User, **data):
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
