@@ -18,6 +18,11 @@ def foobar(count,hmmm):
             user2.set_vals(f'test{count}', 'test')
             user2.signup()
             user2.login()
+            user2.login()
+            user2.login()
+            user2.login()
+            user2.login()
+            user2.login()
             user2.remove()
 
 threads=[]
