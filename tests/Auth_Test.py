@@ -67,7 +67,7 @@ with ash() as user1, ash('127.0.0.1:5678') as user2:
             
         def test_135_load_client_side_all_data(self):
             user1.set_vals('test', 'test')
-            self.assertEqual(user1.load(''), {'URMOM':'test'})
+            self.assertEqual(user1.load(''), {'':{'URMOM':'test'}})
         
         def test_136_save_client_side_str(self):
             user1.set_vals('test', 'test')
@@ -134,7 +134,7 @@ with ash() as user1, ash('127.0.0.1:5678') as user2:
             
         def test_235_load_server_side_all_data(self):
             user2.set_vals('test', 'test')
-            self.assertEqual(user2.load(''), {'URMOM':'test'})
+            self.assertEqual(user2.load(''), {'':{'URMOM':'test'}})
         
         def test_236_save_server_side_str(self):
             user2.set_vals('test', 'test')

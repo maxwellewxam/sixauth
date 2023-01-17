@@ -482,6 +482,12 @@ def remove_account(app, db, passfields, User, **data):
     update_user(data['hash'], data['id'], [None,(None,None)])
     return {'code':200}
 
+# here is the log out function!
+# we use this to log in a user
+# we just do some standard checks
+# good username and password and that they match with the database
+# then return a success code
+# nothing crazy, but this is the only function that can load userdata from database to cache
 def log_in(app, datfields, passfields, User, **data):
     if data['username'] == '':
         return {'code':406}
@@ -499,6 +505,12 @@ def log_in(app, datfields, passfields, User, **data):
         return {'code':423}
     return {'code':200}
 
+# load data :sunglasses:
+# haha i love discord emoji annotation
+# anyways this function is crazy
+# kidding, just do more checks 
+# then use jsonpath_ng to retrive the data
+# the return 202 to tell the request handler that we also have data coming back to it
 def load_data(**data):
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
@@ -510,15 +522,25 @@ def load_data(**data):
             return {'code':416}
     return {'code':202, 'data':[match.value for match in parsed_location][0]}
 
+# the crate session function
+# this john just makes a position in the cache for the client
+# then the any users on the client use that cache position for data storage
+# we also return the cache pointer for the client to use
 def create_session(**data):
     user_hash = add_user(data['id'])['hash']
     return {'code':101, 'hash':user_hash}
 
+# and the end session function does the opposite
+# if finds the pointer and checks itd validity and then deletes it!
+# easy money if i do say so myself
 def end_session(**data):
     if delete_user(data['hash'], data['id'])['code'] == 500:
         return {'code':423}
     return {'code':200}
 
+# oo the backend session john
+# this mane is called and sets up a connection with the server
+# then it returns a funtion that can send a recive data from the client
 def backend_session(address):
     f, client_socket = establish_connection(address)
     client_logger.info(f'Connected to: {address}')
@@ -527,6 +549,9 @@ def backend_session(address):
         return json.loads(f.decrypt(client_socket.recv(1024)).decode())
     return send
 
+# im lowk getting lazy writing these and would love encouragement to do better lol
+# enewaz this is the frontend session
+# it starts up a database connection and then returns a function that wraps all the above functions
 def frontend_session(path = os.getcwd(), test_mode = False):
     app = Flask(__name__)
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{path}/database.db'
@@ -545,72 +570,59 @@ def frontend_session(path = os.getcwd(), test_mode = False):
         db.create_all()
     datfields = {'data': fields.Raw}
     passfields = {'password': fields.String}
-    
     def action(**data):
         if data['func'] == 'create_session':
             return create_session(**data)
-        
         elif data['func'] == 'sign_up':
             return sign_up(app, db, User, **data)
-        
         elif data['func'] == 'save_data':
             return save_data(**data)
-
         elif data['func'] == 'delete_data':
             return delete_data(**data)
-            
         elif data['func'] == 'log_out':
             return log_out(app, db, passfields, User, **data)
-            
         elif data['func'] == 'remove_account':
             return remove_account(app, db, passfields, User, **data)
-    
         elif data['func'] == 'log_in':
             return log_in(app, datfields, passfields, User, **data)
-            
         elif data['func'] == 'load_data':
             return load_data(**data)
-        
         elif data['func'] == 'end_session':
             return end_session(**data)
-
         elif data['func'] == 'test':
             if test_mode:
                 return {'code':200, 'data':data}
-    
     return action
 
+# and lastly the server function
+# this is by far the biggest function
+# this john will start off by setting up logging for the server
+# then it will create a socket connection on the given address and port
+# we also make some threads for cache checking and client handling
+# then we define the client function, which will be used in a thread once set up
+# the client thread will wait for a request from the client and basically just pass it to its own front end session
+# no need to do anything crazy, however we do have special cases for ensuring clients are ended properly
+# then we have the main loop that waits for a new client connection and sets up an encrypted connection
+# once encrytption is done we pass the client to its own handling thread
+# and thats it we are done!
 def server(host, port, cache_threshold = 300, debug = False, log_senseitive_info = False, test_mode = False):
-    
     if debug:
         server_logger.addHandler(console_handler)
         client_logger.addHandler(console_handler)
-        server_console.info('Debug mode active')
-        
+        server_console.info('Debug mode active')  
     if log_senseitive_info:
         server_console.info('WARNING: SENSEITIVE INFORMATION BEING LOGGED')
-        
     client_logger.addHandler(server_logger_handler)
-    
-    # Run the server
-    # Create a frontend session for the server
     session = frontend_session(test_mode=test_mode)
     stop_flag1 = threading.Event()
-    
     t = threading.Thread(target=keep_alive, args=(cache_threshold, stop_flag1))
     t.start()
-    
-    #Generate an ECDH key pair for the server
     server_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
     server_public_key = server_private_key.public_key()
-
-    #Serialize the server's public key
     server_public_key_bytes = server_public_key.public_bytes(
     encoding=serialization.Encoding.PEM,
     format=serialization.PublicFormat.SubjectPublicKeyInfo)
-
     clients = []
-    
     def exit():
         stop_flag1.set()
         t.join()
@@ -619,107 +631,68 @@ def server(host, port, cache_threshold = 300, debug = False, log_senseitive_info
             client_s.close()
             client_t.join()
         server_logger.info('All client threads exited')
-            
-    # Create a socket object
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-    #HMM
     server_socket.setblocking(0)
-    
-    # Bind the socket to the port
     server_socket.bind((host, port))
-
-    # Listen for incoming connections
     server_socket.listen()
     server_console.info('Server started')
     server_console.info('Press Ctrl+C to exit')
     server_console.info(f"Listening for incoming connections on {host}:{port}")
-
+# i hate how nested this is...
     def handle_client(client_socket, f, client_address, session, stop_flag):
-    # Pass requests from the client to the servers database session
         try:
             while not stop_flag.is_set():
-
                 try:
                     recv = client_socket.recv(1024)
                     server_logger.info(f"Received data from client: {client_address}: {recv}")
-                    
                     if recv != b'':
                         try:
                             data = json.loads(f.decrypt(recv).decode())
-                            
                             if log_senseitive_info:
                                 server_logger.info(f"Received: {data}")
                             elif data['func'] != 'sign_up' and data['func'] != 'create_session':
                                 server_logger.info(f"Received: {data['func']}, {data['hash']}")
-                            
                             response = session(**data)
-                            
                             server_logger.info(f'Response: {response["code"]}')
-                            
                             client_socket.send(f.encrypt(json.dumps(response).encode('utf-8')))
-                            
                             if data['func'] == 'end_session' and response['code'] == 200:
                                 break
-                        
                         except BaseException as err:
                             if type(err) == KeyError:
                                 client_socket.send(f.encrypt(json.dumps({'code':420, 'data':None, 'error':f'Couldnt find user in cache, contact owner to recover any data, \nuse this key: {str(err)}\nuse this id: \'{str(data["id"])}\''}).encode('utf-8')))
                             else:
                                 client_socket.send(f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
-                            
                             tb = traceback.extract_tb(sys.exc_info()[2])
                             line_number = tb[-1][1]
                             server_logger.info(f'Request prossesing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}\n{str(tb)}')
                             break
                     else:
                         break
-                    
                 except BlockingIOError:
                     pass
-                
         except BaseException as err:
             server_console.info(f'Client thread did not exit successfully, Error: {err}')
-        # End the connection when loop breaks
         server_logger.info(f"Closed connection from {client_address}")
         client_socket.close()
-        for sock, thread in clients:
-            if sock == client_socket:
-                clients.remove((client_socket, thread))
-    #Accept an incoming connection
+        del [client for client in clients if client[0] == client_socket][0]
     try:
         while not stop_flag1.is_set():
             try:
                 client_socket, client_address = server_socket.accept()
-
-                #Wait for the client's public key
                 client_public_key_bytes = client_socket.recv(1024)
-                
-                #Deserialize the client's public key
                 client_public_key = serialization.load_pem_public_key(
                 client_public_key_bytes, default_backend())
-
-                #Send the server's public key to the client
                 client_socket.send(server_public_key_bytes)
-
-                #Calculate the shared secret key using ECDH
                 shared_secret = server_private_key.exchange(ec.ECDH(), client_public_key)
-
-                #Use HKDF to derive a symmetric key from the shared secret
                 kdf = HKDF(
                 algorithm=hashes.SHA256(),
                 length=32,
                 salt=None,
                 info=b"session key",
-                backend=default_backend()
-                )
+                backend=default_backend())
                 key = kdf.derive(shared_secret)
-
-                #Use the symmetric key to encrypt and decrypt messages
                 f = Fernet(base64.urlsafe_b64encode(key))
                 server_logger.info(f"Received incoming connection from {client_address}")
-                
-                #Create a new thread to handle the incoming connection
                 client_thread = threading.Thread(target=handle_client, args=(client_socket, f, client_address, session, stop_flag1))
                 client_thread.start()
                 server_logger.info('Client thread started')
