@@ -15,6 +15,7 @@ import PySimpleGUI as sg
 def parse_dict(d):
     if not d:
         return None
+    
     dict_keys = []
     other_keys = []
     for key, value in d.items():
@@ -45,14 +46,25 @@ def layout2(data={'a': 1, 'b': {'c': 2}, 'd': [3, 4], 'e': '5'}):
         layout.append([sg.Text('Empty')])
     return layout
 
+def layout3(file, edit=False):
+    layout = [[sg.Button('Logout'), sg.Button('New File'), sg.Button('New Folder'), sg.Button('Back')]]
+    if edit:
+        layout[0].append(sg.Button('Save'))
+        layout[0].append(sg.Button('Cancel', key=f'Cancel|{file}'))
+        layout.append([sg.Input(key='data', default_text=file)])
+    else:
+        layout[0].append(sg.Button('Edit', key=f'Edit|{file}'))
+        layout.append([sg.Text(file)])
+    return layout
+
 def make_window(layout):
-    win = sg.Window('Login', layout, location=(2800, 200))
+    win = sg.Window('Login', layout)#, location=(2800, 200))
     win.finalize()
     return win
 
-window = make_window(layout2())
+window = make_window(layout1())
 ash = AuthSesh()
-
+location = ''
 while True:
     event, values = window.read()
     print(event, values)
@@ -60,10 +72,32 @@ while True:
         ash.terminate()
         break
     if event.startswith('Open'):
-        print('oops')
-    
+        parse = event.split('|')
+        if location == '':
+            location = f'{parse[2]}'
+        else:
+            location += f'/{parse[2]}'
+        window.close()
+        if parse[1] == 'Folder':
+            window = make_window(layout2(ash.load(location)))
+        if parse[1] == 'File':
+            window = make_window(layout3(ash.load(location)))
     if event.startswith('Delete'):
         print('deleted')
+    if event.startswith('Cancel'):
+        parse = event.split('|')
+        window.close()
+        window = make_window(layout3(parse[1]))
+    if event.startswith('Back'):
+        split_up = location.split('/')
+        split_up.pop()
+        location = '/'.join(split_up)
+        window.close()
+        window = make_window(layout2(ash.load(location)))
+    if event.startswith('Edit'):
+        parse = event.split('|')
+        window.close()
+        window = make_window(layout3(parse[1], True))
     
     if event == "Login":
         window["status_text"].update("Logging in...")
@@ -74,8 +108,7 @@ while True:
             window["status_text"].update(str(err))
         else:
             window.close()
-            #print(layout2(ash.load()))
-            window = make_window(layout2())
+            window = make_window(layout2(ash.load()))
     
     if event == "Signup":
         window["status_text"].update("Signing up...")
@@ -87,8 +120,9 @@ while True:
             window["status_text"].update(str(err))
         else:
             window.close()
-            window = make_window(layout2())
+            window = make_window(layout2(ash.load()))
     
     if event == "Logout":
-        pass
+        window.close()
+        window = make_window(layout1())
 window.close()
