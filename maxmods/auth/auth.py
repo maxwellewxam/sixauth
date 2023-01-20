@@ -221,7 +221,7 @@ class AuthSesh:
         >>> auth.delete("user_data/profile")
         This will delete the data at the location "user_data/profile" on the backend server.
         """
-        return self._requestHandle(self._sesh(func='delete_user', location=Location, hash=self._Hash, id=self._Id))
+        return self._requestHandle(self._sesh(func='delete_data', location=Location, hash=self._Hash, id=self._Id))
 
     def login(self):
         """Attempts to log in with the username and password set for the current `AuthSesh` instance.

@@ -27,7 +27,7 @@ def parse_dict(d):
 
 
 def layout1():
-    return [[sg.Text('Username'), sg.Input(key='username')],
+    return [[sg.Text('Username'), sg.Input(key='username', focus=True)],
             [sg.Text('Password'), sg.Input(password_char='*', key='password')],
             [sg.Button('Login'), sg.Button('Signup')],
             [sg.Text("", key="status_text")]]
@@ -40,21 +40,28 @@ def layout2(data={'a': 1, 'b': {'c': 2}, 'd': [3, 4], 'e': '5'}):
             row = [sg.Text(f'{folder}', auto_size_text=False, size=20), sg.Text('Folder', auto_size_text=False, size=5), sg.Button('Open', key=f'Open|Folder|{folder}'), sg.Button('Delete', key=f'Delete|{folder}')]
             layout.append(row)
         for file in files:
-            row = [sg.Text(f'{file}', auto_size_text=False, size=20), sg.Text('File', auto_size_text=False, size=5), sg.Button('Open', key=f'Open|File|{file}'), sg.Button('Delete', key=f'Open|{file}')]
+            row = [sg.Text(f'{file}', auto_size_text=False, size=20), sg.Text('File', auto_size_text=False, size=5), sg.Button('Open', key=f'Open|File|{file}'), sg.Button('Delete', key=f'Delete|{file}')]
             layout.append(row)
     else:
         layout.append([sg.Text('Empty')])
     return layout
 
 def layout3(file, edit=False):
-    layout = [[sg.Button('Logout'), sg.Button('New File'), sg.Button('New Folder'), sg.Button('Back')]]
+    layout = [[sg.Button('Logout'), sg.Button('Back')]]
     if edit:
-        layout[0].append(sg.Button('Save'))
-        layout[0].append(sg.Button('Cancel', key=f'Cancel|{file}'))
+        layout[0].append(sg.Button('Save', key='filesaved'))
+        layout[0].append(sg.Button('Cancel', key=f'Cancel|3|{file}'))
         layout.append([sg.Input(key='data', default_text=file)])
     else:
         layout[0].append(sg.Button('Edit', key=f'Edit|{file}'))
         layout.append([sg.Text(file)])
+    return layout
+
+def layout4(file, type):
+    layout = [[sg.Button('Logout'), sg.Button('Back')]]
+    layout[0].append(sg.Button('Save', key=type))
+    layout[0].append(sg.Button('Cancel', key=f'Cancel|4|{file}'))
+    layout.append([sg.Input(key='data', default_text=file)])
     return layout
 
 def make_window(layout):
@@ -71,6 +78,32 @@ while True:
     if event in (sg.WINDOW_CLOSED, 'Exit'):
         ash.terminate()
         break
+    if event == 'filesaved':
+        window.close()
+        ash.save(location,values['data'])
+        window = make_window(layout3(ash.load(location)))
+    if event == 'newfile':
+        window.close()
+        if location == '':
+            location = f'{values["data"]}'
+        else:
+            location = f'{location}/{values["data"]}'
+        ash.save(location,'')
+        window = make_window(layout3(ash.load(location), True))
+    if event == 'New File':
+        window.close()
+        window = make_window(layout4('New File', 'newfile'))
+    if event == 'newfold':
+        window.close()
+        if location == '':
+            location = f'{values["data"]}'
+        else:
+            location = f'{location}/{values["data"]}'
+        ash.save(location,{})
+        window = make_window(layout2(ash.load(location)))
+    if event == 'New Folder':
+        window.close()
+        window = make_window(layout4('New Folder', 'newfold'))
     if event.startswith('Open'):
         parse = event.split('|')
         if location == '':
@@ -83,11 +116,21 @@ while True:
         if parse[1] == 'File':
             window = make_window(layout3(ash.load(location)))
     if event.startswith('Delete'):
-        print('deleted')
+        parse = event.split('|')
+        if location == '':
+            dlocation = f'{parse[1]}'
+        else:
+            dlocation = f'{location}/{parse[1]}'
+        window.close()
+        ash.delete(dlocation)
+        window = make_window(layout2(ash.load(location)))
     if event.startswith('Cancel'):
         parse = event.split('|')
         window.close()
-        window = make_window(layout3(parse[1]))
+        if parse[1] == '3':
+            window = make_window(layout3(parse[2]))
+        elif parse[1] == '4':
+            window = make_window(layout2(ash.load(location)))
     if event.startswith('Back'):
         split_up = location.split('/')
         split_up.pop()
