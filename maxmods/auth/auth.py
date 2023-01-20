@@ -29,6 +29,7 @@ class AuthSesh:
     >>> auth.terminate()
     This will create an `AuthSesh` instance that connects to a local database, log in with the provided username and password, and load the data from the location "user_data/profile" on the server. The `AuthSesh` instance will be terminated manually by calling the `terminate` method.
     """
+    
     def __init__(self, Address: str = None, Path: str = os.getcwd()):
         """Initializes the `AuthSesh` instance.
 
@@ -220,7 +221,7 @@ class AuthSesh:
         >>> auth.delete("user_data/profile")
         This will delete the data at the location "user_data/profile" on the backend server.
         """
-        return self._requestHandle(self._sesh(func='delete_user', location=Location, hash=self._Hash, id=self._Id))
+        return self._requestHandle(self._sesh(func='delete_data', location=Location, hash=self._Hash, id=self._Id))
 
     def login(self):
         """Attempts to log in with the username and password set for the current `AuthSesh` instance.
@@ -307,6 +308,9 @@ class AuthSesh:
         elif request['code'] == 202:
             return request['data']
         
+        elif request['code'] == 101:
+            self._Hash = request['hash']
+        
         elif request['code'] == 416:
             raise LocationError('Loaction does not exist')
         
@@ -324,9 +328,6 @@ class AuthSesh:
         
         elif request['code'] == 423:
             raise AuthenticationError('Failed to authenticate user')
-
-        elif request['code'] == 101:
-            self._Hash = request['hash']
             
         elif request['code'] == 420:
             raise DataError(f"An error occured during the request, here is the data we could recover: {request['data']}\n Error: {request['error']}" )
