@@ -9,8 +9,6 @@
  - The [auth](https://github.com/maxwellewxam/maxmods/tree/main/maxmods/auth) module provides classes for handling user authentication. The `AuthSesh` class can be used to create an authentication session and perform actions such as logging in, signing up, and loading and saving data to the backend server.
 
 - The [menu](https://github.com/maxwellewxam/maxmods/tree/main/maxmods/menu) module provides classes for creating menus. The `BasicMenu` class allows you to create a menu with items that accept user input and call associated functions when selected. The `InfoMenu` class allows you to create a menu that displays information without accepting user input. The `SettingsMenu` class allows you to create a menu that accepts user input and updates attributes of an associated class when an item is selected.
-
-- The [primitives](https://github.com/maxwellewxam/maxmods/tree/main/maxmods/primitives) module provides some useful code snippits but is not maintianed and not recomened to be used. however it is provided for those who want it.
   
 ## Installation
 
