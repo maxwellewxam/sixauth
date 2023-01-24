@@ -1,11 +1,6 @@
 jsonpath_ng
 flask_sqlalchemy
+cryptography
+bcrypt
 flask
 flask_restful
-cryptography
-keyboard
-pygame
-fpstimer
-numpy
-func_timeout
-bcrypt

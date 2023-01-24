@@ -198,6 +198,7 @@ PublishScripts/
 csx/
 *.build.csdef
 
+# no more farting
 # Microsoft Azure Emulator
 ecf/
 rcf/

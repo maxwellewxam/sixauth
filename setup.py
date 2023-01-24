@@ -22,6 +22,7 @@ if "-" in mm_remote_version:
     # when not on tag, git describe outputs: "1.3.3-22-gdf81228"
     # pip has gotten strict with version numbers
     # so change it to: "1.3.3+22.git.gdf81228"
+    # dont ppop
     # See: https://peps.python.org/pep-0440/#local-version-segments
     v,i,s = mm_remote_version.split("-")
     mm_remote_version = v + "+" + i + ".git." + s
