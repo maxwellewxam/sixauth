@@ -555,7 +555,7 @@ def backend_session(address):
 def frontend_session(path = os.getcwd(), test_mode = False):
     app = Flask(__name__)
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{path}/database.db'
-    client_logger.info(f'Database located at: sqlite:///{path}/database.db')
+    client_logger.info(f'Database located at: sqlite:\\\\\\{path}\\database.db')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     db = SQLAlchemy(app)            
     class User(db.Model):
