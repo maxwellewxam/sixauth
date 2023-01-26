@@ -7,6 +7,26 @@
     <li><a href="#maxmodsauth">maxmods.auth</a>
     <ul>
         <li><a href="#usage">Usage</a></li>
+        <ul>
+            <li><a href="#instance">Instancing</a></li>
+            <ul>
+                <li><a href="#context">With Context Manager</a></li>
+                <li><a href="#nocontext">Without Context Manager</a></li>
+            </ul>
+            <li><a href="#connection">Remote or Local Connections</a></li>
+            <ul>
+                <li><a href="#cwd">Current Working Directory</a></li>
+                <li><a href="#local">Local Folder</a></li>
+                <li><a href="#server">Servers</a></li>
+            </ul>
+            <li><a href="#setvals">Setting Values</a></li>
+            <li><a href="#signup">Signing Up</a></li>
+            <li><a href="#login">Logging In</a></li>
+            <li><a href="#save">Saving Data</a></li>
+            <li><a href="#load">Loading Data</a></li>
+            <li><a href="#delete">Deleting Data</a></li>
+            <li><a href="#remove">Removing User</a></li>
+        </ul>
         <li><a href="#exception">Exceptions</a></li>
     </ul>
     <li><a href="#license">License and Disclaimer</a></li>
@@ -22,15 +42,15 @@
 <h1 id="maxmodsauth">maxmods.auth</h1>
 <p>The <code>maxmods.auth</code> module provides a simple way to handle user authentication and data storage on a remote server or your local machine. The <code>AuthSesh</code> class allows you to sign up, log in, and manage their data in the database. For more details and examples, see the <a href="https://github.com/maxwellewxam/maxmods/blob/main/maxmods/auth/auth.py" target="_new">AuthSesh class documentation</a>.</p>
 <h2 id="usage">Usage</h2>
-<h3>Instancing</h3>
+<h3 id="instance">Instancing</h3>
 <p>To use the <code>AuthSesh</code> class, you first need to create an instance of the class. There are two ways to do this, with a context manager or without.</p>
-<h4> With Context Manager</h4>
+<h4 id="context"> With Context Manager</h4>
 <p>The <code>AuthSesh</code> class can be used as a context manager:</p>
 <pre><div class="bg-black mb-4 rounded-md"><div class="flex items-center relative text-gray-200 bg-gray-800 px-4 py-2 text-xs font-sans"></div><div class="p-4"><code class="!whitespace-pre-wrap hljs language-python"><span class="hljs-keyword">from</span> maxmods.auth <span class="hljs-keyword">import</span> <span class="hljs-class">AuthSesh</span>
 <span class="hljs-keyword">with</span> <span class="hljs-class">AuthSesh</span>() <span class="hljs-keyword">as</span> auth:
 </span><span class="hljs-comment">    # ...</span></code></div></div></pre>
 <p>This will automatically log out and terminate the session when the context ends.</p>
-<h4>Without Context Manager</h4>
+<h4 id="nocontext">Without Context Manager</h4>
 <p>The <code>AuthSesh</code> class can also be used without a context manager:</p>
 <pre><div class="bg-black mb-4 rounded-md"><div class="flex items-center relative text-gray-200 bg-gray-800 px-4 py-2 text-xs font-sans"></div><div class="p-4"><code class="!whitespace-pre-wrap hljs language-python"><span class="hljs-keyword">from</span> maxmods.auth <span class="hljs-keyword">import</span> <span class="hljs-class">AuthSesh</span>
 auth = <span class="hljs-class">AuthSesh</span>()
@@ -38,46 +58,46 @@ auth = <span class="hljs-class">AuthSesh</span>()
 <p>When you are done with the instance, you have to use the <code>terminate()</code> method to save your work and properly close connections:</p>
 <pre><div class="bg-black mb-4 rounded-md"><div class="flex items-center relative text-gray-200 bg-gray-800 px-4 py-2 text-xs font-sans"></div><div class="p-4"><code class="!whitespace-pre-wrap hljs language-python">auth.terminate()</code></div></div></pre>
 <p>IMPORTANT: If you do not do this, nothing you do will save.</p>
-<h3>Remote or Local Connections</h3>
+<h3 id="connection">Remote or Local Connections</h3>
 <p>When creating a <code>AuthSesh</code> instance there are a few options for where the instance will connect to. You can only pick from one of these, if you provide an address and a path, it will connect to the server and disreguard the path given.</p>
-<h4>Current Working Directory</h4>
+<h4 id="cwd">Current Working Directory</h4>
 <p>The simplest is connecting to a database in the current working directory of your script:</p>
 <pre><div class="bg-black mb-4 rounded-md"><div class="flex items-center relative text-gray-200 bg-gray-800 px-4 py-2 text-xs font-sans"></div><div class="p-4"><code class="!whitespace-pre-wrap hljs language-python"><span class="hljs-class">AuthSesh</span>()</code></div></div></pre>
 <p>This will create a database.db file in the current working directory if one is not already there.</p>
-<h4>Local Folder</h4>
+<h4 id="local">Local Folder</h4>
 <p>Next is connecting to a database in a path specified as a paramater:</p>
 <pre><div class="bg-black mb-4 rounded-md"><div class="flex items-center relative text-gray-200 bg-gray-800 px-4 py-2 text-xs font-sans"></div><div class="p-4"><code class="!whitespace-pre-wrap hljs language-python"><span class="hljs-class">AuthSesh</span>(Path=<span class="hljs-string">"pathto/database/folder"</span>)</code></div></div></pre>
 <p>This will create a database.db file in the specified path if one is not already there, it will not make the folder if it doesnt exsist though.</p>
-<h4>Servers</h4>
+<h4 id="server">Servers</h4>
 <p>Lastly, connecting to a remote server:</p>
 <pre><div class="bg-black mb-4 rounded-md"><div class="flex items-center relative text-gray-200 bg-gray-800 px-4 py-2 text-xs font-sans"></div><div class="p-4"><code class="!whitespace-pre-wrap hljs language-python"><span class="hljs-class">AuthSesh</span>(Address=<span class="hljs-string">"0.0.0.0:5678"</span>)</code></div></div></pre>
-<p>This will establish a secure connection to the remote server provided. If you want to host a server look at <a href="#maxmodsauthmain" target="_new">maxmods.auth.main</a>.</p>
-<h3>Setting Values</h3>
+<p>This will establish a secure connection to the remote server provided. If you want to host a server look at <a href="#maxmodsauthmain">maxmods.auth.main</a>.</p>
+<h3 id="setvals">Setting Values</h3>
 <p>In order to authenticate a user we need their name and password. You do that with the <code>set_vals()</code> method:</p>
 <pre><div class="bg-black mb-4 rounded-md"><div class="flex items-center relative text-gray-200 bg-gray-800 px-4 py-2 text-xs font-sans"></div><div class="p-4"><code class="!whitespace-pre-wrap hljs language-python">auth.set_vals(<span class="hljs-string">"username"</span>, <span class="hljs-string">"password"</span>)</code></div></div></pre>
 <p>You can call this method at anytime to change the user. However if <code>login()</code> is not called before attempting to manage data, it will still be connected to the previous user.</p>
-<h3>Signing Up</h3>
+<h3 id="signup">Signing Up</h3>
 <p>Once a username and password are set, you use the <code>signup()</code> method to sign up:</p>
 <pre><div class="bg-black mb-4 rounded-md"><div class="flex items-center relative text-gray-200 bg-gray-800 px-4 py-2 text-xs font-sans"></div><div class="p-4"><code class="!whitespace-pre-wrap hljs language-python">auth.signup()
 </code></div></div></pre>
 <p>If the signup is successful, you then have to login to actually manage user data.</p>
-<h3>Logging In</h3>
+<h3 id="login">Logging In</h3>
 <p>Once you're ready to login, you can use the <code>login()</code> method to log in to the server:</p>
 <pre><div class="bg-black mb-4 rounded-md"><div class="flex items-center relative text-gray-200 bg-gray-800 px-4 py-2 text-xs font-sans"></div><div class="p-4"><code class="!whitespace-pre-wrap hljs language-python">auth.login()
 </code></div></div></pre>
 <p>If the login is successful, you can start managing the database.</p>
-<h3>Saving Data</h3>
+<h3 id="save">Saving Data</h3>
 <p>After you've seccessfully logged in, you use the <code>save()</code> mathod to save data into the database:</p>
 <pre><div class="bg-black mb-4 rounded-md"><div class="flex items-center relative text-gray-200 bg-gray-800 px-4 py-2 text-xs font-sans"></div><div class="p-4"><code class="!whitespace-pre-wrap hljs language-python">auth.save(<span class="hljs-string">"user_data/profile"</span>, {<span class="hljs-string">"name"</span>: <span class="hljs-string">"John Doe"</span>, <span class="hljs-string">"email"</span>: <span class="hljs-string">"johndoe@example.com"</span>})</code></div></div></pre>
 <p>Data in the database is stored in a dictonary and is parsed using the <a href="https://github.com/h2non/jsonpath-ng" target="_new">jsonpath-ng</a> module. The location provided goes through a filter and converts numbers to their alphebetical counter-parts.</p>
-<h3>Loading Data</h3>
+<h3 id="load">Loading Data</h3>
 <p>You access data in the database with the <code>load()</code> method:</p>
 <pre><div class="bg-black mb-4 rounded-md"><div class="flex items-center relative text-gray-200 bg-gray-800 px-4 py-2 text-xs font-sans"></div><div class="p-4"><code class="!whitespace-pre-wrap hljs language-python">data = auth.load(<span class="hljs-string">"user_data/profile"</span>)</code></div></div></pre>
 <p>This will will return the data in the specified location, if no location is provided, it will return the whole dictionary.</p>
-<h3>Deleting Data</h3>
+<h3 id="delete">Deleting Data</h3>
 <p>To delete data in the database, you use the <code>delete()</code> method:</p>
 <pre><div class="bg-black mb-4 rounded-md"><div class="flex items-center relative text-gray-200 bg-gray-800 px-4 py-2 text-xs font-sans"></div><div class="p-4"><code class="!whitespace-pre-wrap hljs language-python">auth.delete(<span class="hljs-string">"user_data/profile"</span>)</code></div></div></pre>
-<h3>Removing User</h3>
+<h3 id="remove">Removing User</h3>
 <p>Finally, if you'd like to delete the user from the database, you use the <code>remove()</code> method:</p>
 <pre><div class="bg-black mb-4 rounded-md"><div class="flex items-center relative text-gray-200 bg-gray-800 px-4 py-2 text-xs font-sans"></div><div class="p-4"><code class="!whitespace-pre-wrap hljs language-python">auth.remove()</code></div></div></pre>
 <h2 id="exception">Exceptions</h2>
