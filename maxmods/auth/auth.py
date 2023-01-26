@@ -173,6 +173,7 @@ class AuthSesh:
         data = json.dumps(data)
         
         return self._requestHandle(self._sesh(func='save_data', location=Location, data=data, hash=self._Hash, id=self._Id))
+    
     def load(self, Location = ''):
         """Loads data from the specified location on the backend authentication server.
 
