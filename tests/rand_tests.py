@@ -1,36 +1,11 @@
 import sys
 import os
-import time
-import threading
-import random
+# if sys.platform == 'win32':
+#     HERE = os.path.abspath('../')
+# else:
 HERE = os.path.abspath(os.getcwd())
 sys.path.append(HERE)
-from maxmods.auth import AuthSesh
+from sixauth.main import backend_session
 
-with AuthSesh('127.0.0.1:5678') as ash:
-    ash.set_vals('lauren', 'supersecretpassword')
-    #ash.signup()
-
-
-
-def foobar(count,hmmm):
-        with AuthSesh('127.0.0.1:5678') as user2:
-            user2.set_vals(f'test{count}', 'test')
-            user2.signup()
-            user2.login()
-            user2.login()
-            user2.login()
-            user2.login()
-            user2.login()
-            user2.login()
-            user2.remove()
-
-threads=[]
-
-for i in range(1000):
-    client_thread = threading.Thread(target=foobar, args=(i,random.random()))
-    client_thread.start()
-    time.sleep(0.1)
-    threads.append(client_thread)
-for thread in threads:
-    thread.join()
+hmm = backend_session('127.0.0.1:8888')
+print(hmm(amsdn='234234'))

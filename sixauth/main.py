@@ -37,6 +37,7 @@ import time
 import threading
 import logging
 import traceback
+import asyncio
 
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
@@ -705,3 +706,34 @@ def server(host, port, cache_threshold = 300, debug = False, log_senseitive_info
     except BaseException as err:
         exit()
         server_console.info(f'Program did not exit successfully, Error: {err}')
+
+def server2():
+    class EchoServerClientProtocol(asyncio.Protocol):
+        def connection_made(self, transport):
+            self.transport = transport
+
+        def data_received(self, data):
+            print(data)
+            self.transport.write(data)
+
+    def factory():
+        def builder():
+            pass
+        return builder
+    
+    async def main():
+        # Get the event loop
+        loop = asyncio.get_running_loop()
+
+        server = await loop.create_server(
+            lambda: factory(),
+            '127.0.0.1', 8888
+        )
+
+        async with server:
+            await server.serve_forever()
+
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
