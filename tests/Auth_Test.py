@@ -3,8 +3,8 @@ import sys
 import os
 HERE = os.path.abspath(os.getcwd())
 sys.path.append(HERE)
-from maxmods.auth import AuthSesh as ash
-from maxmods.auth.main import AuthenticationError, LocationError
+from sixauth import AuthSesh as ash
+from sixauth.main import AuthenticationError, LocationError
 import unittest
 
 with ash() as user1, ash('127.0.0.1:5678') as user2:

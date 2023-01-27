@@ -1,0 +1,12 @@
+LICENSE
+README.md
+setup.py
+sixauth/__init__.py
+sixauth/auth.py
+sixauth/main.py
+sixauth.egg-info/PKG-INFO
+sixauth.egg-info/SOURCES.txt
+sixauth.egg-info/dependency_links.txt
+sixauth.egg-info/requires.txt
+sixauth.egg-info/top_level.txt
+sixauth/logs/__init__.py
