@@ -1,6 +1,6 @@
 '''An all-in-one user authenticator and data manager'''
 
-from maxmods.auth.main import *
+from sixauth.main import *
 
 class AuthSesh:
     """Main class of the Auth module.
