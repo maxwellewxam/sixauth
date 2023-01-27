@@ -1,6 +1,0 @@
-jsonpath-ng
-flask_sqlalchemy
-flask
-flask_restful
-cryptography
-bcrypt
