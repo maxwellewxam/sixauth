@@ -1,6 +1,6 @@
 '''An all-in-one user authenticator and data manager'''
 
-from maxmods.auth.main import *
+from sixauth.main import *
 
 class AuthSesh:
     """Main class of the Auth module.
@@ -173,6 +173,7 @@ class AuthSesh:
         data = json.dumps(data)
         
         return self._requestHandle(self._sesh(func='save_data', location=Location, data=data, hash=self._Hash, id=self._Id))
+    
     def load(self, Location = ''):
         """Loads data from the specified location on the backend authentication server.
 
