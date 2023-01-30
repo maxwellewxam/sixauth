@@ -84,12 +84,12 @@ cache = {}
 # but atleast you get to see my thought prosses
 # ok but here we define the names, levels, and formats of the loggers
 server_console = logging.getLogger('server_console')
+client_console = logging.getLogger('client_console')
 server_logger = logging.getLogger('server_logger')
-server_big_logger = logging.getLogger('server_big_logger')
 client_logger = logging.getLogger('client_logger')
 server_console.setLevel(logging.INFO)
+client_console.setLevel(logging.INFO)
 server_logger.setLevel(logging.INFO)
-server_big_logger.setLevel(logging.INFO)
 client_logger.setLevel(logging.INFO)
 console_handler = logging.StreamHandler()
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -113,11 +113,55 @@ def log_paths(client_logger_location = os.path.dirname(logs.__file__), server_lo
     server_logger_handler.setFormatter(formatter)
     client_logger_handler.setFormatter(formatter)
 
+
+
+def whos_logging(loghandle):
+    def log_func(text):
+        loghandle.info(text)
+    return log_func
+
+# starting to remake the logging for more formality
+def setup_logger(client_logger_location = os.path.dirname(logs.__file__), 
+                 server_logger_location = os.getcwd(), 
+                 debug = False,
+                 log_senesitive = False,
+                 log_more = True):
+    global logger
+    server_logger_handler = logging.FileHandler(server_logger_location+'/server.log')
+    client_logger_handler = logging.FileHandler(client_logger_location+'/client.log')
+    server_console.addHandler(server_logger_handler)
+    server_console.addHandler(console_handler)
+    server_logger.addHandler(server_logger_handler)
+    client_logger.addHandler(client_logger_handler)
+    client_console.addHandler(client_logger_handler)
+    client_console.addHandler(console_handler)
+    server_logger.info('VVV---------BEGIN-NEW-LOG----------VVV')
+    client_logger.info('VVV---------BEGIN-NEW-LOG----------VVV')
+    server_logger_handler.setFormatter(formatter)
+    client_logger_handler.setFormatter(formatter)
+    def logger(is_server = False):
+        if is_server and debug:
+            log = whos_logging(server_console)
+        elif is_server and not debug:
+            log = whos_logging(server_logger)
+        elif not is_server and debug:
+            log = whos_logging(client_console)
+        elif not is_server and not debug:
+            log = whos_logging(client_logger)
+        def decorator(func):
+            def wrapper(*args, **kwargs):
+                log(f'{func.__name__} called with arguments {args} and {kwargs}')
+                vals = func(*args, **kwargs)
+                log(f'{func.__name__} returned {vals}')
+                return vals
+            return wrapper
+        return decorator
+
 # and here we just run the defult state so that we are always logging something
 # we can run the function above at anytime during runtime to change this
 # it will show in the logs that a new log has started
 # and from then on all the loggers will have the new paths and states
-log_paths()
+setup_logger()
 
 # now for the first big function here
 # this is the cache check loop that we run in a separate thread
@@ -606,6 +650,7 @@ def frontend_session(path = os.getcwd(), test_mode = False):
 # then we have the main loop that waits for a new client connection and sets up an encrypted connection
 # once encrytption is done we pass the client to its own handling thread
 # and thats it we are done!
+@logger(is_server=True)
 def server(host, port, cache_threshold = 300, debug = False, log_senseitive_info = False, test_mode = False):
     if debug:
         server_logger.addHandler(console_handler)
