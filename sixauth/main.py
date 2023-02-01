@@ -763,22 +763,24 @@ async def handle_client(client_socket, client_address, f):
 
 async def handle_server(server_socket, server_private_key, server_public_key_bytes):
     while True:
-        client_socket, client_address = server_socket.accept()
-        client_public_key_bytes = client_socket.recv(1024)
-        client_public_key = serialization.load_pem_public_key(
-        client_public_key_bytes, default_backend())
-        client_socket.send(server_public_key_bytes)
-        shared_secret = server_private_key.exchange(ec.ECDH(), client_public_key)
-        kdf = HKDF(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=None,
-        info=b"session key",
-        backend=default_backend())
-        key = kdf.derive(shared_secret)
-        f = Fernet(base64.urlsafe_b64encode(key))
-        asyncio.ensure_future(handle_client(client_socket, client_address, f))
-
+        try:
+            client_socket, client_address = server_socket.accept()
+            client_public_key_bytes = client_socket.recv(1024)
+            client_public_key = serialization.load_pem_public_key(
+            client_public_key_bytes, default_backend())
+            client_socket.send(server_public_key_bytes)
+            shared_secret = server_private_key.exchange(ec.ECDH(), client_public_key)
+            kdf = HKDF(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=None,
+            info=b"session key",
+            backend=default_backend())
+            key = kdf.derive(shared_secret)
+            f = Fernet(base64.urlsafe_b64encode(key))
+            asyncio.ensure_future(handle_client(client_socket, client_address, f))
+        except BlockingIOError:
+            pass
 
 def server2():
     host = "127.0.0.1"
@@ -796,6 +798,6 @@ def server2():
     server_socket.listen()
 
     loop = asyncio.get_event_loop()
-    asyncio.ensure_future(handle_server(server_socket, server_public_key, server_public_key_bytes))
+    asyncio.ensure_future(handle_server(server_socket, server_private_key, server_public_key_bytes))
     loop.run_forever()
 
