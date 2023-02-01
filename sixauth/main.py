@@ -133,9 +133,9 @@ def setup_logger(client_logger_location = os.path.dirname(logs.__file__),
             log = whos_logging(client_logger)
         def decorator(func):
             def wrapper(*args, **kwargs):
-                keys_to_exclude = []
-                #parsed_args = {k: v for k, v in d.items() if k not in keys_to_exclude}
-                log(f'{func.__name__} called with arguments {args} and {kwargs}')
+                keys_to_exclude = ['password', 'id', 'data']
+                parsed_args = {k: v for k, v in kwargs.items() if k not in keys_to_exclude}
+                log(f'{func.__name__} called with arguments {args} and {parsed_args}')
                 vals = func(*args, **kwargs)
                 log(f'{func.__name__} returned {vals}')
                 return vals
@@ -747,33 +747,55 @@ def server(host, port, cache_threshold = 300, test_mode = False):
         exit()
         server_console.info(f'Program did not exit successfully, Error: {err}')
 
+async def handle_client_connection(client_socket, client_address, f):
+    data = f.decrypt(client_socket.recv(1024))
+    print(data)
+    client_socket.send(f.encrypt(data))
+
+
+async def handle_client(client_socket, client_address, f):
+    while True:
+        try:
+            await handle_client_connection(client_socket, client_address, f)
+        except InvalidToken:
+            break
+
+
+async def handle_server(server_socket, server_private_key, server_public_key_bytes):
+    while True:
+        client_socket, client_address = server_socket.accept()
+        client_public_key_bytes = client_socket.recv(1024)
+        client_public_key = serialization.load_pem_public_key(
+        client_public_key_bytes, default_backend())
+        client_socket.send(server_public_key_bytes)
+        shared_secret = server_private_key.exchange(ec.ECDH(), client_public_key)
+        kdf = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=None,
+        info=b"session key",
+        backend=default_backend())
+        key = kdf.derive(shared_secret)
+        f = Fernet(base64.urlsafe_b64encode(key))
+        asyncio.ensure_future(handle_client(client_socket, client_address, f))
+
+
 def server2():
-    class EchoServerClientProtocol(asyncio.Protocol):
-        def connection_made(self, transport):
-            self.transport = transport
+    host = "127.0.0.1"
+    port = 5678
 
-        def data_received(self, data):
-            print(data)
-            self.transport.write(data)
+    server_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
+    server_public_key = server_private_key.public_key()
+    server_public_key_bytes = server_public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo)
 
-    def factory():
-        def builder():
-            pass
-        return builder
-    
-    async def main():
-        # Get the event loop
-        loop = asyncio.get_running_loop()
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    #server_socket.setblocking(0)
+    server_socket.bind((host, port))
+    server_socket.listen()
 
-        server = await loop.create_server(
-            lambda: factory(),
-            '127.0.0.1', 8888
-        )
+    loop = asyncio.get_event_loop()
+    asyncio.ensure_future(handle_server(server_socket, server_public_key, server_public_key_bytes))
+    loop.run_forever()
 
-        async with server:
-            await server.serve_forever()
-
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        pass
