@@ -746,21 +746,26 @@ def server(host, port, cache_threshold = 300, test_mode = False):
     except BaseException as err:
         exit()
         server_console.info(f'Program did not exit successfully, Error: {err}')
-
+        
+def async_run(func):
+    def wrap(*args, **kwargs):
+        return asyncio.run(func(*args, **kwargs))
+    return wrap
+@logger(is_server=True)
 async def handle_client_connection(client_socket, client_address, f):
-    data = f.decrypt(client_socket.recv(1024))
-    print(data)
-    client_socket.send(f.encrypt(data))
-
-
+    try:
+        data = f.decrypt(client_socket.recv(1024))
+        print(data)
+        client_socket.send(f.encrypt(data))
+    except BlockingIOError:
+        pass
+@logger(is_server=True)
 async def handle_client(client_socket, client_address, f):
+    server_console.info(client_address)
     while True:
-        try:
-            await handle_client_connection(client_socket, client_address, f)
-        except InvalidToken:
-            break
+        await handle_client_connection(client_socket, client_address, f)
 
-
+@logger(is_server=True)
 async def handle_server(server_socket, server_private_key, server_public_key_bytes):
     while True:
         try:
@@ -779,24 +784,28 @@ async def handle_server(server_socket, server_private_key, server_public_key_byt
             key = kdf.derive(shared_secret)
             f = Fernet(base64.urlsafe_b64encode(key))
             asyncio.ensure_future(handle_client(client_socket, client_address, f))
+            server_console.info('lol')
         except BlockingIOError:
             pass
-
-def server2():
-    host = "127.0.0.1"
-    port = 5678
-
+        
+@logger(is_server=True)
+def server2(host, port, cache_threshold = 300, test_mode = False):
+    session = frontend_session(test_mode=test_mode)
+    stop_flag1 = threading.Event()
+    t = threading.Thread(target=keep_alive, args=(cache_threshold, stop_flag1))
+    t.start()
     server_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
     server_public_key = server_private_key.public_key()
     server_public_key_bytes = server_public_key.public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo)
-
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PublicFormat.SubjectPublicKeyInfo)
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     #server_socket.setblocking(0)
     server_socket.bind((host, port))
     server_socket.listen()
-
+    server_console.info('Server started')
+    server_console.info('Press Ctrl+C to exit')
+    server_console.info(f"Listening for incoming connections on {host}:{port}")
     loop = asyncio.get_event_loop()
     asyncio.ensure_future(handle_server(server_socket, server_private_key, server_public_key_bytes))
     loop.run_forever()
