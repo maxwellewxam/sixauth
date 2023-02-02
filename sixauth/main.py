@@ -133,8 +133,10 @@ def setup_logger(client_logger_location = os.path.dirname(logs.__file__),
             log = whos_logging(client_logger)
         def decorator(func):
             def wrapper(*args, **kwargs):
-                keys_to_exclude = ['password', 'id', 'data']
-                parsed_args = {k: v for k, v in kwargs.items() if k not in keys_to_exclude}
+                parsed_args = kwargs
+                if not log_senesitive:
+                    keys_to_exclude = ['password', 'id', 'data', 'server_private_key']
+                    parsed_args = {k: v for k, v in kwargs.items() if k not in keys_to_exclude} 
                 log(f'{func.__name__} called with arguments {args} and {parsed_args}')
                 vals = func(*args, **kwargs)
                 log(f'{func.__name__} returned {vals}')
@@ -147,6 +149,17 @@ def setup_logger(client_logger_location = os.path.dirname(logs.__file__),
 # it will show in the logs that a new log has started
 # and from then on all the loggers will have the new paths and states
 setup_logger()
+
+
+def handle_exception(exception, handle):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            try:
+                func(*args, **kwargs)
+            except exception:
+                pass
+        return wrapper
+    return decorator
 
 # now for the first big function here
 # this is the cache check loop that we run in a separate thread
@@ -162,7 +175,6 @@ setup_logger()
 # if the time is past a defined threshold, then we delete it and declare in the log that a user timed out
 # so save resources we only run this chack once a second
 # also the stop flag stops this thread from the main thread
-@logger()
 def check_and_remove(threshold, stop_flag):
     while not stop_flag.is_set():
         for key in list(cache):
@@ -186,7 +198,6 @@ def check_and_remove(threshold, stop_flag):
 # then when the thread joines back to the keep alive thread
 # it will loop and start a new checker thread
 # should also mention that this is run in its own thread much like the checker is
-@logger()
 def keep_alive(cache_threshold, stop_flag):
     while not stop_flag.is_set():
         t = threading.Thread(target=check_and_remove, args=(cache_threshold, stop_flag))
@@ -320,7 +331,7 @@ def is_valid_key(data, id):
 # actually not that big ngl, just alot of data moving to securly get a shared key
 # this code was half created by the chatGPT bot, was using ssl before this and was having trouble with certs
 @logger()
-def establish_connection(address):
+def establish_client_connection(address):
     client_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
     client_public_key = client_private_key.public_key()
     client_public_key_bytes = client_public_key.public_bytes(
@@ -591,7 +602,7 @@ def end_session(**data):
 # then it returns a funtion that can send a recive data from the client
 @logger()
 def backend_session(address):
-    f, client_socket = establish_connection(address)
+    f, client_socket = establish_client_connection(address)
     client_logger.info(f'Connected to: {address}')
     @logger()
     def send(**data):
@@ -645,148 +656,56 @@ def frontend_session(path = os.getcwd(), test_mode = False):
             if test_mode:
                 return {'code':200, 'data':data}
     return action
-
-# and lastly the server function
-# this is by far the biggest function
-# this john will start off by setting up logging for the server
-# then it will create a socket connection on the given address and port
-# we also make some threads for cache checking and client handling
-# then we define the client function, which will be used in a thread once set up
-# the client thread will wait for a request from the client and basically just pass it to its own front end session
-# no need to do anything crazy, however we do have special cases for ensuring clients are ended properly
-# then we have the main loop that waits for a new client connection and sets up an encrypted connection
-# once encrytption is done we pass the client to its own handling thread
-# and thats it we are done!
-@logger(is_server=True)
-def server(host, port, cache_threshold = 300, test_mode = False):
-    
-    session = frontend_session(test_mode=test_mode)
-    stop_flag1 = threading.Event()
-    t = threading.Thread(target=keep_alive, args=(cache_threshold, stop_flag1))
-    t.start()
-    server_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
-    server_public_key = server_private_key.public_key()
-    server_public_key_bytes = server_public_key.public_bytes(
-    encoding=serialization.Encoding.PEM,
-    format=serialization.PublicFormat.SubjectPublicKeyInfo)
-    clients = []
-    def exit():
-        stop_flag1.set()
-        t.join()
-        server_logger.info('Cache thread exited')
-        for client_s, client_t in clients:
-            client_s.close()
-            client_t.join()
-        server_logger.info('All client threads exited')
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.setblocking(0)
-    server_socket.bind((host, port))
-    server_socket.listen()
-    server_console.info('Server started')
-    server_console.info('Press Ctrl+C to exit')
-    server_console.info(f"Listening for incoming connections on {host}:{port}")
-# i hate how nested this is...
-    @logger(is_server=True)
-    def handle_client(client_socket, f, client_address, session, stop_flag):
-        try:
-            while not stop_flag.is_set():
-                try:
-                    recv = client_socket.recv(1024)
-                    server_logger.info(f"Received data from client: {client_address}: {recv}")
-                    if recv != b'':
-                        try:
-                            data = json.loads(f.decrypt(recv).decode())
-                            response = session(**data)
-                            server_logger.info(f'Response: {response["code"]}')
-                            client_socket.send(f.encrypt(json.dumps(response).encode('utf-8')))
-                            if data['func'] == 'end_session' and response['code'] == 200:
-                                break
-                        except BaseException as err:
-                            if type(err) == KeyError:
-                                client_socket.send(f.encrypt(json.dumps({'code':420, 'data':None, 'error':f'Couldnt find user in cache, contact owner to recover any data, \nuse this key: {str(err)}\nuse this id: \'{str(data["id"])}\''}).encode('utf-8')))
-                            else:
-                                client_socket.send(f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
-                            tb = traceback.extract_tb(sys.exc_info()[2])
-                            line_number = tb[-1][1]
-                            server_logger.info(f'Request prossesing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}\n{str(tb)}')
-                            break
-                    else:
-                        break
-                except BlockingIOError:
-                    pass
-        except BaseException as err:
-            pass
-        client_socket.close()
-        del [client for client in clients if client[0] == client_socket][0]
-    try:
-        while not stop_flag1.is_set():
-            try:
-                client_socket, client_address = server_socket.accept()
-                client_public_key_bytes = client_socket.recv(1024)
-                client_public_key = serialization.load_pem_public_key(
-                client_public_key_bytes, default_backend())
-                client_socket.send(server_public_key_bytes)
-                shared_secret = server_private_key.exchange(ec.ECDH(), client_public_key)
-                kdf = HKDF(
-                algorithm=hashes.SHA256(),
-                length=32,
-                salt=None,
-                info=b"session key",
-                backend=default_backend())
-                key = kdf.derive(shared_secret)
-                f = Fernet(base64.urlsafe_b64encode(key))
-                client_thread = threading.Thread(target=handle_client, args=(client_socket, f, client_address, session, stop_flag1))
-                client_thread.start()
-                clients.append((client_socket, client_thread))
-            except BlockingIOError:
-                pass
-    except KeyboardInterrupt:
-        exit()
-        server_console.info('Exited')
-    except BaseException as err:
-        exit()
-        server_console.info(f'Program did not exit successfully, Error: {err}')
         
-def async_run(func):
-    def wrap(*args, **kwargs):
-        return asyncio.run(func(*args, **kwargs))
-    return wrap
 @logger(is_server=True)
-async def handle_client_connection(client_socket, client_address, f):
-    try:
-        data = f.decrypt(client_socket.recv(1024))
-        print(data)
-        client_socket.send(f.encrypt(data))
-    except BlockingIOError:
-        pass
-@logger(is_server=True)
-async def handle_client(client_socket, client_address, f):
-    server_console.info(client_address)
-    while True:
-        await handle_client_connection(client_socket, client_address, f)
+async def main_client_func(client_socket, client_address, f, loop, session, stop_flag1):
+    while not stop_flag1.is_set():
+        try:
+            recv = await loop.sock_recv(client_socket, 1024)
+            server_logger.info(f"Received data from client: {client_address}: {recv}")
+            if recv != b'':
+                try:
+                    data = json.loads(f.decrypt(recv).decode())
+                    response = session(**data)
+                    server_logger.info(f'Response: {response["code"]}')
+                    await loop.sock_sendall(client_socket, f.encrypt(json.dumps(response).encode('utf-8')))
+                    if data['func'] == 'end_session' and response['code'] == 200:
+                        break
+                except BaseException as err:
+                    if type(err) == KeyError:
+                        await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':f'Couldnt find user in cache, contact owner to recover any data, \nuse this key: {str(err)}\nuse this id: \'{str(data["id"])}\''}).encode('utf-8')))
+                    else:
+                        await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
+                    tb = traceback.extract_tb(sys.exc_info()[2])
+                    line_number = tb[-1][1]
+                    server_logger.info(f'Request prossesing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}\n{str(tb)}')
+                    break
+        except InvalidToken:
+            pass
+
+async def handle_client(client_socket, client_address, server_public_key_bytes, stop_flag1, loop, session, server_private_key=None):
+    client_public_key_bytes = await loop.sock_recv(client_socket, 1024)
+    client_public_key = serialization.load_pem_public_key(
+    client_public_key_bytes, default_backend())
+    await loop.sock_sendall(client_socket, server_public_key_bytes)
+    shared_secret = server_private_key.exchange(ec.ECDH(), client_public_key)
+    kdf = HKDF(
+    algorithm=hashes.SHA256(),
+    length=32,
+    salt=None,
+    info=b"session key",
+    backend=default_backend())
+    key = kdf.derive(shared_secret)
+    f = Fernet(base64.urlsafe_b64encode(key))
+    await main_client_func(client_socket, client_address, f, loop, session, stop_flag1)
+    client_socket.close()
 
 @logger(is_server=True)
-async def handle_server(server_socket, server_private_key, server_public_key_bytes):
+async def server_main_loop(server_socket, server_public_key_bytes, stop_flag1, session, server_private_key=None):
+    loop = asyncio.get_event_loop()
     while True:
-        try:
-            client_socket, client_address = server_socket.accept()
-            client_public_key_bytes = client_socket.recv(1024)
-            client_public_key = serialization.load_pem_public_key(
-            client_public_key_bytes, default_backend())
-            client_socket.send(server_public_key_bytes)
-            shared_secret = server_private_key.exchange(ec.ECDH(), client_public_key)
-            kdf = HKDF(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=None,
-            info=b"session key",
-            backend=default_backend())
-            key = kdf.derive(shared_secret)
-            f = Fernet(base64.urlsafe_b64encode(key))
-            asyncio.ensure_future(handle_client(client_socket, client_address, f))
-            server_console.info('lol')
-        except BlockingIOError:
-            pass
+        client_socket, client_address = await loop.sock_accept(server_socket)
+        asyncio.create_task(handle_client(client_socket, client_address, server_public_key_bytes, stop_flag1, loop, session, server_private_key=server_private_key))
         
 @logger(is_server=True)
 def server2(host, port, cache_threshold = 300, test_mode = False):
@@ -800,13 +719,20 @@ def server2(host, port, cache_threshold = 300, test_mode = False):
     encoding=serialization.Encoding.PEM,
     format=serialization.PublicFormat.SubjectPublicKeyInfo)
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #server_socket.setblocking(0)
+    server_socket.setblocking(0)
     server_socket.bind((host, port))
     server_socket.listen()
     server_console.info('Server started')
     server_console.info('Press Ctrl+C to exit')
     server_console.info(f"Listening for incoming connections on {host}:{port}")
-    loop = asyncio.get_event_loop()
-    asyncio.ensure_future(handle_server(server_socket, server_private_key, server_public_key_bytes))
-    loop.run_forever()
-
+    
+    try:
+        asyncio.run(server_main_loop(server_socket, server_public_key_bytes, stop_flag1, session, server_private_key=server_private_key))
+    except KeyboardInterrupt:
+        stop_flag1.set()
+        server_console.info('Server Closed')
+        t.join()
+    except BaseException as err:
+        stop_flag1.set()
+        t.join()
+        server_console.info(f'Program did not exit successfully, Error: {err}')
