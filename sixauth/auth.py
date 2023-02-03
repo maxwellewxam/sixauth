@@ -68,7 +68,7 @@ class AuthSesh:
         else:
             self._sesh = backend_session(self._Address)
             
-        self._requestHandle(self._sesh(func='create_session', id=self._Id))
+        self._requestHandle(self._sesh(code=301, id=self._Id))
 
     def __repr__(self):
         return f'AuthSesh({self._Path}).set_vals({self._Name}, {self._Pass})'        
@@ -172,7 +172,7 @@ class AuthSesh:
         """
         data = json.dumps(data)
         
-        return self._requestHandle(self._sesh(func='save_data', location=Location, data=data, hash=self._Hash, id=self._Id))
+        return self._requestHandle(self._sesh(code=303, location=Location, data=data, hash=self._Hash, id=self._Id))
     
     def load(self, Location = ''):
         """Loads data from the specified location on the backend authentication server.
@@ -197,7 +197,7 @@ class AuthSesh:
         >>> user_data = auth.load("user_data/profile")
         This will load the data from the location "user_data/profile" on the backend server and store it in the `user_data` variable.
         """
-        return self._requestHandle(self._sesh(func='load_data', location=Location, hash=self._Hash, id=self._Id))
+        return self._requestHandle(self._sesh(code=308, location=Location, hash=self._Hash, id=self._Id))
     
     def delete(self, Location: str):
         """Deletes the data at the specified location on the backend authentication server.
@@ -222,7 +222,7 @@ class AuthSesh:
         >>> auth.delete("user_data/profile")
         This will delete the data at the location "user_data/profile" on the backend server.
         """
-        return self._requestHandle(self._sesh(func='delete_data', location=Location, hash=self._Hash, id=self._Id))
+        return self._requestHandle(self._sesh(code=304, location=Location, hash=self._Hash, id=self._Id))
 
     def login(self):
         """Attempts to log in with the username and password set for the current `AuthSesh` instance.
@@ -241,8 +241,8 @@ class AuthSesh:
         >>> auth.login()
         This will attempt to log in with the username and password set for the `AuthSesh` instance.
         """
-        self._requestHandle(self._sesh(func='log_out', hash=self._Hash, id=self._Id))
-        return self._requestHandle(self._sesh(func='log_in', username=self._Name, password=self._Pass, hash=self._Hash, id=self._Id))
+        self._requestHandle(self._sesh(code=305, hash=self._Hash, id=self._Id))
+        return self._requestHandle(self._sesh(code=307, username=self._Name, password=self._Pass, hash=self._Hash, id=self._Id))
         
     def signup(self):
         """Attempts to sign up with the username and password set for the current `AuthSesh` instance.
@@ -261,7 +261,7 @@ class AuthSesh:
         >>> auth.signup()
         This will attempt to sign up with the username and password set for the `AuthSesh` instance.
         """
-        return self._requestHandle(self._sesh(func='sign_up', username=self._Name, password=self._Pass))
+        return self._requestHandle(self._sesh(code=302, username=self._Name, password=self._Pass))
     
     def remove(self):
         """Attempts to remove the user with the username and password set for the current `AuthSesh` instance.
@@ -280,7 +280,7 @@ class AuthSesh:
         >>> auth.remove()
         This will attempt to remove the user with the username and password set for the `AuthSesh` instance.
         """
-        return self._requestHandle(self._sesh(func='remove_account', hash=self._Hash, id=self._Id))
+        return self._requestHandle(self._sesh(code=306, hash=self._Hash, id=self._Id))
     
     def terminate(self):
         """Terminates the current `AuthSesh` instance.
@@ -298,8 +298,8 @@ class AuthSesh:
         >>> auth.terminate()
         This will log in with the username and password set for the `AuthSesh` instance, and then terminate the `AuthSesh` instance.
         """
-        self._requestHandle(self._sesh(func='log_out', hash=self._Hash, id=self._Id))
-        self._requestHandle(self._sesh(func='end_session', hash=self._Hash, id=self._Id))
+        self._requestHandle(self._sesh(code=305, hash=self._Hash, id=self._Id))
+        self._requestHandle(self._sesh(code=309, hash=self._Hash, id=self._Id))
 
     
     def _requestHandle(self, request):
@@ -309,7 +309,7 @@ class AuthSesh:
         elif request['code'] == 202:
             return request['data']
         
-        elif request['code'] == 101:
+        elif request['code'] == 201:
             self._Hash = request['hash']
         
         elif request['code'] == 416:
