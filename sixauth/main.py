@@ -105,7 +105,7 @@ def whos_logging(loghandle):
 def setup_logger(client_logger_location = os.path.dirname(logs.__file__), 
                  server_logger_location = os.getcwd(), 
                  debug = False,
-                 log_senesitive = False,
+                 log_sensitive = False,
                  log_more = False):
     global logger
     if server_logger_location != None:
@@ -122,7 +122,7 @@ def setup_logger(client_logger_location = os.path.dirname(logs.__file__),
         client_logger_handler.setFormatter(formatter)
     server_console.addHandler(console_handler)
     client_console.addHandler(console_handler)
-    def logger(is_server = False, is_log_more=False):
+    def logger(is_server = False, is_log_more=False, in_sensitive=False, out_sensitive=False):
         if is_server and debug:
             log = whos_logging(server_console)
         elif is_server and not debug:
@@ -133,18 +133,18 @@ def setup_logger(client_logger_location = os.path.dirname(logs.__file__),
             log = whos_logging(client_logger)
         def decorator(func):
             def wrapper(*args, **kwargs):
-                parsed_args = kwargs
-                keys_to_exclude = ['password', 'id', 'data', 'server_private_key']
-                if not log_senesitive:
-                    parsed_args = {k: v for k, v in kwargs.items() if k not in keys_to_exclude} 
-                if not is_log_more or log_more:
-                    log(f'{func.__name__} called with arguments {args} and {parsed_args}')
-                parsed_return = func(*args, **kwargs)
-                if not is_log_more or log_more:
-                    if not log_senesitive:
-                        parsed_return = {k: v for k, v in parsed_return.items() if k not in keys_to_exclude}
-                    log(f'{func.__name__} returned {parsed_return}')
-                return parsed_return
+                if is_log_more == False or log_more == True:
+                    if not in_sensitive or log_sensitive:
+                        log(f'{func.__name__} called with arguments {args} and {kwargs}')
+                    else:
+                        log(f'{func.__name__} called')
+                returned = func(*args, **kwargs)
+                if is_log_more == False or log_more == True:
+                    if not out_sensitive or log_sensitive:
+                        log(f'{func.__name__} returned {returned}')
+                    else:
+                        log(f'{func.__name__} returned')
+                return returned
             return wrapper
         return decorator
 
@@ -152,7 +152,7 @@ def setup_logger(client_logger_location = os.path.dirname(logs.__file__),
 # we can run the function above at anytime during runtime to change this
 # it will show in the logs that a new log has started
 # and from then on all the loggers will have the new paths and states
-setup_logger(server_logger_location=None)
+setup_logger(server_logger_location=None, log_sensitive=True, log_more=True)
 
 # now for the first big function here
 # this is the cache check loop that we run in a separate thread
@@ -211,8 +211,8 @@ def keep_alive(cache_threshold, stop_flag):
 # then we define a key driver object and derive the key from the password
 # then create a fernet object with with the key and then encrypt the data 
 # with the fernet object, and then return it, easy!
-@logger(is_log_more=True)
-def encrypt_data(data, username, password=None):
+@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+def encrypt_data(data, username, password):
     json_data = json.dumps(data)
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
@@ -232,8 +232,8 @@ def encrypt_data(data, username, password=None):
 # return that dict and easy money
 # for the both of these functions tho, i dont know if they are the best way to do this
 # its the way we have and untill told otherwise im not changing it lol
-@logger(is_log_more=True)
-def decrypt_data(data, username, password=None):
+@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+def decrypt_data(data, username, password):
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=32,
@@ -248,16 +248,16 @@ def decrypt_data(data, username, password=None):
 # just have the message and the key
 # very quickly do everything that the above functions do 
 # except for derive the key
-@logger(is_log_more=True)
-def encrypt_data_fast(message, key=None):
+@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+def encrypt_data_fast(message, key):
     return Fernet(bytes.fromhex(key)).encrypt(json.dumps(message).encode())
 
 # the key is sent by the client and the server doesnt have to do any work to make it
 # this is way less secure and doesnt last any longer than one run of the client
 # as the key is never stored on the client outside of the client script
 # but because the data is not stored in a file this way it shouldnt need to be too secure i think
-@logger(is_log_more=True)
-def decrypt_data_fast(message, key=None):
+@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+def decrypt_data_fast(message, key):
     return json.loads(Fernet(bytes.fromhex(key)).decrypt(message).decode())
 
 # here are the password hashing functions
@@ -266,16 +266,16 @@ def decrypt_data_fast(message, key=None):
 # i realized i should move these outside of the functions to one place
 # as these are ever changing as hardware and software change
 # will be easier to update these when better hashing algorithms come out
-@logger(is_log_more=True)
-def create_password_hash(password=None):
+@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+def create_password_hash(password):
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).hex()
 
 # as for now, bcrypt is the best password hashing lib
 # and one of the easiest ones to use
 # just hash the john then check if the password and the hash match
 # obviously more than that happens, but this isnt a course on cryptograghy lol
-@logger(is_log_more=True)
-def verify_password_hash(hash, password=None):
+@logger(is_log_more=True, in_sensitive=True)
+def verify_password_hash(hash, password):
     return bcrypt.checkpw(password.encode('utf-8'), bytes.fromhex(hash))
 
 # ok this function converts a numbers to their letter form
@@ -283,8 +283,8 @@ def verify_password_hash(hash, password=None):
 # and we use it because the jsonpath_ng module doesnt allow numbers in the 
 # parser configuration, just do this regular conversion and the end user never knows we did it
 # unless they look at the raw dict lol
-@logger(is_log_more=True)
-def convert_numbers_to_words(data=None):
+@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+def convert_numbers_to_words(data):
         return data.replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')
 
 # this lil john just checks if an object 
@@ -292,7 +292,7 @@ def convert_numbers_to_words(data=None):
 # we do this because we make this check alot and i dont like
 # try and except statements in like main code ya know
 # rather have it in a dedicated function
-@logger(is_log_more=True)
+@logger(is_log_more=True, in_sensitive=True)
 def is_json_serialized(obj):
     try:
         json.loads(obj)
@@ -305,8 +305,8 @@ def is_json_serialized(obj):
 # just moved it to its own function
 # we use this in the cache functions to check if the key provided by the client works for 
 # the hash they are trying to access, if not, boot them
-@logger(is_log_more=True)
-def is_valid_key(data=None, id=None):
+@logger(is_log_more=True, in_sensitive=True)
+def is_valid_key(data, id):
     try:
         decrypt_data_fast(data, id)
         return True
@@ -357,8 +357,8 @@ def establish_client_connection(address):
 # we also log what is in the cache if we are logging big things
 # oh and this returns the a dict with a succsess code and pointer, i call it hash just because its the hash of the id plus datetime as a way of ensuring 
 # no two hashes are the same
-@logger(is_log_more=True)
-def add_user(id=None):
+@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+def add_user(id):
     hash = hashlib.sha512((f'{id}{datetime.now()}').encode("UTF-8")).hexdigest()
     cache[hash] = {'main':encrypt_data_fast([None,(None,None)],id), 'time':time.time()}
     return {'code':200, 'hash':hash}
@@ -375,8 +375,8 @@ def add_user(id=None):
 # then that code will no longer throw, also when the user logs out, the info in the cache
 # is set the same way as when their first added, so [None,(None,None)]
 # the default state of the cache
-@logger(is_log_more=True)
-def find_user(hash, id=None):
+@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+def find_user(hash, id):
     if not is_valid_key(cache[hash]['main'], id):
         return {'code':500}
     cache[hash]['time'] = time.time()
@@ -390,8 +390,8 @@ def find_user(hash, id=None):
 # the data in the cache with it
 # all the cache functions are really easy
 # and thats why its so fast
-@logger(is_log_more=True)
-def update_user(hash, dbdat, id=None):
+@logger(is_log_more=True, in_sensitive=True)
+def update_user(hash, id, dbdat):
     if is_valid_key(cache[hash]['main'], id):
         cache[hash]['main'] = encrypt_data_fast(dbdat,id)
         cache[hash]['time'] = time.time()
@@ -401,8 +401,8 @@ def update_user(hash, dbdat, id=None):
 # and this last john just removes the users cache
 # if we pass that key check again
 # oh yeah also we log the changes in the cache
-@logger(is_log_more=True)
-def delete_user(hash, id=None):
+@logger(is_log_more=True, in_sensitive=True)
+def delete_user(hash, id):
     if is_valid_key(cache[hash]['main'], id):
         del cache[hash]
         return {'code':200}
@@ -415,7 +415,7 @@ def delete_user(hash, id=None):
 # so first we check that the username is a valid username
 # then we check that the user doesnt exsist in the database already
 # if all checks pass, then we create the users account and return a success code
-@logger(is_log_more=True)
+@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
 def sign_up(app, db, User, **data):
     if data['username'] == '':
         return {'code':406}
@@ -440,7 +440,7 @@ def sign_up(app, db, User, **data):
 # if we dont do that then we will use jsonpath_ng to parse the dict of users data and then
 # update or create the data into the location
 # send this updated dict back to the cache and then return the function with 200
-@logger(is_log_more=True)
+@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
 def save_data(**data):
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
@@ -462,7 +462,7 @@ def save_data(**data):
 # otherwise we use jsonpath_ng to run through the dict of users data and then delete what data it finds
 # oh and if jsonpath_ng cant find the location then we return an error code for that
 # then we put the updated dict back into the cache and return the success code
-@logger(is_log_more=True)
+@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
 def delete_data(**data):
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
@@ -486,7 +486,7 @@ def delete_data(**data):
 # then we chack that the password in the cache is the same as in the database
 # then we update the database with the data in the cache
 # we clear the data in the cache and return a succsess code
-@logger(is_log_more=True)
+@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
 def log_out(app, db, passfields, User, **data):
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
@@ -514,7 +514,7 @@ def log_out(app, db, passfields, User, **data):
 # run cross checks on database data and cache data
 # then remove the user from the database
 # and return success code
-@logger(is_log_more=True)
+@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
 def remove_account(app, db, passfields, User, **data):
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
@@ -538,7 +538,7 @@ def remove_account(app, db, passfields, User, **data):
 # good username and password and that they match with the database
 # then return a success code
 # nothing crazy, but this is the only function that can load userdata from database to cache
-@logger(is_log_more=True)
+@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
 def log_in(app, datfields, passfields, User, **data):
     if data['username'] == '':
         return {'code':406}
@@ -562,7 +562,7 @@ def log_in(app, datfields, passfields, User, **data):
 # kidding, just do more checks 
 # then use jsonpath_ng to retrive the data
 # the return 202 to tell the request handler that we also have data coming back to it
-@logger(is_log_more=True)
+@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
 def load_data(**data):
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
@@ -578,7 +578,7 @@ def load_data(**data):
 # this john just makes a position in the cache for the client
 # then the any users on the client use that cache position for data storage
 # we also return the cache pointer for the client to use
-@logger(is_log_more=True)
+@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
 def create_session(**data):
     user_hash = add_user(data['id'])['hash']
     return {'code':201, 'hash':user_hash}
@@ -586,7 +586,7 @@ def create_session(**data):
 # and the end session function does the opposite
 # if finds the pointer and checks itd validity and then deletes it!
 # easy money if i do say so myself
-@logger(is_log_more=True)
+@logger(is_log_more=True, in_sensitive=True)
 def end_session(**data):
     if delete_user(data['hash'], data['id'])['code'] == 500:
         return {'code':423}
@@ -599,7 +599,7 @@ def end_session(**data):
 def backend_session(address):
     f, client_socket = establish_client_connection(address)
     client_logger.info(f'Connected to: {address}')
-    @logger()
+    @logger(in_sensitive=True, out_sensitive=True)
     def send(**data):
         client_socket.send(f.encrypt(json.dumps(data).encode('utf-8')))
         return json.loads(f.decrypt(client_socket.recv(1024)).decode())
@@ -627,8 +627,8 @@ def frontend_session(path = os.getcwd(), test_mode = False):
         db.create_all()
     datfields = {'data': fields.Raw}
     passfields = {'password': fields.String}
-    @logger()
-    def action(**data):
+    @logger(in_sensitive=True, out_sensitive=True)
+    def session(**data):
         if data['code'] == 301:
             return create_session(**data)
         elif data['code'] == 302:
@@ -650,8 +650,8 @@ def frontend_session(path = os.getcwd(), test_mode = False):
         elif data['code'] == 'test':
             if test_mode:
                 return {'code':200, 'data':data}
-    return action
-@logger(is_log_more=True, is_server=True)
+    return session
+@logger(is_log_more=True, is_server=True, in_sensitive=True)
 async def main_client_loop(client_socket, client_address, f, loop, session, stop_flag1):
     while not stop_flag1.is_set():
         recv = await loop.sock_recv(client_socket, 1024)
@@ -670,10 +670,10 @@ async def main_client_loop(client_socket, client_address, f, loop, session, stop
                 await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
             tb = traceback.extract_tb(sys.exc_info()[2])
             line_number = tb[-1][1]
-            server_logger.info(f'Request prossesing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}\n{str(tb)}')
+            server_logger.info(f'Request prossesing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')#\n{str(tb)}')
             break
 
-@logger(is_server=True)
+@logger(is_server=True, in_sensitive=True)
 async def handle_client(client_socket, client_address, server_public_key_bytes, stop_flag1, loop, session, server_private_key=None):
     client_public_key_bytes = await loop.sock_recv(client_socket, 1024)
     client_public_key = serialization.load_pem_public_key(
@@ -691,7 +691,7 @@ async def handle_client(client_socket, client_address, server_public_key_bytes, 
     await main_client_loop(client_socket, client_address, f, loop, session, stop_flag1)
     client_socket.close()
 
-@logger(is_server=True)
+@logger(is_server=True, in_sensitive=True)
 async def server_main_loop(server_socket, server_public_key_bytes, stop_flag1, session, server_private_key=None):
     loop = asyncio.get_event_loop()
     clients = set()
