@@ -54,7 +54,8 @@ from cryptography.fernet import Fernet, InvalidToken
 # this lil john here is just used to get a file path to the folder where the module is stored
 # for logging purposes, it just makes more sense to me to have logs stored in the module folder
 # instead of the cwd, but i also made it user defined if you so choose
-from . import logs
+from logs.log_class import Logger
+
 
 # these are all the exceptions that this module will raise
 # i could use like built in ones but ion feel like it so...
@@ -96,63 +97,12 @@ console_handler = logging.StreamHandler()
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 
-def whos_logging(loghandle):
-    def log_func(text):
-        loghandle.info(text)
-    return log_func
-
-
-def setup_logger(client_logger_location = os.path.dirname(logs.__file__), 
-                 server_logger_location = os.getcwd(), 
-                 debug = False,
-                 log_sensitive = False,
-                 log_more = False):
-    global logger
-    if server_logger_location != None:
-        server_logger_handler = logging.FileHandler(server_logger_location+'/server.log')
-        server_console.addHandler(server_logger_handler)
-        server_logger.addHandler(server_logger_handler)
-        server_logger.info('VVV---------BEGIN-NEW-LOG----------VVV')
-        server_logger_handler.setFormatter(formatter)
-    if client_logger_location != None:
-        client_logger_handler = logging.FileHandler(client_logger_location+'/client.log')
-        client_console.addHandler(client_logger_handler)
-        client_logger.addHandler(client_logger_handler)
-        client_logger.info('VVV---------BEGIN-NEW-LOG----------VVV')
-        client_logger_handler.setFormatter(formatter)
-    server_console.addHandler(console_handler)
-    client_console.addHandler(console_handler)
-    def logger(is_server = False, is_log_more=False, in_sensitive=False, out_sensitive=False):
-        if is_server and debug:
-            log = whos_logging(server_console)
-        elif is_server and not debug:
-            log = whos_logging(server_logger)
-        elif not is_server and debug:
-            log = whos_logging(client_console)
-        elif not is_server and not debug:
-            log = whos_logging(client_logger)
-        def decorator(func):
-            def wrapper(*args, **kwargs):
-                if is_log_more == False or log_more == True:
-                    if not in_sensitive or log_sensitive:
-                        log(f'{func.__name__} called with arguments {args} and {kwargs}')
-                    else:
-                        log(f'{func.__name__} called')
-                returned = func(*args, **kwargs)
-                if is_log_more == False or log_more == True:
-                    if not out_sensitive or log_sensitive:
-                        log(f'{func.__name__} returned {returned}')
-                    else:
-                        log(f'{func.__name__} returned')
-                return returned
-            return wrapper
-        return decorator
 
 # and here we just run the defult state so that we are always logging something
 # we can run the function above at anytime during runtime to change this
 # it will show in the logs that a new log has started
 # and from then on all the loggers will have the new paths and states
-setup_logger(server_logger_location=None, log_sensitive=True, log_more=True)
+logger = Logger(server_console, client_console, server_logger, client_logger, console_handler, formatter).setup_logger(server_logger_location=None, log_sensitive=True, log_more=True)
 
 # now for the first big function here
 # this is the cache check loop that we run in a separate thread
