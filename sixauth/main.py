@@ -54,7 +54,7 @@ from cryptography.fernet import Fernet, InvalidToken
 # this lil john here is just used to get a file path to the folder where the module is stored
 # for logging purposes, it just makes more sense to me to have logs stored in the module folder
 # instead of the cwd, but i also made it user defined if you so choose
-from logs.log_class import Logger
+from .logs.log_class import Logger
 
 
 # these are all the exceptions that this module will raise
@@ -75,16 +75,7 @@ class DataError(BaseException): ...
 # i lowk dont like just creating this thing like this but ion know a better way with out classes and whatnot
 cache = {}
 
-# here we begin to set up the loggers
-# i have four different loggers, one for console 
-# and one for debugging, then the same thing for the client side
-# i want to change the client console logger to be
-# a more indepth server logger and then reduce the amount of things
-# logged by the server, cause rn if you have like 100 clients connect to the server and 
-# manipulate data, log files get into he gigabytes of size
-# im actually gonna do that now which makes all of what i said irrelevant 
-# but atleast you get to see my thought prosses
-# ok but here we define the names, levels, and formats of the loggers
+
 server_console = logging.getLogger('server_console')
 client_console = logging.getLogger('client_console')
 server_logger = logging.getLogger('server_logger')
@@ -102,7 +93,7 @@ formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(messag
 # we can run the function above at anytime during runtime to change this
 # it will show in the logs that a new log has started
 # and from then on all the loggers will have the new paths and states
-logger = Logger(server_console, client_console, server_logger, client_logger, console_handler, formatter).setup_logger(server_logger_location=None, log_sensitive=True, log_more=True)
+logger = Logger(server_console, client_console, server_logger, client_logger, console_handler, formatter).setup_logger(server_logger_location=None)
 
 # now for the first big function here
 # this is the cache check loop that we run in a separate thread
@@ -550,10 +541,10 @@ def backend_session(address):
     f, client_socket = establish_client_connection(address)
     client_logger.info(f'Connected to: {address}')
     @logger(in_sensitive=True, out_sensitive=True)
-    def send(**data):
+    def session(**data):
         client_socket.send(f.encrypt(json.dumps(data).encode('utf-8')))
         return json.loads(f.decrypt(client_socket.recv(1024)).decode())
-    return send
+    return session
 
 # im lowk getting lazy writing these and would love encouragement to do better lol
 # enewaz this is the frontend session
@@ -601,6 +592,8 @@ def frontend_session(path = os.getcwd(), test_mode = False):
             if test_mode:
                 return {'code':200, 'data':data}
     return session
+
+
 @logger(is_log_more=True, is_server=True, in_sensitive=True)
 async def main_client_loop(client_socket, client_address, f, loop, session, stop_flag1):
     while not stop_flag1.is_set():
@@ -623,6 +616,7 @@ async def main_client_loop(client_socket, client_address, f, loop, session, stop
             server_logger.info(f'Request prossesing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')#\n{str(tb)}')
             break
 
+
 @logger(is_server=True, in_sensitive=True)
 async def handle_client(client_socket, client_address, server_public_key_bytes, stop_flag1, loop, session, server_private_key=None):
     client_public_key_bytes = await loop.sock_recv(client_socket, 1024)
@@ -641,6 +635,7 @@ async def handle_client(client_socket, client_address, server_public_key_bytes, 
     await main_client_loop(client_socket, client_address, f, loop, session, stop_flag1)
     client_socket.close()
 
+
 @logger(is_server=True, in_sensitive=True)
 async def server_main_loop(server_socket, server_public_key_bytes, stop_flag1, session, server_private_key=None):
     loop = asyncio.get_event_loop()
@@ -650,11 +645,12 @@ async def server_main_loop(server_socket, server_public_key_bytes, stop_flag1, s
         task = asyncio.create_task(handle_client(client_socket, client_address, server_public_key_bytes, stop_flag1, loop, session, server_private_key=server_private_key))
         clients.add(task)
         task.add_done_callback(clients.discard)
-        
+
+ 
 @logger(is_server=True)
 def server(host, port, cache_threshold = 300, test_mode = False, use_logger = True):
     if use_logger:
-        setup_logger(client_logger_location=os.getcwd())
+        logger.setup_logger(client_logger_location=os.getcwd())
     session = frontend_session(test_mode=test_mode)
     stop_flag1 = threading.Event()
     t = threading.Thread(target=keep_alive, args=(cache_threshold, stop_flag1))
@@ -677,6 +673,8 @@ def server(host, port, cache_threshold = 300, test_mode = False, use_logger = Tr
         stop_flag1.set()
         server_console.info('Server Closed')
         t.join()
+        with open('times.json', 'w') as file:
+            json.dump(logger.times, file)
     except BaseException as err:
         stop_flag1.set()
         t.join()

@@ -4,7 +4,7 @@ import os
 HERE = os.path.abspath(os.getcwd())
 sys.path.append(HERE)
 from sixauth import AuthSesh as ash
-from sixauth.main import AuthenticationError, LocationError, setup_logger
+from sixauth.main import AuthenticationError, LocationError
 import unittest
 #setup_logger(server_logger_location=None, log_sensitive=True, log_more=True)
 with ash() as user1, ash('127.0.0.1:5678') as user2:
@@ -146,5 +146,3 @@ with ash() as user1, ash('127.0.0.1:5678') as user2:
             
     if __name__ == '__main__':
         unittest.main()
-
-

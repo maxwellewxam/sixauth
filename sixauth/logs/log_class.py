@@ -2,6 +2,7 @@
 import os
 from .. import logs
 import logging
+import time
 
 def whos_logging(loghandle):
     def log_func(text):
@@ -16,6 +17,7 @@ class Logger:
         self.server_logger = server_logger
         self.console_handler = console_handler
         self.formatter = formatter
+        self.times = []
     def setup_logger(self,
                         client_logger_location = os.path.dirname(logs.__file__), 
                         server_logger_location = os.getcwd(), 
@@ -41,6 +43,7 @@ class Logger:
             client_logger_handler.setFormatter(self.formatter)
         self.server_console.addHandler(self.console_handler)
         self.client_console.addHandler(self.console_handler)
+        return self
     def __call__(self, is_server = False, is_log_more=False, in_sensitive=False, out_sensitive=False):
         if is_server and self.debug:
             log = whos_logging(self.server_console)
@@ -57,7 +60,10 @@ class Logger:
                         log(f'{func.__name__} called with arguments {args} and {kwargs}')
                     else:
                         log(f'{func.__name__} called')
+                start = time.time()               
                 returned = func(*args, **kwargs)
+                end = time.time()
+                self.times.append((func.__name__, end-start, str(args), str(kwargs)))
                 if is_log_more == False or self.log_more == True:
                     if not out_sensitive or self.log_sensitive:
                         log(f'{func.__name__} returned {returned}')
