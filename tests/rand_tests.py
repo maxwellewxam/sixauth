@@ -1,27 +1,49 @@
 import sys
 import os
-# if sys.platform == 'win32':
-#     HERE = os.path.abspath('../')
-# else:
 HERE = os.path.abspath(os.getcwd())
 sys.path.append(HERE)
-from sixauth.logs.log_class import Logger
-from sixauth.main import server_console, client_console, server_logger, client_logger, console_handler, formatter
-# hmm = backend_session('127.0.0.1:5678')
-# hmm1 = backend_session('127.0.0.1:5678')
-# hmm2 = backend_session('127.0.0.1:5678')
-# hmm3 = backend_session('127.0.0.1:5678')
-# print(hmm(amsdn='234234'))
-# print(hmm1(amsdn='234234'))
-# print(hmm2(amsdn='234234'))
-# print(hmm3(amsdn='234234'))
+from sixauth.main import logger
+import json
 
+with open('C:/Users/3008362/AppData/Local/Programs/Python/Python311/Lib/MaxMods/tests/times.json', 'r') as file:
 
-logger = Logger(server_console, client_console, server_logger, client_logger, console_handler, formatter).setup_logger(debug=True)
+    data = json.load(file)
 
-@logger(is_log_more=True)
-def foo_bar(arg):
-    print(arg)
-foo_bar('some text')
-logger.setup_logger(log_more=True,debug=True)
-foo_bar('some text')
+sorted_data = sorted(data, key=lambda x: x[1])
+
+print(sorted_data)
+
+for data in sorted_data:
+    print(data)
+
+# logger.setup_logger(client_logger_location = os.getcwd(), server_logger_location=None)
+
+# from sqlalchemy import create_engine, Column, String, Table, MetaData
+
+# from sqlalchemy.pool import StaticPool
+
+# engine = create_engine('sqlite:///users.db', connect_args={'check_same_thread':False},
+#                        poolclass=StaticPool)
+# metadata = MetaData()
+# users = Table('users', metadata,
+#     Column('username', String, unique=True, primary_key=True),
+#     Column('password', String),
+#     Column('data', String)
+# )
+# metadata.create_all(engine)
+# conn = engine.connect()
+
+# @logger()
+# def add_user():
+#     # Add a user to the database
+#     conn.execute(users.insert().values(username='user6', password='password1', data='some data'))
+
+# @logger()
+# def querry():
+#     conn = engine.connect()
+#     result = conn.execute(users.select().where(users.c.username == 'user8'))
+#     user = result.fetchone()
+#     print(user)
+# add_user()
+# querry()
+# print(logger.times)

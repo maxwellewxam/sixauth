@@ -41,9 +41,8 @@ import traceback
 import asyncio
 
 from datetime import datetime
-from flask_sqlalchemy import SQLAlchemy
-from flask import Flask
-from flask_restful import fields, marshal
+from sqlalchemy import create_engine, Column, String, Table, MetaData
+from sqlalchemy.pool import StaticPool
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -357,18 +356,15 @@ def delete_user(hash, id):
 # then we check that the user doesnt exsist in the database already
 # if all checks pass, then we create the users account and return a success code
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def sign_up(app, db, User, **data):
+def sign_up(conn, users, **data):
     if data['username'] == '':
         return {'code':406}
     if data['username'].isalnum() == False:
         return {'code':406}
-    with app.app_context():
-        user_from_database = User.query.filter_by(username=data['username']).first()
+    user_from_database = conn.execute(users.select().where(users.c.username == data['username'])).fetchone()
     if user_from_database:
         return {'code':409}
-    with app.app_context():
-        db.session.add(User(username=data['username'], password=create_password_hash(data['password']), data=encrypt_data({}, data['username'], data['password'])))
-        db.session.commit()
+    conn.execute(users.insert().values(username=data['username'], password=create_password_hash(data['password']), data=encrypt_data({}, data['username'], data['password'])))
     return {'code':200}
 
 # save data is pretty simple as well
@@ -428,25 +424,16 @@ def delete_data(**data):
 # then we update the database with the data in the cache
 # we clear the data in the cache and return a succsess code
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def log_out(app, db, passfields, User, **data):
+def log_out(conn, users, **data):
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
         return {'code':200}
-    with app.app_context():
-        user_from_database = User.query.filter_by(username=user_from_cache['data'][1][0]).first()
+    user_from_database = conn.execute(users.select().where(users.c.username == data['username'])).fetchone()
     if not user_from_database:
         return {'code':420, 'data':user_from_cache['data'], 'error':'could not find user to logout'}
-    datPass = marshal(user_from_database, passfields)['password']
-    if not verify_password_hash(datPass, password=user_from_cache['data'][1][1]):
+    if not verify_password_hash(user_from_database[1], password=user_from_cache['data'][1][1]):
         return {'code': 423}
-    with app.app_context():
-        db.session.delete(user_from_database)
-        db.session.add(User(username=user_from_cache['data'][1][0], 
-                            password=create_password_hash(user_from_cache['data'][1][1]), 
-                            data=encrypt_data(user_from_cache['data'][0], 
-                                              user_from_cache['data'][1][0], 
-                                              user_from_cache['data'][1][1])))
-        db.session.commit()
+    conn.execute(users.update().where(users.c.username == user_from_cache['data'][1][0]).values(data=encrypt_data(user_from_cache['data'][0], user_from_cache['data'][1][0], user_from_cache['data'][1][1])))
     update_user(data['hash'], data['id'], [None,(None,None)])
     return {'code':200}
 
@@ -456,20 +443,16 @@ def log_out(app, db, passfields, User, **data):
 # then remove the user from the database
 # and return success code
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def remove_account(app, db, passfields, User, **data):
+def remove_account(conn, users, **data):
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
         return{'code':423}
-    with app.app_context():
-        user_from_database = User.query.filter_by(username=user_from_cache['data'][1][0]).first()
+    user_from_database = conn.execute(users.select().where(users.c.username == user_from_cache['data'][1][0])).fetchone()
     if not user_from_database:
         return {'code':423}
-    datPass = marshal(user_from_database, passfields)['password']
-    if not verify_password_hash(datPass, password=user_from_cache['data'][1][1]):
+    if not verify_password_hash(user_from_database[1], password=user_from_cache['data'][1][1]):
         return {'code':423}
-    with app.app_context():
-        db.session.delete(user_from_database)
-        db.session.commit()
+    conn.execute(users.delete().where(users.c.username == user_from_cache['data'][1][0]))
     update_user(data['hash'], data['id'], [None,(None,None)])
     return {'code':200}
 
@@ -480,19 +463,17 @@ def remove_account(app, db, passfields, User, **data):
 # then return a success code
 # nothing crazy, but this is the only function that can load userdata from database to cache
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def log_in(app, datfields, passfields, User, **data):
+def log_in(conn, users, **data):
     if data['username'] == '':
         return {'code':406}
     if data['username'].isalnum() == False:
         return {'code':406}
-    with app.app_context():
-        user_from_database = User.query.filter_by(username=data['username']).first()
+    user_from_database = conn.execute(users.select().where(users.c.username == data['username'])).fetchone()
     if not user_from_database:
         return {'code':404}
-    datPass = marshal(user_from_database, passfields)['password']
-    if not verify_password_hash(datPass, password=data['password']):
+    if not verify_password_hash(user_from_database[1], password=data['password']):
         return {'code':401}   
-    cache_data = [decrypt_data(marshal(user_from_database, datfields)['data'], data['username'], data['password']), (data['username'], data['password'])]
+    cache_data = [decrypt_data(user_from_database[2], data['username'], data['password']), (data['username'], data['password'])]
     if update_user(data['hash'], data['id'], cache_data)['code'] == 500:
         return {'code':423}
     return {'code':200}
@@ -551,39 +532,32 @@ def backend_session(address):
 # it starts up a database connection and then returns a function that wraps all the above functions
 @logger()
 def frontend_session(path = os.getcwd(), test_mode = False):
-    app = Flask(__name__)
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{path}/database.db'
-    client_logger.info(f'Database located at: sqlite:\\\\\\{path}\\database.db')
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    db = SQLAlchemy(app)            
-    class User(db.Model):
-        username = db.Column(db.String, nullable=False, primary_key = True)
-        password = db.Column(db.String, nullable=False)
-        data = db.Column(db.String)
-        def __init__(self, username, password, data):
-            self.username = username
-            self.password = password
-            self.data = data
-    with app.app_context():
-        db.create_all()
-    datfields = {'data': fields.Raw}
-    passfields = {'password': fields.String}
+    db_path = f'sqlite:///{path}/database.db'
+    client_logger.info(f'Database located at: {db_path}')
+    engine = create_engine(db_path, connect_args={'check_same_thread':False}, poolclass=StaticPool)
+    metadata = MetaData()
+    users = Table('users', metadata,
+        Column('username', String, unique=True, primary_key=True),
+        Column('password', String),
+        Column('data', String))
+    metadata.create_all(engine)
+    conn = engine.connect()
     @logger(in_sensitive=True, out_sensitive=True)
     def session(**data):
         if data['code'] == 301:
             return create_session(**data)
         elif data['code'] == 302:
-            return sign_up(app, db, User, **data)
+            return sign_up(conn, users, **data)
         elif data['code'] == 303:
             return save_data(**data)
         elif data['code'] == 304:
             return delete_data(**data)
         elif data['code'] == 305:
-            return log_out(app, db, passfields, User, **data)
+            return log_out(conn, users, **data)
         elif data['code'] == 306:
-            return remove_account(app, db, passfields, User, **data)
+            return remove_account(conn, users, **data)
         elif data['code'] == 307:
-            return log_in(app, datfields, passfields, User, **data)
+            return log_in(conn, users, **data)
         elif data['code'] == 308:
             return load_data(**data)
         elif data['code'] == 309:
