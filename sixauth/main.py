@@ -74,7 +74,8 @@ class DataError(BaseException): ...
 # i lowk dont like just creating this thing like this but ion know a better way with out classes and whatnot
 cache = {}
 
-
+# here we are setting up the loggers to be passed to the logging module
+# get level and name and format, all the fun stuff
 server_console = logging.getLogger('server_console')
 client_console = logging.getLogger('client_console')
 server_logger = logging.getLogger('server_logger')
@@ -86,12 +87,10 @@ client_logger.setLevel(logging.INFO)
 console_handler = logging.StreamHandler()
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-
-
 # and here we just run the defult state so that we are always logging something
-# we can run the function above at anytime during runtime to change this
 # it will show in the logs that a new log has started
 # and from then on all the loggers will have the new paths and states
+# you can from main import logger and then run the setup_logger method to change how the logger logs things
 logger = Logger(server_console, client_console, server_logger, client_logger, console_handler, formatter).setup_logger(server_logger_location=None)
 
 # now for the first big function here
@@ -567,11 +566,16 @@ def frontend_session(path = os.getcwd(), test_mode = False):
                 return {'code':200, 'data':data}
     return session
 
-
+# this is the start of the server functions
+# the main client loop will receive all connections from the client after encryption is setup
+# it will decrypt and parse the request and then give it to the servers frontend session
+# then it will encrypt the result and send it back
 @logger(is_log_more=True, is_server=True, in_sensitive=True)
 async def main_client_loop(client_socket, client_address, f, loop, session, stop_flag1):
     while not stop_flag1.is_set():
         recv = await loop.sock_recv(client_socket, 1024)
+        if recv == b'':
+            break
         try:
             data = json.loads(f.decrypt(recv).decode())
             server_logger.info(f'{client_address} made request: {data["code"]}')
@@ -588,11 +592,11 @@ async def main_client_loop(client_socket, client_address, f, loop, session, stop
             tb = traceback.extract_tb(sys.exc_info()[2])
             line_number = tb[-1][1]
             server_logger.info(f'Request prossesing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')#\n{str(tb)}')
-            break
 
-
+# the setup_client function will be called for every client that connects
+# it will set up encryption and run the client main loop
 @logger(is_server=True, in_sensitive=True)
-async def handle_client(client_socket, client_address, server_public_key_bytes, stop_flag1, loop, session, server_private_key=None):
+async def setup_client(client_socket, client_address, server_public_key_bytes, stop_flag1, loop, session, server_private_key=None):
     client_public_key_bytes = await loop.sock_recv(client_socket, 1024)
     client_public_key = serialization.load_pem_public_key(
     client_public_key_bytes, default_backend())
@@ -609,21 +613,25 @@ async def handle_client(client_socket, client_address, server_public_key_bytes, 
     await main_client_loop(client_socket, client_address, f, loop, session, stop_flag1)
     client_socket.close()
 
-
+# the server main loop function will accept all new clients
+# then create an async task for the client talk to
+# then logs the task into a set too keep it alive and keep a running list of clients 
 @logger(is_server=True, in_sensitive=True)
 async def server_main_loop(server_socket, server_public_key_bytes, stop_flag1, session, server_private_key=None):
     loop = asyncio.get_event_loop()
     clients = set()
     while True:
         client_socket, client_address = await loop.sock_accept(server_socket)
-        task = asyncio.create_task(handle_client(client_socket, client_address, server_public_key_bytes, stop_flag1, loop, session, server_private_key=server_private_key))
+        task = asyncio.create_task(setup_client(client_socket, client_address, server_public_key_bytes, stop_flag1, loop, session, server_private_key=server_private_key))
         clients.add(task)
         task.add_done_callback(clients.discard)
 
- 
+# and finally the server function is called by the end user to creat a server
+# it will set up everything the server needs to run
+# then run the main loop of the server
 @logger(is_server=True)
-def server(host, port, cache_threshold = 300, test_mode = False, use_logger = True):
-    if use_logger:
+def server(host, port, cache_threshold = 300, test_mode = False, use_default_logger = True):
+    if use_default_logger:
         logger.setup_logger(client_logger_location=os.getcwd())
     session = frontend_session(test_mode=test_mode)
     stop_flag1 = threading.Event()

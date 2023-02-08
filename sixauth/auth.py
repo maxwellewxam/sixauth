@@ -77,8 +77,12 @@ class AuthSesh:
         return self
     
     def __exit__(self, type, val, trace):
-        if str(val) != 'Username does not exist':
-            self.terminate()
+        self.terminate()
+        tb = traceback.format_exception(type, value=val, tb=trace)
+        tb = tb[:-4]
+        tb = ''.join(tb)
+        print(tb)
+        #raise type(val) from None
         
     @property
     def Pass(self):
@@ -300,7 +304,10 @@ class AuthSesh:
         """
         self._requestHandle(self._sesh(code=305, hash=self._Hash, id=self._Id))
         self._requestHandle(self._sesh(code=309, hash=self._Hash, id=self._Id))
-
+        self._sesh = self._dead
+    
+    def _dead(self, **kwargs):
+        raise AuthenticationError('Tried to call session while session is terminated')
     
     def _requestHandle(self, request):
         if request['code'] == 200:
