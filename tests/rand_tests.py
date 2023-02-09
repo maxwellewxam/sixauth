@@ -5,7 +5,7 @@ sys.path.append(HERE)
 from sixauth import AuthSesh
 from sixauth.main import logger
 logger.setup_logger(log_sensitive=True, log_more=True, server_logger_location=None)
-with AuthSesh('127.0.0.1:5678') as sesh:
+with AuthSesh() as sesh:
     sesh.set_vals('max', 'max')
     sesh.signup()
     sesh.terminate()

@@ -77,13 +77,9 @@ class AuthSesh:
         return self
     
     def __exit__(self, type, val, trace):
-        self.terminate()
-        tb = traceback.format_exception(type, value=val, tb=trace)
-        tb = tb[:-4]
-        tb = ''.join(tb)
-        print(tb)
-        #raise type(val) from None
-        
+        if self._sesh != self._dead:
+            self.terminate()
+
     @property
     def Pass(self):
         """The password set for the current `AuthSesh` instance.
@@ -307,7 +303,7 @@ class AuthSesh:
         self._sesh = self._dead
     
     def _dead(self, **kwargs):
-        raise AuthenticationError('Tried to call session while session is terminated')
+        raise DataError('Tried to send request to session after session was terminated')
     
     def _requestHandle(self, request):
         if request['code'] == 200:
@@ -332,7 +328,8 @@ class AuthSesh:
             raise UsernameError('Invalid username')
         
         elif request['code'] == 409:
-            raise UsernameError('Username already exists')
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            raise UsernameError('Username already exists') from exc_value
         
         elif request['code'] == 423:
             raise AuthenticationError('Failed to authenticate user')
