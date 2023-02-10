@@ -58,7 +58,7 @@ from .logs.log_class import Logger
 
 # these are all the exceptions that this module will raise
 # i could use like built in ones but ion feel like it so...
-class AuthError(BaseException): ...
+class AuthError(Exception): ...
 class LocationError(AuthError): ...
 class AuthenticationError(AuthError): ...
 class UsernameError(AuthError): ...
@@ -668,12 +668,9 @@ def server(host, port, cache_threshold = 300, test_mode = False, use_default_log
     try:
         asyncio.run(server_main_loop(server_socket, server_public_key_bytes, stop_flag1, session, server_private_key=server_private_key))
     except KeyboardInterrupt:
-        stop_flag1.set()
         server_console.info('Server Closed')
-        t.join()
-        with open('times.json', 'w') as file:
-            json.dump(logger.times, file)
     except BaseException as err:
+        server_console.info(f'Server did not exit successfully, Error: {err}')
+    finally:
         stop_flag1.set()
         t.join()
-        server_console.info(f'Program did not exit successfully, Error: {err}')

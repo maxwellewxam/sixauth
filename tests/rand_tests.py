@@ -3,8 +3,8 @@ import os
 HERE = os.path.abspath(os.getcwd())
 sys.path.append(HERE)
 from sixauth import AuthSesh
-from sixauth.main import logger
-logger.setup_logger(log_sensitive=True, log_more=True, server_logger_location=None)
+#from sixauth.main import logger
+#logger.setup_logger(log_sensitive=True, log_more=True, server_logger_location=None)
 with AuthSesh() as sesh:
     sesh.set_vals('max', 'max')
     sesh.signup()

@@ -328,8 +328,7 @@ class AuthSesh:
             raise UsernameError('Invalid username')
         
         elif request['code'] == 409:
-            exc_type, exc_value, exc_traceback = sys.exc_info()
-            raise UsernameError('Username already exists') from exc_value
+            raise UsernameError('Username {self.Name} already exists')
         
         elif request['code'] == 423:
             raise AuthenticationError('Failed to authenticate user')

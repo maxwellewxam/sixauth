@@ -1,6 +1,4 @@
 jsonpath_ng
-flask_sqlalchemy
 cryptography
 bcrypt
-flask
-flask_restful
+SQLAlchemy
