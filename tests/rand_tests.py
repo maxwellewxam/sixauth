@@ -1,36 +1,25 @@
 import sys
 import os
-import time
-import threading
-import random
 HERE = os.path.abspath(os.getcwd())
 sys.path.append(HERE)
-from maxmods.auth import AuthSesh
+from sixauth import AuthSesh
+#from sixauth.main import logger
+#logger.setup_logger(log_sensitive=True, log_more=True, server_logger_location=None)
+with AuthSesh() as sesh:
+    sesh.set_vals('max', 'max')
+    sesh.signup()
+    sesh.terminate()
+    sesh.login()
 
-with AuthSesh('127.0.0.1:5678') as ash:
-    ash.set_vals('lauren', 'supersecretpassword')
-    #ash.signup()
+# import json
 
+# with open('C:/Users/3008362/AppData/Local/Programs/Python/Python311/Lib/MaxMods/tests/times.json', 'r') as file:
 
+#     data = json.load(file)
 
-def foobar(count,hmmm):
-        with AuthSesh('127.0.0.1:5678') as user2:
-            user2.set_vals(f'test{count}', 'test')
-            user2.signup()
-            user2.login()
-            user2.login()
-            user2.login()
-            user2.login()
-            user2.login()
-            user2.login()
-            user2.remove()
+# sorted_data = sorted(data, key=lambda x: x[1])
 
-threads=[]
+# print(sorted_data)
 
-for i in range(1000):
-    client_thread = threading.Thread(target=foobar, args=(i,random.random()))
-    client_thread.start()
-    time.sleep(0.1)
-    threads.append(client_thread)
-for thread in threads:
-    thread.join()
+# for data in sorted_data:
+#     print(data)
