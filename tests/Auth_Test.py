@@ -3,6 +3,7 @@ import sys
 import os
 HERE = os.path.abspath(os.getcwd())
 sys.path.append(HERE)
+sys.path.reverse()
 from sixauth import AuthSesh as ash
 from sixauth.main import AuthError
 import unittest
@@ -44,7 +45,7 @@ with ash() as user1:
             with self.assertRaises(AuthError) as cm:
                 user1.signup()
             the_exception = cm.exception
-            self.assertEqual(str(the_exception), 'Username already exists')
+            self.assertEqual(str(the_exception), 'Username {self.Name} already exists')
         
         def test_131_save_client_side_success(self):
             user1.set_vals('test', 'test')
