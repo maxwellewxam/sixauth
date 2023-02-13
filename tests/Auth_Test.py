@@ -4,7 +4,7 @@ import os
 HERE = os.path.abspath(os.getcwd())
 sys.path.append(HERE)
 from sixauth import AuthSesh as ash
-from sixauth.main import AuthenticationError, LocationError
+from sixauth.main import AuthError
 import unittest
 # '127.0.0.1:5678'
 with ash() as user1:
@@ -12,21 +12,21 @@ with ash() as user1:
     class testAuth(unittest.TestCase):
         def test_111_login_client_side_wrong_username(self):
             user1.set_vals('test', 'test')
-            with self.assertRaises(AuthenticationError) as cm:
+            with self.assertRaises(AuthError) as cm:
                 user1.login()
             the_exception = cm.exception
             self.assertEqual(str(the_exception), 'Username does not exist')
 
         def test_112_login_client_side_no_username(self):
             user1.set_vals('', 'test')
-            with self.assertRaises(AuthenticationError) as cm:
+            with self.assertRaises(AuthError) as cm:
                 user1.login()
             the_exception = cm.exception
             self.assertEqual(str(the_exception), 'Invalid username')
         
         def test_121_login_client_side_bad_pass(self):
             user1.set_vals('test', 'max')
-            with self.assertRaises(AuthenticationError) as cm:
+            with self.assertRaises(AuthError) as cm:
                 user1.login()
             the_exception = cm.exception
             self.assertEqual(str(the_exception), 'Incorrect password')
@@ -41,7 +41,7 @@ with ash() as user1:
         
         def test_123_signup_client_side_bad_username(self):
             user1.set_vals('test', 'test')
-            with self.assertRaises(AuthenticationError) as cm:
+            with self.assertRaises(AuthError) as cm:
                 user1.signup()
             the_exception = cm.exception
             self.assertEqual(str(the_exception), 'Username already exists')
@@ -56,7 +56,7 @@ with ash() as user1:
             
         def test_133_load_client_side_doesnt_exist(self):
             user1.set_vals('test', 'test')
-            with self.assertRaises(LocationError) as cm:
+            with self.assertRaises(AuthError) as cm:
                 user1.load('John/Green/Rubber/Co')
             the_exception = cm.exception
             self.assertEqual(str(the_exception), 'Loaction does not exist')
