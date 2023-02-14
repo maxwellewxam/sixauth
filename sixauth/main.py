@@ -124,35 +124,15 @@ logger = Logger(server_console, client_console, server_logger, client_logger, co
 # so save resources we only run this chack once a second
 # also the stop flag stops this thread from the main thread
 @logger(is_log_more=True)
-def check_and_remove(threshold, stop_flag):
+def cache_timeout_thread(threshold, stop_flag):
     while not stop_flag.is_set():
-        for key in list(cache):
-            if time.time() - cache[key]['time'] > threshold:
-                del cache[key]
-        time.sleep(1)
-
-# the only known issue with the checker is that
-# if someone happens to terminate their session inbetween the time 
-# the the checker checks how long its been inactive for
-# and when the chacker actually goes to delete the cache
-# the thread with throw a key error and then the server wouldnt have a 
-# cache checker and the cache could then be targeted and bloated
-# so this thread will restart the checker should that happen
-# also i know i could put a try and accept statement with a pass
-# but this way the thread will log the exception to the servers console
-# and then i (or anyone else) can tell why the thread had an issue
-# cause i lowk dont know if there are other potential problems with the checker
-# ok but this is just a loop that will brake if the same stop flag from the checker loop
-# is set, and the loop defines the thread and runs it
-# then when the thread joines back to the keep alive thread
-# it will loop and start a new checker thread
-# should also mention that this is run in its own thread much like the checker is
-@logger(is_log_more=True)
-def keep_alive(cache_threshold, stop_flag):
-    while not stop_flag.is_set():
-        t = threading.Thread(target=check_and_remove, args=(cache_threshold, stop_flag))
-        t.start()
-        t.join()
+        try:
+            for key in list(cache):
+                if time.time() - cache[key]['time'] > threshold:
+                    del cache[key]
+            time.sleep(1)
+        except Exception as err:
+            server_console.log(err)
 
 # and here is one of the first functions ever made in this file
 # the is the encrypt function, the hard to compute one
@@ -305,6 +285,34 @@ def establish_client_connection(address):
     f = Fernet(base64.urlsafe_b64encode(key))
     return f, client_socket
 
+
+def make_location(dict, path, data):
+    path = path.split('/')
+    for pos, name in enumerate(path):
+        if not len([match for match in dict.keys() if match == name]) > 0:
+            dict[name] = {'data': None, 'folder':{}}
+        if len(path)==pos+1:
+            dict[name]['data'] = data
+            return
+        dict = dict[name]['folder']
+       
+        
+def find_data(dict, path):
+    path = path.split('/')
+    for pos, name in enumerate(path):
+        if len(path)==pos+1:
+            return dict[name]
+        dict = dict[name]['folder']
+    
+        
+def delete_location(dict, path):
+    path = path.split('/')
+    for pos, name in enumerate(path):
+        if len(path)==pos+1:
+            del dict[name]
+            return {'code':200}
+        dict = dict[name]['folder']
+
 # the first of the cache functions
 # the chache has become one of the central points of this file lol
 # all this does is creat a cache pointer for the user based on the id provided
@@ -401,9 +409,10 @@ def save_data(**data):
         return {'code':420, 'data':data['data'], 'error':'Object is not json serialized'}
     data_from_request = json.loads(data['data'])
     if data['location'] == '':
-        update_user(data['hash'], data['id'], [{'':data_from_request}, user_from_cache['data'][1]])
-        return {'code':200, 'data':data_from_request}
-    jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).update_or_create(user_from_cache['data'][0], data_from_request)
+        #update_user(data['hash'], data['id'], [{'':data_from_request}, user_from_cache['data'][1]])
+        return {'code':416}#, 'data':data_from_request}
+    #jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).update_or_create(user_from_cache['data'][0], data_from_request)
+    make_location(user_from_cache['data'][0], data['location'], data_from_request)
     update_user(data['hash'], data['id'], [user_from_cache['data'][0], user_from_cache['data'][1]])
     return {'code':200, 'data':user_from_cache['data'][0]}
 
@@ -422,10 +431,11 @@ def delete_data(**data):
     if data['location'] == '':
         update_user(data['hash'], data['id'], [{}, user_from_cache['data'][1]])
         return {'code':200}
-    parsed_location = jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).find(user_from_cache['data'][0])
-    if parsed_location == []:
-        return {'code':416}
-    del [match.context for match in parsed_location][0].value[str([match.path for match in parsed_location][0])]
+    delete_location(user_from_cache['data'][0], data['location'])
+    # parsed_location = jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).find(user_from_cache['data'][0])
+    # if parsed_location == []:
+    #     return {'code':416}
+    # del [match.context for match in parsed_location][0].value[str([match.path for match in parsed_location][0])]
     update_user(data['hash'], data['id'], [user_from_cache['data'][0], user_from_cache['data'][1]])
     return {'code':200}
 
@@ -506,10 +516,11 @@ def load_data(**data):
         return {'code':423}
     if data['location'] == '':
         return {'code':202, 'data':user_from_cache['data'][0]}
-    parsed_location = jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).find(user_from_cache['data'][0])
-    if parsed_location == []:
-            return {'code':416}
-    return {'code':202, 'data':[match.value for match in parsed_location][0]}
+    #parsed_location = jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).find(user_from_cache['data'][0])
+    #if parsed_location == []:
+            #return {'code':416}
+    val = find_data(user_from_cache['data'][0], data['location'])
+    return {'code':202, 'data':val}#[match.value for match in parsed_location][0]}
 
 # the crate session function
 # this john just makes a position in the cache for the client
@@ -651,7 +662,7 @@ def server(host, port, cache_threshold = 300, test_mode = False, use_default_log
         logger.setup_logger(client_logger_location=os.getcwd())
     session = frontend_session(test_mode=test_mode)
     stop_flag1 = threading.Event()
-    t = threading.Thread(target=keep_alive, args=(cache_threshold, stop_flag1))
+    t = threading.Thread(target=cache_timeout_thread, args=(cache_threshold, stop_flag1))
     t.start()
     server_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
     server_public_key = server_private_key.public_key()

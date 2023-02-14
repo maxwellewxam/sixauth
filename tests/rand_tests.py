@@ -1,25 +1,41 @@
-import sys
-import os
-HERE = os.path.abspath(os.getcwd())
-sys.path.append(HERE)
-from sixauth import AuthSesh
-#from sixauth.main import logger
-#logger.setup_logger(log_sensitive=True, log_more=True, server_logger_location=None)
-with AuthSesh() as sesh:
-    sesh.set_vals('max', 'max')
-    sesh.signup()
-    sesh.terminate()
-    sesh.login()
+poop = {
+    'name1':{
+        'data': 'anything1',
+        'folder':{
+            'name2':{
+                'data': 'anything2',
+                'folder':{}
+            }
+        }
+    } 
+}
 
-# import json
 
-# with open('C:/Users/3008362/AppData/Local/Programs/Python/Python311/Lib/MaxMods/tests/times.json', 'r') as file:
-
-#     data = json.load(file)
-
-# sorted_data = sorted(data, key=lambda x: x[1])
-
-# print(sorted_data)
-
-# for data in sorted_data:
-#     print(data)
+def make_location(dict, path, data):
+    path = path.split('/')
+    for pos, name in enumerate(path):
+        if not len([match for match in dict.keys() if match == name]) > 0:
+            dict[name] = {'data': None, 'folder':{}}
+        if len(path)==pos+1:
+            dict[name]['data'] = data
+            return
+        dict = dict[name]['folder']
+        
+def find_data(dict, path):
+    path = path.split('/')
+    for pos, name in enumerate(path):
+        if len(path)==pos+1:
+            return dict[name]
+        dict = dict[name]['folder']
+        
+def delete_location(dict, path):
+    path = path.split('/')
+    for pos, name in enumerate(path):
+        if len(path)==pos+1:
+            del dict[name]
+            return {'code':200}
+        dict = dict[name]['folder']
+        
+make_location(poop, 'name1/name2/bruh/poop', 'some text')
+print(delete_location(poop, 'name1/name2'))
+print(poop)
