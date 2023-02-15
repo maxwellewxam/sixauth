@@ -1,41 +1,40 @@
-poop = {
-    'name1':{
-        'data': 'anything1',
-        'folder':{
-            'name2':{
-                'data': 'anything2',
-                'folder':{}
-            }
-        }
-    } 
-}
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+import os
+import base64
 
+def encrypt_data(data, password, salt):
+    backend = default_backend()
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt.encode(),
+        iterations=100000,
+        backend=backend)
+    key = kdf.derive(password.encode())
+    iv = os.urandom(16)
+    aesgcm = AESGCM(key)
+    return aesgcm.encrypt(iv, data.encode(), salt.encode()), iv
 
-def make_location(dict, path, data):
-    path = path.split('/')
-    for pos, name in enumerate(path):
-        if not len([match for match in dict.keys() if match == name]) > 0:
-            dict[name] = {'data': None, 'folder':{}}
-        if len(path)==pos+1:
-            dict[name]['data'] = data
-            return
-        dict = dict[name]['folder']
-        
-def find_data(dict, path):
-    path = path.split('/')
-    for pos, name in enumerate(path):
-        if len(path)==pos+1:
-            return dict[name]
-        dict = dict[name]['folder']
-        
-def delete_location(dict, path):
-    path = path.split('/')
-    for pos, name in enumerate(path):
-        if len(path)==pos+1:
-            del dict[name]
-            return {'code':200}
-        dict = dict[name]['folder']
-        
-make_location(poop, 'name1/name2/bruh/poop', 'some text')
-print(delete_location(poop, 'name1/name2'))
-print(poop)
+def decrypt_data(data, password, salt, iv):
+    backend = default_backend()
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt.encode(),
+        iterations=100000,
+        backend=backend)
+    key = kdf.derive(password.encode())
+    aesgcm = AESGCM(key)
+    return aesgcm.decrypt(iv, data, salt.encode()).decode()
+
+data = {'some random text':'weird dict here'}
+print(data)
+data, iv = encrypt_data(data, 'my password', 'my username')
+print(data)
+data = decrypt_data(data, 'my password', 'my username', iv)
+print(data)
