@@ -89,7 +89,7 @@ auth = <span class="hljs-class">AuthSesh</span>()
 <h3 id="save">Saving Data</h3>
 <p>After you've seccessfully logged in, you use the <code>save()</code> mathod to save data into the database:</p>
 <pre><div class="bg-black mb-4 rounded-md"><div class="flex items-center relative text-gray-200 bg-gray-800 px-4 py-2 text-xs font-sans"></div><div class="p-4"><code class="!whitespace-pre-wrap hljs language-python">auth.save(<span class="hljs-string">"user_data/profile"</span>, {<span class="hljs-string">"name"</span>: <span class="hljs-string">"John Doe"</span>, <span class="hljs-string">"email"</span>: <span class="hljs-string">"johndoe@example.com"</span>})</code></div></div></pre>
-<p>Data in the database is stored in a dictonary and is parsed using the <a href="https://github.com/h2non/jsonpath-ng" target="_new">jsonpath-ng</a> module. The location provided goes through a filter and converts numbers to their alphebetical counter-parts.</p>
+<p>Data in the database is stored in a dictonary and parsed based on the the path provided.</p>
 <h3 id="load">Loading Data</h3>
 <p>You access data in the database with the <code>load()</code> method:</p>
 <pre><div class="bg-black mb-4 rounded-md"><div class="flex items-center relative text-gray-200 bg-gray-800 px-4 py-2 text-xs font-sans"></div><div class="p-4"><code class="!whitespace-pre-wrap hljs language-python">data = auth.load(<span class="hljs-string">"user_data/profile"</span>)</code></div></div></pre>

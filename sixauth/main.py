@@ -1,5 +1,4 @@
 import hashlib
-import jsonpath_ng
 import os
 import sys
 import json
@@ -146,10 +145,6 @@ def create_password_hash(password):
 def verify_password_hash(hash, password):
     return bcrypt.checkpw(password.encode('utf-8'), bytes.fromhex(hash))
 
-# @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-# def convert_numbers_to_words(data):
-#         return data.replace('1', 'one').replace('2', 'two').replace('3', 'three').replace('4', 'four').replace('5', 'five').replace('6', 'six').replace('7', 'seven').replace('8', 'eight').replace('9', 'nine').replace('0', 'zero')
-
 @logger(is_log_more=True, in_sensitive=True)
 def is_json_serialized(obj):
     try:
@@ -273,9 +268,7 @@ def save_data(data):
         return {'code':420, 'data':data['data'], 'error':'Object is not json serialized'}
     data_from_request = json.loads(data['data'])
     if data['location'] == '':
-        #update_user(data['hash'], data['id'], [{'':data_from_request}, user_from_cache['data'][1]])
-        return {'code':417}#, 'data':data_from_request}
-    #jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).update_or_create(user_from_cache['data'][0], data_from_request)
+        return {'code':417}
     make_location(user_from_cache['data'][0], data['location'], data_from_request)
     update_user(data['hash'], data['id'], [user_from_cache['data'][0], user_from_cache['data'][1]])
     return {'code':200, 'data':user_from_cache['data'][0]}
@@ -289,10 +282,6 @@ def delete_data(data):
         update_user(data['hash'], data['id'], [{}, user_from_cache['data'][1]])
         return {'code':200}
     delete_location(user_from_cache['data'][0], data['location'])
-    # parsed_location = jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).find(user_from_cache['data'][0])
-    # if parsed_location == []:
-    #     return {'code':416}
-    # del [match.context for match in parsed_location][0].value[str([match.path for match in parsed_location][0])]
     update_user(data['hash'], data['id'], [user_from_cache['data'][0], user_from_cache['data'][1]])
     return {'code':200}
 
@@ -350,13 +339,10 @@ def load_data(data):
         return {'code':423}
     if data['location'] == '':
         return {'code':202, 'data':user_from_cache['data'][0]}
-    #parsed_location = jsonpath_ng.parse(convert_numbers_to_words(data['location'].replace('/', '.').replace(' ', '-'))).find(user_from_cache['data'][0])
-    #if parsed_location == []:
-            #return {'code':416}
     val = find_data(user_from_cache['data'][0], data['location'])
     if val['code'] == 500:
         return {'code':416}
-    return {'code':202, 'data':val['data']}#[match.value for match in parsed_location][0]}
+    return {'code':202, 'data':val['data']}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
 def create_session(data):
@@ -486,7 +472,7 @@ async def server_main_loop(server_socket, server_public_key_bytes, stop_flag1, s
         task = asyncio.create_task(setup_client(client_socket, client_address, server_public_key_bytes, stop_flag1, loop, session, server_private_key=server_private_key))
         clients.add(task)
         task.add_done_callback(clients.discard)
-        
+
 @logger(is_server=True)
 def server(host, port, cache_threshold = 300, test_mode = False, use_default_logger = True):
     if use_default_logger:
