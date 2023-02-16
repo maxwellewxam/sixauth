@@ -64,15 +64,14 @@ with ash() as user1:
             
         def test_134_save_client_side_whole_dict(self):
             user1.set_vals('test', 'test')
-            self.assertTrue(user1.save('', {'URMOM':'test'}))
+            with self.assertRaises(AuthError) as cm:
+                user1.save('', {'URMOM':'test'})
+            the_exception = cm.exception
+            self.assertEqual(str(the_exception), 'No path specified')
             
         def test_135_load_client_side_all_data(self):
             user1.set_vals('test', 'test')
-            self.assertEqual(user1.load(''), {'':{'URMOM':'test'}})
-        
-        def test_136_save_client_side_str(self):
-            user1.set_vals('test', 'test')
-            self.assertTrue(user1.save('', 'comma'))
+            self.assertEqual(user1.load(''), {'Test': {'data': None, 'folder': {'Test': {'data': 'UR MOM', 'folder': {}}}}})
 
         def test_199_remove_client_side_success(self):
             user1.set_vals('test', 'test')
