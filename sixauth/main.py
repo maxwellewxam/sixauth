@@ -10,6 +10,7 @@ import threading
 import logging
 import traceback
 import asyncio
+import struct
 
 from datetime import datetime
 from sqlalchemy import create_engine, Column, String, Table, MetaData, LargeBinary
@@ -362,7 +363,15 @@ def backend_session(address):
     
     @logger(in_sensitive=True, out_sensitive=True)
     def session(**data):
-        client_socket.send(f.encrypt(json.dumps(data).encode('utf-8')))
+        encrypted_data = f.encrypt(json.dumps(data).encode('utf-8'))
+        request_length = len(encrypted_data)
+        client_socket.send(f.encrypt(json.dumps({'code':320, 'len':request_length}).encode('utf-8')))
+        response = json.loads(f.decrypt(client_socket.recv(1024)).decode())
+        if response['code'] == 420:
+            return response
+        elif response['code'] != 200:
+            return {'code':420, 'data':None, 'error':'Server failed to follow protocall'}
+        client_socket.send(encrypted_data)
         return json.loads(f.decrypt(client_socket.recv(1024)).decode())
     return session
 
@@ -418,12 +427,82 @@ def frontend_session(path = os.getcwd(), test_mode = False):
     return session
 
 @logger(is_log_more=True, is_server=True, in_sensitive=True)
+async def server_send_data(loop, client_socket, client_address, f, data):
+    encrypted_data = f.encrypt(json.dumps(data).encode('utf-8'))
+    request_length = len(encrypted_data)
+    await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':320, 'len':request_length}).encode('utf-8')))
+    recv = await loop.sock_recv(client_socket, 1024)
+    if recv == b'':
+        server_logger.info(f'{client_address} made empty request')
+        await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':200}).encode('utf-8')))
+        return {'code':500}
+    try:
+        response = json.loads(f.decrypt(recv).decode())
+    except InvalidToken:
+        server_logger.info(f'{client_address} sent invalid token')
+        await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Sent invalid token'}).encode('utf-8')))
+        return {'code':500}
+    except BaseException as err:
+        await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
+        tb = traceback.extract_tb(sys.exc_info()[2])
+        line_number = tb[-1][1]
+        server_logger.info(f'Request {data["code"]} prossesing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')#\n{str(tb)}')
+        return {'code':500}
+    if response['code'] != 200:
+        return {'code':500}
+    client_socket.send(encrypted_data)
+
+@logger(is_log_more=True, is_server=True, in_sensitive=True)
+async def server_recv_data(loop, client_socket, client_address, f):
+    request = await loop.sock_recv(client_socket, 1024)
+    if request == b'':
+        server_logger.info(f'{client_address} made empty request')
+        await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':200}).encode('utf-8')))
+        return {'code':500}
+    try:
+        data = json.loads(f.decrypt(request).decode())
+        if data['code'] != 320:
+            server_logger.info(f'{client_address} failed to follow protocall')
+            await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Client failed to follow protocall'}).encode('utf-8')))
+            return {'code':500}
+        await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':200}).encode('utf-8')))
+        recv = await loop.sock_recv(client_socket, data['len'])
+        if recv == b'':
+            server_logger.info(f'{client_address} made empty request')
+            await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':200}).encode('utf-8')))
+            return {'code':500}
+        data = json.loads(f.decrypt(recv).decode())
+    except InvalidToken:
+        server_logger.info(f'{client_address} sent invalid token')
+        await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Sent invalid token'}).encode('utf-8')))
+        return {'code':500}
+    except BaseException as err:
+        if type(err) == KeyError:
+            await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':f'Couldnt find user in cache, contact owner to recover any data, \nuse this key: {str(err)}\nuse this id: \'{str(data["id"])}\''}).encode('utf-8')))
+        else:
+            await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
+        tb = traceback.extract_tb(sys.exc_info()[2])
+        line_number = tb[-1][1]
+        server_logger.info(f'Request {data["code"]} prossesing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')#\n{str(tb)}')
+        return {'code':500}
+    return {'code':200, 'data':data}
+
+@logger(is_log_more=True, is_server=True, in_sensitive=True)
 async def main_client_loop(client_socket, client_address, f, loop, session, stop_flag1):
     while not stop_flag1.is_set():
-        recv = await loop.sock_recv(client_socket, 1024)
-        if recv == b'':
+        request = await loop.sock_recv(client_socket, 1024)
+        if request == b'':
+            server_logger.info(f'{client_address} made empty request')
+            await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':200}).encode('utf-8')))
             break
         try:
+            data = json.loads(f.decrypt(request).decode())
+            if data['code'] != 320:
+                server_logger.info(f'{client_address} failed to follow protocall')
+                await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Client failed to follow protocall'}).encode('utf-8')))
+                break
+            await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':200}).encode('utf-8')))
+            recv = await loop.sock_recv(client_socket, data['len'])
             data = json.loads(f.decrypt(recv).decode())
             server_logger.info(f'{client_address} made request: {data["code"]}')
             if data['code'] == 310:
@@ -436,6 +515,10 @@ async def main_client_loop(client_socket, client_address, f, loop, session, stop
                 recv = await loop.sock_recv(client_socket, 1024)
                 await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':200}).encode('utf-8')))
                 break
+        except InvalidToken:
+            server_logger.info(f'{client_address} sent invalid token')
+            await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Sent invalid token'}).encode('utf-8')))
+            break
         except BaseException as err:
             if type(err) == KeyError:
                 await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':f'Couldnt find user in cache, contact owner to recover any data, \nuse this key: {str(err)}\nuse this id: \'{str(data["id"])}\''}).encode('utf-8')))
@@ -443,7 +526,7 @@ async def main_client_loop(client_socket, client_address, f, loop, session, stop
                 await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
             tb = traceback.extract_tb(sys.exc_info()[2])
             line_number = tb[-1][1]
-            server_logger.info(f'Request prossesing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')#\n{str(tb)}')
+            server_logger.info(f'Request {data["code"]} prossesing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')#\n{str(tb)}')
 
 @logger(is_server=True, in_sensitive=True)
 async def setup_client(client_socket, client_address, server_public_key_bytes, stop_flag1, loop, session, server_private_key=None):
