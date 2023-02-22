@@ -11,7 +11,7 @@
 *.sln.docstates
 *.pem
 *.db
-
+ivs.txt
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
@@ -341,3 +341,4 @@ ASALocalRun/
 
 # BeatPulse healthcheck temp database
 healthchecksdb
+ivs.text

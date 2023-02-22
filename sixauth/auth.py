@@ -300,6 +300,7 @@ class AuthSesh:
         """
         self._requestHandle(self._sesh(code=305, hash=self._Hash, id=self._Id))
         self._requestHandle(self._sesh(code=309, hash=self._Hash, id=self._Id))
+        self._requestHandle(self._sesh(code=310))
         self._sesh = self._dead
     
     def _dead(self, **kwargs):
@@ -318,6 +319,9 @@ class AuthSesh:
         elif request['code'] == 416:
             raise LocationError('Loaction does not exist')
         
+        elif request['code'] == 417:
+            raise LocationError('No path specified')
+        
         elif request['code'] == 401:
             raise PasswordError('Incorrect password')
         
@@ -328,7 +332,7 @@ class AuthSesh:
             raise UsernameError('Invalid username')
         
         elif request['code'] == 409:
-            raise UsernameError('Username {self.Name} already exists')
+            raise UsernameError(f'Username "{self.Name}" already exists')
         
         elif request['code'] == 423:
             raise AuthenticationError('Failed to authenticate user')

@@ -57,11 +57,8 @@ setup(
     packages=find_packages(),#['maxmods', 'maxmods.auth', 'maxmods.menu', 'maxmods.auth.auth_backend'],
     include_package_data=True,
     install_requires=[
-        'jsonpath-ng',
-        'flask_sqlalchemy',
-        'flask',
-        'flask_restful',
         'cryptography',
-        'bcrypt'
+        'bcrypt',
+        'SQLAlchemy'
     ]
 )
