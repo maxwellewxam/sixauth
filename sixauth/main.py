@@ -371,13 +371,13 @@ def backend_session(address):
         if response['code'] == 420:
             return response
         elif response['code'] != 200:
-            return {'code':420, 'data':None, 'error':'Server failed to follow protocall'}
+            return {'code':420, 'data':None, 'error':'Server failed to follow protocol'}
         client_socket.send(encrypted_data)
         request = json.loads(f.decrypt(client_socket.recv(1024)).decode())
         if request['code'] == 420:
             return request
         if request['code'] != 320:
-            return {'code':420, 'data':None, 'error':'Server failed to follow protocall'}
+            return {'code':420, 'data':None, 'error':'Server failed to follow protocol'}
         client_socket.send(f.encrypt(json.dumps({'code':200}).encode('utf-8')))
         return json.loads(f.decrypt(client_socket.recv(request['len'])).decode())
     return session
@@ -471,7 +471,7 @@ async def server_recv_data(loop, client_socket, client_address, f):
         data = json.loads(f.decrypt(request).decode())
         if data['code'] != 320:
             server_logger.info(f'{client_address} failed to follow protocall')
-            await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Client failed to follow protocall'}).encode('utf-8')))
+            await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Client failed to follow protocol'}).encode('utf-8')))
             return {'code':500}
         await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':200}).encode('utf-8')))
         recv = await loop.sock_recv(client_socket, data['len'])
@@ -502,7 +502,7 @@ async def main_client_loop(client_socket, client_address, f, loop, session, stop
             data = await server_recv_data(loop, client_socket, client_address, f)
             if data['code'] == 500:
                 server_logger.info(f'{client_address} failed to follow protocall')
-                await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Failed to follow protocall'}).encode('utf-8')))
+                await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Failed to follow protocol'}).encode('utf-8')))
                 break
             data = data["data"]
             server_logger.info(f'{client_address} made request: {data["code"]}')
@@ -514,7 +514,7 @@ async def main_client_loop(client_socket, client_address, f, loop, session, stop
             status = await server_send_data(loop, client_socket, client_address, f, response)
             if status['code'] == 500:
                 server_logger.info(f'{client_address} failed to follow protocall')
-                await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Failed to follow protocall'}).encode('utf-8')))
+                await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Failed to follow protocol'}).encode('utf-8')))
                 break
             if data['code'] == 309 and response['code'] == 200:
                 recv = await server_recv_data(loop, client_socket, client_address, f)
