@@ -49,18 +49,19 @@ sys.excepthook = exception_hook
 
 cache = {}
 
-server_console = logging.getLogger('server_console')
-client_console = logging.getLogger('client_console')
-server_logger = logging.getLogger('server_logger')
-client_logger = logging.getLogger('client_logger')
-server_console.setLevel(logging.INFO)
-client_console.setLevel(logging.INFO)
-server_logger.setLevel(logging.INFO)
-client_logger.setLevel(logging.INFO)
-console_handler = logging.StreamHandler()
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+if __name__ != '__main__':
+    server_console = logging.getLogger('server_console')
+    client_console = logging.getLogger('client_console')
+    server_logger = logging.getLogger('server_logger')
+    client_logger = logging.getLogger('client_logger')
+    server_console.setLevel(logging.INFO)
+    client_console.setLevel(logging.INFO)
+    server_logger.setLevel(logging.INFO)
+    client_logger.setLevel(logging.INFO)
+    console_handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-logger = Logger(server_console, client_console, server_logger, client_logger, console_handler, formatter).setup_logger(server_logger_location=None)
+    logger = Logger(server_console, client_console, server_logger, client_logger, console_handler, formatter).setup_logger(server_logger_location=None)
 
 @logger(is_log_more=True)
 def cache_timeout_thread(threshold, stop_flag):

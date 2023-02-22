@@ -45,7 +45,7 @@ with ash() as user1:
             with self.assertRaises(AuthError) as cm:
                 user1.signup()
             the_exception = cm.exception
-            self.assertEqual(str(the_exception), 'Username {self.Name} already exists')
+            self.assertEqual(str(the_exception), 'Username "test" already exists')
         
         def test_131_save_client_side_success(self):
             user1.set_vals('test', 'test')
