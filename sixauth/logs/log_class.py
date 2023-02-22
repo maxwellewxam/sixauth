@@ -34,12 +34,16 @@ class Logger:
             self.server_console.addHandler(server_logger_handler)
             self.server_logger.addHandler(server_logger_handler)
             self.server_logger.info('VVV---------BEGIN-NEW-LOG----------VVV')
+            if self.log_sensitive:
+                self.server_logger.info('WARNING: LOGGING SENSITIVE INFO')
             server_logger_handler.setFormatter(self.formatter)
         if client_logger_location != None:
             client_logger_handler = logging.FileHandler(client_logger_location+'/client.log')
             self.client_console.addHandler(client_logger_handler)
             self.client_logger.addHandler(client_logger_handler)
             self.client_logger.info('VVV---------BEGIN-NEW-LOG----------VVV')
+            if self.log_sensitive:
+                self.client_logger.info('WARNING: LOGGING SENSITIVE INFO')
             client_logger_handler.setFormatter(self.formatter)
         self.server_console.addHandler(self.console_handler)
         self.client_console.addHandler(self.console_handler)

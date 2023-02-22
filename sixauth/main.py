@@ -291,13 +291,13 @@ def log_out(database, data):
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
         return {'code':200}
-    user_from_database = database['conn'].execute(database['users'].select().where(database['users'].c.username == data['username'])).fetchone()
+    user_from_database = database['conn'].execute(database['users'].select().where(database['users'].c.username == user_from_cache['data'][1][0])).fetchone()
     if not user_from_database:
         return {'code':420, 'data':user_from_cache['data'], 'error':'could not find user to logout'}
     if not verify_password_hash(user_from_database[1], password=user_from_cache['data'][1][1]):
         return {'code': 423}
     encrypted_data, iv = encrypt_data(user_from_cache['data'][0], user_from_cache['data'][1][0], user_from_cache['data'][1][1])
-    database['iv_dict'][data['username']] = iv
+    database['iv_dict'][user_from_cache['data'][1][0]] = iv
     database['conn'].execute(database['users'].update().where(database['users'].c.username == user_from_cache['data'][1][0]).values(data=encrypted_data))
     update_user(data['hash'], data['id'], [None,(None,None)])
     return {'code':200}
@@ -405,7 +405,6 @@ def frontend_session(path = os.getcwd(), test_mode = False):
     else:
         ivs_dict = {}
         conn.execute(ivs.insert().values(server = key, iv=server_encrypt_data(ivs_dict, key, salt)))
-    print(ivs_dict)
     database = {'conn':conn, 'users':users, 'iv_dict':ivs_dict}
     
     @logger(in_sensitive=True, out_sensitive=True)
