@@ -372,7 +372,13 @@ def backend_session(address):
         elif response['code'] != 200:
             return {'code':420, 'data':None, 'error':'Server failed to follow protocall'}
         client_socket.send(encrypted_data)
-        return json.loads(f.decrypt(client_socket.recv(1024)).decode())
+        request = json.loads(f.decrypt(client_socket.recv(1024)).decode())
+        if request['code'] == 420:
+            return request
+        if request['code'] != 320:
+            return {'code':420, 'data':None, 'error':'Server failed to follow protocall'}
+        client_socket.send(f.encrypt(json.dumps({'code':200}).encode('utf-8')))
+        return json.loads(f.decrypt(client_socket.recv(request['len'])).decode())
     return session
 
 @logger()
@@ -399,6 +405,7 @@ def frontend_session(path = os.getcwd(), test_mode = False):
     else:
         ivs_dict = {}
         conn.execute(ivs.insert().values(server = key, iv=server_encrypt_data(ivs_dict, key, salt)))
+    print(ivs_dict)
     database = {'conn':conn, 'users':users, 'iv_dict':ivs_dict}
     
     @logger(in_sensitive=True, out_sensitive=True)
@@ -451,6 +458,7 @@ async def server_send_data(loop, client_socket, client_address, f, data):
     if response['code'] != 200:
         return {'code':500}
     client_socket.send(encrypted_data)
+    return {'code':200}
 
 @logger(is_log_more=True, is_server=True, in_sensitive=True)
 async def server_recv_data(loop, client_socket, client_address, f):
@@ -490,35 +498,28 @@ async def server_recv_data(loop, client_socket, client_address, f):
 @logger(is_log_more=True, is_server=True, in_sensitive=True)
 async def main_client_loop(client_socket, client_address, f, loop, session, stop_flag1):
     while not stop_flag1.is_set():
-        request = await loop.sock_recv(client_socket, 1024)
-        if request == b'':
-            server_logger.info(f'{client_address} made empty request')
-            await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':200}).encode('utf-8')))
-            break
         try:
-            data = json.loads(f.decrypt(request).decode())
-            if data['code'] != 320:
+            data = await server_recv_data(loop, client_socket, client_address, f)
+            if data['code'] == 500:
                 server_logger.info(f'{client_address} failed to follow protocall')
-                await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Client failed to follow protocall'}).encode('utf-8')))
+                await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Failed to follow protocall'}).encode('utf-8')))
                 break
-            await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':200}).encode('utf-8')))
-            recv = await loop.sock_recv(client_socket, data['len'])
-            data = json.loads(f.decrypt(recv).decode())
+            data = data["data"]
             server_logger.info(f'{client_address} made request: {data["code"]}')
             if data['code'] == 310:
                 response = {'code':423}
             else:
                 response = session(**data)
             server_logger.info(f'response to {client_address}: {response["code"]}')
-            await loop.sock_sendall(client_socket, f.encrypt(json.dumps(response).encode('utf-8')))
-            if data['code'] == 309 and response['code'] == 200:
-                recv = await loop.sock_recv(client_socket, 1024)
-                await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':200}).encode('utf-8')))
+            status = await server_send_data(loop, client_socket, client_address, f, response)
+            if status['code'] == 500:
+                server_logger.info(f'{client_address} failed to follow protocall')
+                await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Failed to follow protocall'}).encode('utf-8')))
                 break
-        except InvalidToken:
-            server_logger.info(f'{client_address} sent invalid token')
-            await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Sent invalid token'}).encode('utf-8')))
-            break
+            if data['code'] == 309 and response['code'] == 200:
+                recv = await server_recv_data(loop, client_socket, client_address, f)
+                await server_send_data(loop, client_socket, client_address, f, {'code':200})
+                break
         except BaseException as err:
             if type(err) == KeyError:
                 await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':f'Couldnt find user in cache, contact owner to recover any data, \nuse this key: {str(err)}\nuse this id: \'{str(data["id"])}\''}).encode('utf-8')))
