@@ -10,7 +10,6 @@ import threading
 import logging
 import traceback
 import asyncio
-import struct
 
 from datetime import datetime
 from sqlalchemy import create_engine, Column, String, Table, MetaData, LargeBinary
