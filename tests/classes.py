@@ -227,13 +227,8 @@ class Data:
     def __init__(self, data):
         self.data = data
     
-    def store(self, id):
-        self.data = encrypt_data_fast(self.data, id)
-        return self
-        
-    def retrive(self, id):
-        self.data = decrypt_data_fast(self.data, id)
-        return self
+    def store(self):
+        return self.data
     
     def make(self, path, data):
         path = path.split('/')
@@ -267,21 +262,19 @@ class Data:
             temp = temp[name]['folder']
 
 class User:
+    data: Data
     def __init__(self, data = None, username = None, password = None):
         self.data = Data(data)
         self.username = username
         self.password = password
     
     def store(self, id):
-        self.data.store(id)
-        self.username = encrypt_data_fast(self.username, id)
-        self.password = encrypt_data_fast(self.password, id)
-        return self
+        self.data = self.data.store()
+        return encrypt_data_fast(self.__dict__, id)
     
-    def retrive(self, id):
-        self.data.retrive(id)
-        self.username = decrypt_data_fast(self.username, id)
-        self.password = decrypt_data_fast(self.password, id)
+    def from_dict(self, dict, id):
+        self.__dict__ = decrypt_data_fast(dict, id)
+        self.data = Data(self.data)
         return self
 
 class Cache:
@@ -312,26 +305,185 @@ class Cache:
 
     @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
     def find_user(self, hash, id):
-        if not is_valid_key(self.cache[hash]['main'].username, id):
+        if not is_valid_key(self.cache[hash]['main'], id):
             return {'code':500}
         self.cache[hash]['time'] = time.time()
-        data = self.cache[hash]['main']
+        data = User().from_dict(self.cache[hash]['main'], id)
         if data.username == None:
             return {'code':500}
         return {'code':200, 'data':data}
     
     @logger(is_log_more=True, in_sensitive=True)
-    def update_user(self, hash, id, data, username, password):
-        if not is_valid_key(self.cache[hash]['main'].username, id):
+    def update_user(self, hash, id, user):
+        if not is_valid_key(self.cache[hash]['main'], id):
             return {'code':500}
-        self.cache[hash]['main'] = User(data, username, password).store(id)
+        self.cache[hash]['main'] = user.store(id)
         self.cache[hash]['time'] = time.time()
         return {'code':200}
         
     @logger(is_log_more=True, in_sensitive=True)
     def delete_user(self, hash, id):
-        if not is_valid_key(self.cache[hash]['main'].username, id):
+        if not is_valid_key(self.cache[hash]['main'], id):
             return {'code':500}
         del self.cache[hash]
         return {'code':200}
 
+class FrontSession:
+    def __init__(self, path = os.getcwd()):
+        self.cache = Cache(600)
+        db_path = f'sqlite:///{path}/database.db'
+        client_logger.info(f'Database located at: {db_path}')
+        self.engine = create_engine(db_path, connect_args={'check_same_thread':False}, poolclass=StaticPool)
+        metadata = MetaData()
+        self.users = Table('users', metadata,
+            Column('username', String, unique=True, primary_key=True),
+            Column('password', String),
+            Column('data', LargeBinary))
+        self.ivs = Table('ivs', metadata,
+            Column('server', String, unique=True, primary_key=True),
+            Column('iv', LargeBinary))
+        metadata.create_all(self.engine)
+        self.conn = self.engine.connect()
+        self.key = 'random ass key'
+        self.salt = b'BOOBIES'
+        from_database = self.conn.execute(self.ivs.select().where(self.ivs.c.server == self.key)).fetchone()
+        if from_database:
+            _,ivs_bytes = from_database
+            self.ivs_dict = server_decrypt_data(ivs_bytes, self.key, self.salt)
+        else:
+            self.ivs_dict = {}
+            self.conn.execute(self.ivs.insert().values(server = self.key, iv=server_encrypt_data(self.ivs_dict, self.key, self.salt)))
+        
+    @logger(in_sensitive=True, out_sensitive=True)
+    def __call__(self, **data):
+        if data['code'] == 301:
+            return self.create_session(data)
+        elif data['code'] == 302:
+            return self.sign_up(data)
+        elif data['code'] == 303:
+            return self.save_data(data)
+        elif data['code'] == 304:
+            return self.delete_data(data)
+        elif data['code'] == 305:
+            return self.log_out(data)
+        elif data['code'] == 306:
+            return self.remove_account(data)
+        elif data['code'] == 307:
+            return self.log_in(data)
+        elif data['code'] == 308:
+            return self.load_data(data)
+        elif data['code'] == 309:
+            return self.end_session(data)
+        elif data['code'] == 310:
+            self.conn.execute(self.ivs.update().where(self.ivs.c.server == self.key).values(iv=server_encrypt_data(self.ivs_dict, self.key, self.salt)))
+            return {'code':200}
+    
+    @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+    def sign_up(self, data):
+        if data['username'] == '':
+            return {'code':406}
+        if data['username'].isalnum() == False:
+            return {'code':406}
+        user_from_database = self.conn.execute(self.users.select().where(self.users.c.username == data['username'])).fetchone()
+        if user_from_database:
+            return {'code':409}
+        encrypted_data, iv = encrypt_data({}, data['username'], data['password'])
+        self.iv_dict[data['username']] = iv
+        self.conn.execute(self.users.insert().values(username=data['username'], password=create_password_hash(data['password']), data=encrypted_data))
+        return {'code':200}
+
+    @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+    def save_data(self, data):
+        user_from_cache = self.cache.find_user(data['hash'], data['id'])
+        if user_from_cache['code'] == 500:
+            return {'code':423}
+        if not is_json_serialized(data['data']):
+            return {'code':420, 'data':data['data'], 'error':'Object is not json serialized'}
+        data_from_request = json.loads(data['data'])
+        if data['location'] == '':
+            return {'code':417}
+        user_from_cache['data'].data.make(data['location'], data_from_request)
+        self.cache.update_user(data['hash'], data['id'], user_from_cache['data'])
+        return {'code':200, 'data':user_from_cache['data'][0]}
+
+    @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+    def delete_data(self, data):
+        user_from_cache = self.cache.find_user(data['hash'], data['id'])
+        if user_from_cache['code'] == 500:
+            return {'code':423}
+        if data['location'] == '':
+            self.cache.update_user(data['hash'], data['id'], [{}, user_from_cache['data'][1]])
+            return {'code':200}
+        user_from_cache['data'].data.delete(data['location'])
+        self.cache.update_user(data['hash'], data['id'], [user_from_cache['data'][0], user_from_cache['data'][1]])
+        return {'code':200}
+
+    @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+    def log_out(self, data):
+        user_from_cache = self.cache.find_user(data['hash'], data['id'])
+        if user_from_cache['code'] == 500:
+            return {'code':200}
+        user_from_database = self.conn.execute(self.users.select().where(self.users.c.username == user_from_cache['data'][1][0])).fetchone()
+        if not user_from_database:
+            return {'code':420, 'data':user_from_cache['data'], 'error':'could not find user to logout'}
+        if not verify_password_hash(user_from_database[1], password=user_from_cache['data'][1][1]):
+            return {'code': 423}
+        encrypted_data, iv = encrypt_data(user_from_cache['data'][0], user_from_cache['data'][1][0], user_from_cache['data'][1][1])
+        self.iv_dict[user_from_cache['data'][1][0]] = iv
+        self.conn.execute(self.users.update().where(self.users.c.username == user_from_cache['data'][1][0]).values(data=encrypted_data))
+        self.cache.update_user(data['hash'], data['id'], [None,(None,None)])
+        return {'code':200}
+
+    @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+    def remove_account(self, data):
+        user_from_cache = self.cache.find_user(data['hash'], data['id'])
+        if user_from_cache['code'] == 500:
+            return{'code':423}
+        user_from_database = self.conn.execute(self.users.select().where(self.users.c.username == user_from_cache['data'][1][0])).fetchone()
+        if not user_from_database:
+            return {'code':423}
+        if not verify_password_hash(user_from_database[1], password=user_from_cache['data'][1][1]):
+            return {'code':423}
+        self.conn.execute(self.users.delete().where(self.users.c.username == user_from_cache['data'][1][0]))
+        self.cache.update_user(data['hash'], data['id'], [None,(None,None)])
+        del self.iv_dict[user_from_cache['data'][1][0]]
+        return {'code':200}
+
+    @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+    def log_in(self, data):
+        if data['username'] == '':
+            return {'code':406}
+        if data['username'].isalnum() == False:
+            return {'code':406}
+        user_from_database = self.conn.execute(self.users.select().where(self.users.c.username == data['username'])).fetchone()
+        if not user_from_database:
+            return {'code':404}
+        if not verify_password_hash(user_from_database[1], password=data['password']):
+            return {'code':401}   
+        cache_data = [decrypt_data(user_from_database[2], data['username'], data['password'], self.iv_dict[data['username']]), (data['username'], data['password'])]
+        if self.cache.update_user(data['hash'], data['id'], cache_data)['code'] == 500:
+            return {'code':423}
+        return {'code':200}
+
+    @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+    def load_data(self, data):
+        user_from_cache = self.cache.find_user(data['hash'], data['id'])
+        if user_from_cache['code'] == 500:
+            return {'code':423}
+        if data['location'] == '':
+            return {'code':202, 'data':user_from_cache['data'][0]}
+        val = user_from_cache['data'].data.find(data['location'])
+        if val['code'] == 500:
+            return {'code':416}
+        return {'code':202, 'data':val['data']}
+
+    @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+    def create_session(self, data):
+        user_hash = self.cache.add_user(data['id'])['hash']
+        return {'code':201, 'hash':user_hash}
+
+    @logger(is_log_more=True, in_sensitive=True)
+    def end_session(self, data):
+        if self.cache.delete_user(data['hash'], data['id'])['code'] == 500:
+            return {'code':423}
+        return {'code':200}
