@@ -6,6 +6,8 @@ sys.path.append(HERE)
 sys.path.reverse()
 from sixauth import AuthSesh as ash
 from sixauth.main import AuthError
+from classes import AuthSesh as ash2
+#from classes import AuthError
 import unittest
 # '127.0.0.1:5678'
 with ash() as user1:

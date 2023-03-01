@@ -53,25 +53,15 @@ if __name__ != '__main__':
     client_console = logging.getLogger('client_console')
     server_logger = logging.getLogger('server_logger')
     client_logger = logging.getLogger('client_logger')
+    
     server_console.setLevel(logging.INFO)
     client_console.setLevel(logging.INFO)
     server_logger.setLevel(logging.INFO)
     client_logger.setLevel(logging.INFO)
+    
     console_handler = logging.StreamHandler()
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
     logger = Logger(server_console, client_console, server_logger, client_logger, console_handler, formatter).setup_logger(server_logger_location=None)
-
-@logger(is_log_more=True)
-def cache_timeout_thread(threshold, stop_flag):
-    while not stop_flag.is_set():
-        try:
-            for key in list(cache):
-                if time.time() - cache[key]['time'] > threshold:
-                    del cache[key]
-            time.sleep(1)
-        except Exception as err:
-            server_console.log(err)
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
 def server_encrypt_data(data, key, salt):
@@ -162,31 +152,7 @@ def is_valid_key(data, id):
     except InvalidToken:
         return False
 
-@logger(is_log_more=True)
-def establish_client_connection(address):
-    client_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
-    client_public_key = client_private_key.public_key()
-    client_public_key_bytes = client_public_key.public_bytes(
-    encoding=serialization.Encoding.PEM,
-    format=serialization.PublicFormat.SubjectPublicKeyInfo)
-    client_socket = socket.socket()
-    connection_info = address.split(':')
-    client_socket.connect((connection_info[0], int(connection_info[1])))
-    client_socket.send(client_public_key_bytes)
-    server_public_key_bytes = client_socket.recv(1024)
-    server_public_key = serialization.load_pem_public_key(
-    server_public_key_bytes, default_backend())
-    shared_secret = client_private_key.exchange(ec.ECDH(), server_public_key)
-    kdf = HKDF(
-    algorithm=hashes.SHA256(),
-    length=32,
-    salt=None,
-    info=b"session key",
-    backend=default_backend())
-    key = kdf.derive(shared_secret)
-    f = Fernet(base64.urlsafe_b64encode(key))
-    return f, client_socket
-
+@logger(is_log_more=True, in_sensitive=True)
 def make_location(dict, path, data):
     path = path.split('/')
     for pos, name in enumerate(path):
@@ -196,7 +162,9 @@ def make_location(dict, path, data):
             dict[name]['data'] = data
             return {'code':200}
         dict = dict[name]['folder']
+    return {'code':200}
 
+@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
 def find_data(dict, path):
     path = path.split('/')
     try:
@@ -207,6 +175,7 @@ def find_data(dict, path):
     except KeyError:
         return {'code': 500}
 
+@logger(is_log_more=True, in_sensitive=True)
 def delete_location(dict, path):
     path = path.split('/')
     for pos, name in enumerate(path):
@@ -214,6 +183,17 @@ def delete_location(dict, path):
             del dict[name]
             return {'code':200}
         dict = dict[name]['folder']
+
+@logger(is_log_more=True)
+def cache_timeout_thread(threshold, stop_flag):
+    while not stop_flag.is_set():
+        try:
+            for key in list(cache):
+                if time.time() - cache[key]['time'] > threshold:
+                    del cache[key]
+            time.sleep(1)
+        except Exception as err:
+            server_console.log(err)
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
 def add_user(id):
@@ -356,83 +336,30 @@ def end_session(data):
         return {'code':423}
     return {'code':200}
 
-@logger()
-def backend_session(address):
-    f, client_socket = establish_client_connection(address)
-    client_logger.info(f'Connected to: {address}')
-    
-    @logger(in_sensitive=True, out_sensitive=True)
-    def session(**data):
-        encrypted_data = f.encrypt(json.dumps(data).encode('utf-8'))
-        request_length = len(encrypted_data)
-        client_socket.send(f.encrypt(json.dumps({'code':320, 'len':request_length}).encode('utf-8')))
-        response = json.loads(f.decrypt(client_socket.recv(1024)).decode())
-        if response['code'] == 420:
-            return response
-        elif response['code'] != 200:
-            return {'code':420, 'data':None, 'error':'Server failed to follow protocol'}
-        client_socket.send(encrypted_data)
-        request = json.loads(f.decrypt(client_socket.recv(1024)).decode())
-        if request['code'] == 420:
-            return request
-        if request['code'] != 320:
-            return {'code':420, 'data':None, 'error':'Server failed to follow protocol'}
-        client_socket.send(f.encrypt(json.dumps({'code':200}).encode('utf-8')))
-        return json.loads(f.decrypt(client_socket.recv(request['len'])).decode())
-    return session
-
-@logger()
-def frontend_session(path = os.getcwd(), test_mode = False):
-    db_path = f'sqlite:///{path}/database.db'
-    client_logger.info(f'Database located at: {db_path}')
-    engine = create_engine(db_path, connect_args={'check_same_thread':False}, poolclass=StaticPool)
-    metadata = MetaData()
-    users = Table('users', metadata,
-        Column('username', String, unique=True, primary_key=True),
-        Column('password', String),
-        Column('data', LargeBinary))
-    ivs = Table('ivs', metadata,
-        Column('server', String, unique=True, primary_key=True),
-        Column('iv', LargeBinary))
-    metadata.create_all(engine)
-    conn = engine.connect()
-    key = 'random ass key'
-    salt = b'BOOBIES'
-    from_database = conn.execute(ivs.select().where(ivs.c.server == key)).fetchone()
-    if from_database:
-        _,ivs_bytes = from_database
-        ivs_dict = server_decrypt_data(ivs_bytes, key, salt)
-    else:
-        ivs_dict = {}
-        conn.execute(ivs.insert().values(server = key, iv=server_encrypt_data(ivs_dict, key, salt)))
-    database = {'conn':conn, 'users':users, 'iv_dict':ivs_dict}
-    
-    @logger(in_sensitive=True, out_sensitive=True)
-    def session(**data):
-        if data['code'] == 301:
-            return create_session(data)
-        elif data['code'] == 302:
-            return sign_up(database, data)
-        elif data['code'] == 303:
-            return save_data(data)
-        elif data['code'] == 304:
-            return delete_data(data)
-        elif data['code'] == 305:
-            return log_out(database, data)
-        elif data['code'] == 306:
-            return remove_account(database, data)
-        elif data['code'] == 307:
-            return log_in(database, data)
-        elif data['code'] == 308:
-            return load_data(data)
-        elif data['code'] == 309:
-            return end_session(data)
-        elif data['code'] == 310:
-            conn.execute(ivs.update().where(ivs.c.server == key).values(iv=server_encrypt_data(ivs_dict, key, salt)))
-            conn.commit()
-            conn.close()
-            return {'code':200} 
-    return session
+@logger(is_log_more=True)
+def establish_client_connection(address):
+    client_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
+    client_public_key = client_private_key.public_key()
+    client_public_key_bytes = client_public_key.public_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PublicFormat.SubjectPublicKeyInfo)
+    client_socket = socket.socket()
+    connection_info = address.split(':')
+    client_socket.connect((connection_info[0], int(connection_info[1])))
+    client_socket.send(client_public_key_bytes)
+    server_public_key_bytes = client_socket.recv(1024)
+    server_public_key = serialization.load_pem_public_key(
+    server_public_key_bytes, default_backend())
+    shared_secret = client_private_key.exchange(ec.ECDH(), server_public_key)
+    kdf = HKDF(
+    algorithm=hashes.SHA256(),
+    length=32,
+    salt=None,
+    info=b"session key",
+    backend=default_backend())
+    key = kdf.derive(shared_secret)
+    f = Fernet(base64.urlsafe_b64encode(key))
+    return f, client_socket
 
 @logger(is_log_more=True, is_server=True, in_sensitive=True)
 async def server_send_data(loop, client_socket, client_address, f, data):
@@ -559,10 +486,10 @@ async def server_main_loop(server_socket, server_public_key_bytes, stop_flag1, s
         task.add_done_callback(clients.discard)
 
 @logger(is_server=True)
-def server(host, port, cache_threshold = 300, test_mode = False, use_default_logger = True):
+def server(host, port, cache_threshold = 300, use_default_logger = True):
     if use_default_logger:
         logger.setup_logger(client_logger_location=os.getcwd())
-    session = frontend_session(test_mode=test_mode)
+    session = frontend_session()
     stop_flag1 = threading.Event()
     t = threading.Thread(target=cache_timeout_thread, args=(cache_threshold, stop_flag1))
     t.start()
@@ -585,6 +512,85 @@ def server(host, port, cache_threshold = 300, test_mode = False, use_default_log
     except BaseException as err:
         server_console.info(f'Server did not exit successfully, Error: {err}')
     finally:
+        server_socket.close()
         stop_flag1.set()
         t.join()
         session(code=310)
+
+@logger()
+def backend_session(address):
+    f, client_socket = establish_client_connection(address)
+    client_logger.info(f'Connected to: {address}')
+    
+    @logger(in_sensitive=True, out_sensitive=True)
+    def session(**data):
+        encrypted_data = f.encrypt(json.dumps(data).encode('utf-8'))
+        request_length = len(encrypted_data)
+        client_socket.send(f.encrypt(json.dumps({'code':320, 'len':request_length}).encode('utf-8')))
+        response = json.loads(f.decrypt(client_socket.recv(1024)).decode())
+        if response['code'] == 420:
+            return response
+        elif response['code'] != 200:
+            return {'code':420, 'data':None, 'error':'Server failed to follow protocol'}
+        client_socket.send(encrypted_data)
+        request = json.loads(f.decrypt(client_socket.recv(1024)).decode())
+        if request['code'] == 420:
+            return request
+        if request['code'] != 320:
+            return {'code':420, 'data':None, 'error':'Server failed to follow protocol'}
+        client_socket.send(f.encrypt(json.dumps({'code':200}).encode('utf-8')))
+        return json.loads(f.decrypt(client_socket.recv(request['len'])).decode())
+    return session
+
+@logger()
+def frontend_session(path = os.getcwd()):
+    db_path = f'sqlite:///{path}/database.db'
+    client_logger.info(f'Database located at: {db_path}')
+    engine = create_engine(db_path, connect_args={'check_same_thread':False}, poolclass=StaticPool)
+    metadata = MetaData()
+    users = Table('users', metadata,
+        Column('username', String, unique=True, primary_key=True),
+        Column('password', String),
+        Column('data', LargeBinary))
+    ivs = Table('ivs', metadata,
+        Column('server', String, unique=True, primary_key=True),
+        Column('iv', LargeBinary))
+    metadata.create_all(engine)
+    conn = engine.connect()
+    key = 'random ass key'
+    salt = b'BOOBIES'
+    from_database = conn.execute(ivs.select().where(ivs.c.server == key)).fetchone()
+    if from_database:
+        _,ivs_bytes = from_database
+        ivs_dict = server_decrypt_data(ivs_bytes, key, salt)
+    else:
+        ivs_dict = {}
+        conn.execute(ivs.insert().values(server = key, iv=server_encrypt_data(ivs_dict, key, salt)))
+    database = {'conn':conn, 'users':users, 'iv_dict':ivs_dict}
+    
+    @logger(in_sensitive=True, out_sensitive=True)
+    def session(**data):
+        if data['code'] == 301:
+            return create_session(data)
+        elif data['code'] == 302:
+            return sign_up(database, data)
+        elif data['code'] == 303:
+            return save_data(data)
+        elif data['code'] == 304:
+            return delete_data(data)
+        elif data['code'] == 305:
+            return log_out(database, data)
+        elif data['code'] == 306:
+            return remove_account(database, data)
+        elif data['code'] == 307:
+            return log_in(database, data)
+        elif data['code'] == 308:
+            return load_data(data)
+        elif data['code'] == 309:
+            return end_session(data)
+        elif data['code'] == 310:
+            conn.execute(ivs.update().where(ivs.c.server == key).values(iv=server_encrypt_data(ivs_dict, key, salt)))
+            conn.commit()
+            conn.close()
+            return {'code':200} 
+    return session
