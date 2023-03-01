@@ -304,7 +304,7 @@ class Cache:
         return {'code':200, 'hash':hash}
 
     @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-    def find_user(self, hash, id):
+    def find_user(self, hash, id) -> dict[str,int|User]:
         if not is_valid_key(self.cache[hash]['main'], id):
             return {'code':500}
         self.cache[hash]['time'] = time.time()
@@ -333,7 +333,7 @@ class FrontSession:
         self.cache = Cache(600)
         db_path = f'sqlite:///{path}/database.db'
         client_logger.info(f'Database located at: {db_path}')
-        self.engine = create_engine(db_path, connect_args={'check_same_thread':False}, poolclass=StaticPool)
+        engine = create_engine(db_path, connect_args={'check_same_thread':False}, poolclass=StaticPool)
         metadata = MetaData()
         self.users = Table('users', metadata,
             Column('username', String, unique=True, primary_key=True),
@@ -342,17 +342,17 @@ class FrontSession:
         self.ivs = Table('ivs', metadata,
             Column('server', String, unique=True, primary_key=True),
             Column('iv', LargeBinary))
-        metadata.create_all(self.engine)
-        self.conn = self.engine.connect()
+        metadata.create_all(engine)
+        self.conn = engine.connect()
         self.key = 'random ass key'
         self.salt = b'BOOBIES'
         from_database = self.conn.execute(self.ivs.select().where(self.ivs.c.server == self.key)).fetchone()
         if from_database:
             _,ivs_bytes = from_database
-            self.ivs_dict = server_decrypt_data(ivs_bytes, self.key, self.salt)
+            self.iv_dict = server_decrypt_data(ivs_bytes, self.key, self.salt)
         else:
-            self.ivs_dict = {}
-            self.conn.execute(self.ivs.insert().values(server = self.key, iv=server_encrypt_data(self.ivs_dict, self.key, self.salt)))
+            self.iv_dict = {}
+            self.conn.execute(self.ivs.insert().values(server = self.key, iv=server_encrypt_data(self.iv_dict, self.key, self.salt)))
         
     @logger(in_sensitive=True, out_sensitive=True)
     def __call__(self, **data):
@@ -375,7 +375,11 @@ class FrontSession:
         elif data['code'] == 309:
             return self.end_session(data)
         elif data['code'] == 310:
-            self.conn.execute(self.ivs.update().where(self.ivs.c.server == self.key).values(iv=server_encrypt_data(self.ivs_dict, self.key, self.salt)))
+            self.conn.execute(self.ivs.update().where(self.ivs.c.server == self.key).values(iv=server_encrypt_data(self.iv_dict, self.key, self.salt)))
+            self.cache.stop_flag.set()
+            self.cache.t.join()
+            self.conn.commit()
+            self.conn.close()
             return {'code':200}
     
     @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
@@ -431,7 +435,7 @@ class FrontSession:
         encrypted_data, iv = encrypt_data(user_from_cache['data'][0], user_from_cache['data'][1][0], user_from_cache['data'][1][1])
         self.iv_dict[user_from_cache['data'][1][0]] = iv
         self.conn.execute(self.users.update().where(self.users.c.username == user_from_cache['data'][1][0]).values(data=encrypted_data))
-        self.cache.update_user(data['hash'], data['id'], [None,(None,None)])
+        self.cache.update_user(data['hash'], data['id'], User())
         return {'code':200}
 
     @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
@@ -460,7 +464,7 @@ class FrontSession:
             return {'code':404}
         if not verify_password_hash(user_from_database[1], password=data['password']):
             return {'code':401}   
-        cache_data = [decrypt_data(user_from_database[2], data['username'], data['password'], self.iv_dict[data['username']]), (data['username'], data['password'])]
+        cache_data = User(decrypt_data(user_from_database[2], data['username'], data['password'], self.iv_dict[data['username']]), data['username'], data['password'])
         if self.cache.update_user(data['hash'], data['id'], cache_data)['code'] == 500:
             return {'code':423}
         return {'code':200}

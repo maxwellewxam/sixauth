@@ -429,6 +429,8 @@ def frontend_session(path = os.getcwd(), test_mode = False):
             return end_session(data)
         elif data['code'] == 310:
             conn.execute(ivs.update().where(ivs.c.server == key).values(iv=server_encrypt_data(ivs_dict, key, salt)))
+            conn.commit()
+            conn.close()
             return {'code':200} 
     return session
 
