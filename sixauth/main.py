@@ -241,7 +241,7 @@ def sign_up(database, data):
     return {'code':200}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def save_data(data):
+def save_data(_,data):
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
         return {'code':423}
@@ -255,7 +255,7 @@ def save_data(data):
     return {'code':200, 'data':user_from_cache['data'][0]}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def delete_data(data):
+def delete_data(_,data):
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
         return {'code':423}
@@ -314,7 +314,7 @@ def log_in(database, data):
     return {'code':200}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def load_data(data):
+def load_data(_,data):
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
         return {'code':423}
@@ -326,12 +326,12 @@ def load_data(data):
     return {'code':202, 'data':val['data']}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def create_session(data):
+def create_session(_,data):
     user_hash = add_user(data['id'])['hash']
     return {'code':201, 'hash':user_hash}
 
 @logger(is_log_more=True, in_sensitive=True)
-def end_session(data):
+def end_session(_,data):
     if delete_user(data['hash'], data['id'])['code'] == 500:
         return {'code':423}
     return {'code':200}
@@ -568,29 +568,29 @@ def frontend_session(path = os.getcwd()):
         conn.execute(ivs.insert().values(server = key, iv=server_encrypt_data(ivs_dict, key, salt)))
     database = {'conn':conn, 'users':users, 'iv_dict':ivs_dict}
     
+    def close_session():
+        conn.execute(ivs.update().where(ivs.c.server == key).values(iv=server_encrypt_data(ivs_dict, key, salt)))
+        conn.commit()
+        conn.close()
+        return {'code':200}
+    
     @logger(in_sensitive=True, out_sensitive=True)
     def session(**data):
-        if data['code'] == 301:
-            return create_session(data)
-        elif data['code'] == 302:
-            return sign_up(database, data)
-        elif data['code'] == 303:
-            return save_data(data)
-        elif data['code'] == 304:
-            return delete_data(data)
-        elif data['code'] == 305:
-            return log_out(database, data)
-        elif data['code'] == 306:
-            return remove_account(database, data)
-        elif data['code'] == 307:
-            return log_in(database, data)
-        elif data['code'] == 308:
-            return load_data(data)
-        elif data['code'] == 309:
-            return end_session(data)
-        elif data['code'] == 310:
-            conn.execute(ivs.update().where(ivs.c.server == key).values(iv=server_encrypt_data(ivs_dict, key, salt)))
-            conn.commit()
-            conn.close()
-            return {'code':200} 
+        function_map = {
+            301: create_session,
+            302: sign_up,
+            303: save_data,
+            304: delete_data,
+            305: log_out,
+            306: remove_account,
+            307: log_in,
+            308: load_data,
+            309: end_session,
+            310: close_session
+            }
+        code = data.get('code')
+        if code in function_map:
+            return function_map[code](database, data)
+        else:
+            return {'code': 420, 'data':None, 'error': f"Invalid code: {code}"}
     return session

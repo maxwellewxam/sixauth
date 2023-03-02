@@ -303,7 +303,7 @@ class AuthSesh:
         self._requestHandle(self._sesh(code=310))
         self._sesh = self._dead
     
-    def _dead(self, **kwargs):
+    def _dead(self, **_):
         raise DataError('Tried to send request to session after session was terminated')
     
     def _requestHandle(self, request):
@@ -338,5 +338,5 @@ class AuthSesh:
             raise AuthenticationError('Failed to authenticate user')
             
         elif request['code'] == 420:
-            raise DataError(f"An error occured during the request, here is the data we could recover: {request['data']}\n Error: {request['error']}" )
+            raise DataError(f"An error occured during the request\nhere is the data we could recover: {request['data']}\nError: {request['error']}" )
             
