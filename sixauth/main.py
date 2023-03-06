@@ -11,6 +11,7 @@ import logging
 import traceback
 import asyncio
 
+from typing import Any, Callable
 from datetime import datetime
 from sqlalchemy import create_engine, Column, String, Table, MetaData, LargeBinary
 from sqlalchemy.pool import StaticPool
@@ -64,7 +65,7 @@ if __name__ != '__main__':
     logger = Logger(server_console, client_console, server_logger, client_logger, console_handler, formatter).setup_logger(server_logger_location=None)
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def server_encrypt_data(data, key, salt):
+def server_encrypt_data(data:dict, key:str, salt:bytes) -> bytes:
     for k, v in data.items():
         data[k] = base64.b64encode(v).decode()
     json_data = json.dumps(data)
@@ -79,7 +80,7 @@ def server_encrypt_data(data, key, salt):
     return fernet.encrypt(json_data.encode())
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def server_decrypt_data(data, key, salt):
+def server_decrypt_data(data:bytes, key:str, salt:bytes) -> dict:
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=32,
@@ -94,7 +95,7 @@ def server_decrypt_data(data, key, salt):
     return iv_dict
         
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def encrypt_data(data, password, salt):
+def encrypt_data(data:dict, password:str, salt:str) -> tuple[bytes, bytes]:
     backend = default_backend()
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
@@ -108,7 +109,7 @@ def encrypt_data(data, password, salt):
     return aesgcm.encrypt(iv, json.dumps(data).encode(), salt.encode()), iv
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def decrypt_data(data, password, salt, iv):
+def decrypt_data(data:bytes, password:str, salt:bytes, iv:bytes) -> dict:
     backend = default_backend()
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
@@ -121,23 +122,23 @@ def decrypt_data(data, password, salt, iv):
     return json.loads(aesgcm.decrypt(iv, data, salt.encode()).decode())
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def encrypt_data_fast(message, key):
+def encrypt_data_fast(message:dict, key:str) -> bytes:
     return Fernet(bytes.fromhex(key)).encrypt(json.dumps(message).encode())
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def decrypt_data_fast(message, key):
+def decrypt_data_fast(message:bytes, key:str) -> dict:
     return json.loads(Fernet(bytes.fromhex(key)).decrypt(message).decode())
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def create_password_hash(password):
+def create_password_hash(password:str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).hex()
 
 @logger(is_log_more=True, in_sensitive=True)
-def verify_password_hash(hash, password):
+def verify_password_hash(hash:str, password:str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), bytes.fromhex(hash))
 
 @logger(is_log_more=True, in_sensitive=True)
-def is_json_serialized(obj):
+def is_json_serialized(obj:dict) -> bool:
     try:
         json.loads(obj)
         return True
@@ -145,7 +146,7 @@ def is_json_serialized(obj):
         return False
 
 @logger(is_log_more=True, in_sensitive=True)
-def is_valid_key(data, id):
+def is_valid_key(data:bytes, id:str) -> bool:
     try:
         decrypt_data_fast(data, id)
         return True
@@ -153,7 +154,7 @@ def is_valid_key(data, id):
         return False
 
 @logger(is_log_more=True, in_sensitive=True)
-def make_location(dict, path, data):
+def make_location(dict:dict, path:str, data) -> dict[str,int]:
     path = path.split('/')
     for pos, name in enumerate(path):
         if not len([match for match in dict.keys() if match == name]) > 0:
@@ -165,7 +166,7 @@ def make_location(dict, path, data):
     return {'code':200}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def find_data(dict, path):
+def find_data(dict:dict, path:str) -> dict[str,int|Any]:
     path = path.split('/')
     try:
         for pos, name in enumerate(path):
@@ -176,7 +177,7 @@ def find_data(dict, path):
         return {'code': 500}
 
 @logger(is_log_more=True, in_sensitive=True)
-def delete_location(dict, path):
+def delete_location(dict:dict, path:str) -> dict[str,int]:
     path = path.split('/')
     for pos, name in enumerate(path):
         if len(path)==pos+1:
@@ -185,7 +186,7 @@ def delete_location(dict, path):
         dict = dict[name]['folder']
 
 @logger(is_log_more=True)
-def cache_timeout_thread(threshold, stop_flag):
+def cache_timeout_thread(threshold:int, stop_flag:threading.Event) -> None:
     while not stop_flag.is_set():
         try:
             for key in list(cache):
@@ -196,13 +197,13 @@ def cache_timeout_thread(threshold, stop_flag):
             server_console.log(err)
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def add_user(id):
+def add_user(id:str) -> dict[str,int|str]:
     hash = hashlib.sha512((f'{id}{datetime.now()}').encode("UTF-8")).hexdigest()
     cache[hash] = {'main':encrypt_data_fast([None,(None,None)],id), 'time':time.time()}
     return {'code':200, 'hash':hash}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def find_user(hash, id):
+def find_user(hash:str, id:str) -> dict[str,int|dict]:
     if not is_valid_key(cache[hash]['main'], id):
         return {'code':500}
     cache[hash]['time'] = time.time()
@@ -212,7 +213,7 @@ def find_user(hash, id):
     return {'code':200, 'data':data}
 
 @logger(is_log_more=True, in_sensitive=True)
-def update_user(hash, id, dbdat):
+def update_user(hash:str, id:str, dbdat:dict) -> dict[str,int]:
     if is_valid_key(cache[hash]['main'], id):
         cache[hash]['main'] = encrypt_data_fast(dbdat,id)
         cache[hash]['time'] = time.time()
@@ -220,14 +221,14 @@ def update_user(hash, id, dbdat):
     return {'code':500}
 
 @logger(is_log_more=True, in_sensitive=True)
-def delete_user(hash, id):
+def delete_user(hash:str, id:str) -> dict[str,int]:
     if is_valid_key(cache[hash]['main'], id):
         del cache[hash]
         return {'code':200}
     return {'code':500}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def sign_up(database, data):
+def sign_up(database:dict, data:dict) -> dict[str,int]:
     if data['username'] == '':
         return {'code':406}
     if data['username'].isalnum() == False:
@@ -241,7 +242,7 @@ def sign_up(database, data):
     return {'code':200}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def save_data(_,data):
+def save_data(_,data:dict) -> dict[str,int|Any]:
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
         return {'code':423}
@@ -252,10 +253,10 @@ def save_data(_,data):
         return {'code':417}
     make_location(user_from_cache['data'][0], data['location'], data_from_request)
     update_user(data['hash'], data['id'], [user_from_cache['data'][0], user_from_cache['data'][1]])
-    return {'code':200, 'data':user_from_cache['data'][0]}
+    return {'code':200}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def delete_data(_,data):
+def delete_data(_,data:dict) -> dict[str,int]:
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
         return {'code':423}
@@ -267,7 +268,7 @@ def delete_data(_,data):
     return {'code':200}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def log_out(database, data):
+def log_out(database:dict, data:dict) -> dict[str,int|Any]:
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
         return {'code':200}
@@ -283,7 +284,7 @@ def log_out(database, data):
     return {'code':200}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def remove_account(database, data):
+def remove_account(database:dict, data:dict) -> dict[str,int]:
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
         return{'code':423}
@@ -298,7 +299,7 @@ def remove_account(database, data):
     return {'code':200}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def log_in(database, data):
+def log_in(database:dict, data:dict) -> dict[str,int]:
     if data['username'] == '':
         return {'code':406}
     if data['username'].isalnum() == False:
@@ -314,7 +315,7 @@ def log_in(database, data):
     return {'code':200}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def load_data(_,data):
+def load_data(_,data:dict) -> dict[str,int|Any]:
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
         return {'code':423}
@@ -326,18 +327,18 @@ def load_data(_,data):
     return {'code':202, 'data':val['data']}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def create_session(_,data):
+def create_session(_,data:dict) -> dict[str,int|str]:
     user_hash = add_user(data['id'])['hash']
     return {'code':201, 'hash':user_hash}
 
 @logger(is_log_more=True, in_sensitive=True)
-def end_session(_,data):
+def end_session(_,data:dict) -> dict[str,int]:
     if delete_user(data['hash'], data['id'])['code'] == 500:
         return {'code':423}
     return {'code':200}
 
 @logger(is_log_more=True)
-def establish_client_connection(address):
+def establish_client_connection(address:str) -> tuple[Fernet,socket.socket]:
     client_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
     client_public_key = client_private_key.public_key()
     client_public_key_bytes = client_public_key.public_bytes(
@@ -518,12 +519,12 @@ def server(host, port, cache_threshold = 300, use_default_logger = True):
         session(code=310)
 
 @logger()
-def backend_session(address):
+def backend_session(address:str) -> Callable:
     f, client_socket = establish_client_connection(address)
     client_logger.info(f'Connected to: {address}')
     
     @logger(in_sensitive=True, out_sensitive=True)
-    def session(**data):
+    def session(**data:dict) -> dict[str,int|Any]:
         encrypted_data = f.encrypt(json.dumps(data).encode('utf-8'))
         request_length = len(encrypted_data)
         client_socket.send(f.encrypt(json.dumps({'code':320, 'len':request_length}).encode('utf-8')))
@@ -543,7 +544,7 @@ def backend_session(address):
     return session
 
 @logger()
-def frontend_session(path = os.getcwd()):
+def frontend_session(path:str = os.getcwd()) -> Callable:
     db_path = f'sqlite:///{path}/database.db'
     client_logger.info(f'Database located at: {db_path}')
     engine = create_engine(db_path, connect_args={'check_same_thread':False}, poolclass=StaticPool)
@@ -568,14 +569,14 @@ def frontend_session(path = os.getcwd()):
         conn.execute(ivs.insert().values(server = key, iv=server_encrypt_data(ivs_dict, key, salt)))
     database = {'conn':conn, 'users':users, 'iv_dict':ivs_dict}
     
-    def close_session():
+    def close_session(_,data:dict) -> dict[str,int]:
         conn.execute(ivs.update().where(ivs.c.server == key).values(iv=server_encrypt_data(ivs_dict, key, salt)))
         conn.commit()
         conn.close()
         return {'code':200}
     
     @logger(in_sensitive=True, out_sensitive=True)
-    def session(**data):
+    def session(**data:dict) -> dict[str,int|Any]:
         function_map = {
             301: create_session,
             302: sign_up,
