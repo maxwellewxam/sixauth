@@ -95,7 +95,7 @@ def server_decrypt_data(data:bytes, key:str, salt:bytes) -> dict:
     return iv_dict
         
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def encrypt_data(data:dict, password:str, salt:str) -> tuple[bytes, bytes]:
+def encrypt_data(data:dict, password:str, salt:str) -> 'tuple[bytes, bytes]':
     backend = default_backend()
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
@@ -154,7 +154,7 @@ def is_valid_key(data:bytes, id:str) -> bool:
         return False
 
 @logger(is_log_more=True, in_sensitive=True)
-def make_location(dict:dict, path:str, data) -> dict[str,int]:
+def make_location(dict:dict, path:str, data) -> 'dict[str,int]':
     path = path.split('/')
     for pos, name in enumerate(path):
         if not len([match for match in dict.keys() if match == name]) > 0:
@@ -166,7 +166,7 @@ def make_location(dict:dict, path:str, data) -> dict[str,int]:
     return {'code':200}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def find_data(dict:dict, path:str) -> dict[str,Any]:
+def find_data(dict:dict, path:str) -> 'dict[str,int|Any]':
     path = path.split('/')
     try:
         for pos, name in enumerate(path):
@@ -177,7 +177,7 @@ def find_data(dict:dict, path:str) -> dict[str,Any]:
         return {'code': 500}
 
 @logger(is_log_more=True, in_sensitive=True)
-def delete_location(dict:dict, path:str) -> dict[str,int]:
+def delete_location(dict:dict, path:str) -> 'dict[str,int]':
     path = path.split('/')
     for pos, name in enumerate(path):
         if len(path)==pos+1:
@@ -197,13 +197,13 @@ def cache_timeout_thread(threshold:int, stop_flag:threading.Event) -> None:
             server_console.log(err)
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def add_user(id:str) -> dict[str,int|str]:
+def add_user(id:str) -> 'dict[str,int|str]':
     hash = hashlib.sha512((f'{id}{datetime.now()}').encode("UTF-8")).hexdigest()
     cache[hash] = {'main':encrypt_data_fast([None,(None,None)],id), 'time':time.time()}
     return {'code':200, 'hash':hash}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def find_user(hash:str, id:str) -> dict[str,int|dict]:
+def find_user(hash:str, id:str) -> 'dict[str,int|dict]':
     if not is_valid_key(cache[hash]['main'], id):
         return {'code':500}
     cache[hash]['time'] = time.time()
@@ -213,7 +213,7 @@ def find_user(hash:str, id:str) -> dict[str,int|dict]:
     return {'code':200, 'data':data}
 
 @logger(is_log_more=True, in_sensitive=True)
-def update_user(hash:str, id:str, dbdat:dict) -> dict[str,int]:
+def update_user(hash:str, id:str, dbdat:dict) -> 'dict[str,int]':
     if is_valid_key(cache[hash]['main'], id):
         cache[hash]['main'] = encrypt_data_fast(dbdat,id)
         cache[hash]['time'] = time.time()
@@ -221,14 +221,14 @@ def update_user(hash:str, id:str, dbdat:dict) -> dict[str,int]:
     return {'code':500}
 
 @logger(is_log_more=True, in_sensitive=True)
-def delete_user(hash:str, id:str) -> dict[str,int]:
+def delete_user(hash:str, id:str) -> 'dict[str,int]':
     if is_valid_key(cache[hash]['main'], id):
         del cache[hash]
         return {'code':200}
     return {'code':500}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def sign_up(database:dict, data:dict) -> dict[str,int]:
+def sign_up(database:dict, data:dict) -> 'dict[str,int]':
     if data['username'] == '':
         return {'code':406}
     if data['username'].isalnum() == False:
@@ -242,7 +242,7 @@ def sign_up(database:dict, data:dict) -> dict[str,int]:
     return {'code':200}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def save_data(_,data:dict) -> dict[str,Any]:
+def save_data(_,data:dict) -> 'dict[str,int|Any]':
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
         return {'code':423}
@@ -256,7 +256,7 @@ def save_data(_,data:dict) -> dict[str,Any]:
     return {'code':200}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def delete_data(_,data:dict) -> dict[str,int]:
+def delete_data(_,data:dict) -> 'dict[str,int]':
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
         return {'code':423}
@@ -268,7 +268,7 @@ def delete_data(_,data:dict) -> dict[str,int]:
     return {'code':200}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def log_out(database:dict, data:dict) -> dict[str,Any]:
+def log_out(database:dict, data:dict) -> 'dict[str,int|Any]':
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
         return {'code':200}
@@ -284,7 +284,7 @@ def log_out(database:dict, data:dict) -> dict[str,Any]:
     return {'code':200}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def remove_account(database:dict, data:dict) -> dict[str,int]:
+def remove_account(database:dict, data:dict) -> 'dict[str,int]':
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
         return{'code':423}
@@ -299,7 +299,7 @@ def remove_account(database:dict, data:dict) -> dict[str,int]:
     return {'code':200}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def log_in(database:dict, data:dict) -> dict[str,int]:
+def log_in(database:dict, data:dict) -> 'dict[str,int]':
     if data['username'] == '':
         return {'code':406}
     if data['username'].isalnum() == False:
@@ -315,7 +315,7 @@ def log_in(database:dict, data:dict) -> dict[str,int]:
     return {'code':200}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def load_data(_,data:dict) -> dict[str,Any]:
+def load_data(_,data:dict) -> 'dict[str,int|Any]':
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
         return {'code':423}
@@ -327,18 +327,18 @@ def load_data(_,data:dict) -> dict[str,Any]:
     return {'code':202, 'data':val['data']}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def create_session(_,data:dict) -> dict[str,int|str]:
+def create_session(_,data:dict) -> 'dict[str,int|str]':
     user_hash = add_user(data['id'])['hash']
     return {'code':201, 'hash':user_hash}
 
 @logger(is_log_more=True, in_sensitive=True)
-def end_session(_,data:dict) -> dict[str,int]:
+def end_session(_,data:dict) -> 'dict[str,int]':
     if delete_user(data['hash'], data['id'])['code'] == 500:
         return {'code':423}
     return {'code':200}
 
 @logger(is_log_more=True)
-def establish_client_connection(address:str) -> tuple[Fernet,socket.socket]:
+def establish_client_connection(address:str) -> 'tuple[Fernet,socket.socket]':
     client_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
     client_public_key = client_private_key.public_key()
     client_public_key_bytes = client_public_key.public_bytes(
@@ -524,7 +524,7 @@ def backend_session(address:str) -> Callable:
     client_logger.info(f'Connected to: {address}')
     
     @logger(in_sensitive=True, out_sensitive=True)
-    def session(**data:dict) -> dict[str,Any]:
+    def session(**data:dict) -> 'dict[str,int|Any]':
         encrypted_data = f.encrypt(json.dumps(data).encode('utf-8'))
         request_length = len(encrypted_data)
         client_socket.send(f.encrypt(json.dumps({'code':320, 'len':request_length}).encode('utf-8')))
@@ -569,14 +569,14 @@ def frontend_session(path:str = os.getcwd()) -> Callable:
         conn.execute(ivs.insert().values(server = key, iv=server_encrypt_data(ivs_dict, key, salt)))
     database = {'conn':conn, 'users':users, 'iv_dict':ivs_dict}
     
-    def close_session(_,data:dict) -> dict[str,int]:
+    def close_session(_,data:dict) -> 'dict[str,int]':
         conn.execute(ivs.update().where(ivs.c.server == key).values(iv=server_encrypt_data(ivs_dict, key, salt)))
         conn.commit()
         conn.close()
         return {'code':200}
     
     @logger(in_sensitive=True, out_sensitive=True)
-    def session(**data:dict) -> dict[str,Any]:
+    def session(**data:dict) -> 'dict[str,int|Any]':
         function_map = {
             301: create_session,
             302: sign_up,
