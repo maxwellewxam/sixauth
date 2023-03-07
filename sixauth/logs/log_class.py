@@ -10,7 +10,7 @@ def whos_logging(loghandle):
     return log_func
 
 class Logger:
-    def __init__(self, server_console, client_console, server_logger, client_logger, console_handler, formatter):
+    def __init__(self, server_console: logging.Logger, client_console: logging.Logger, server_logger: logging.Logger, client_logger: logging.Logger, console_handler, formatter):
         self.server_console = server_console
         self.client_console = client_console
         self.client_logger = client_logger
@@ -73,6 +73,8 @@ class Logger:
                         log(f'{func.__name__} returned {returned}')
                     else:
                         log(f'{func.__name__} returned')
+                if self.log_more:
+                    log(f"{func.__name__} took {end-start} seconds to execute")
                 return returned
             return wrapper
         return decorator

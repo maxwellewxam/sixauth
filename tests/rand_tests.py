@@ -1,18 +1,24 @@
-import cProfile
-import re
-import os
+
+from classes import Cache, User, FrontSession
+from cryptography.fernet import Fernet
 import sys
-HERE = os.path.abspath(os.getcwd())
+import os
+if sys.platform == 'win32':
+    HERE = os.path.abspath('../maxmods/')
+else:
+    HERE = os.path.abspath(os.getcwd())
 sys.path.append(HERE)
-sys.path.reverse()
-from sixauth import AuthSesh as ash
+from sixauth.main import frontend_session, backend_session
 
 
+id = Fernet.generate_key().hex()
 
-with ash('127.0.0.1:5678')as sesh:
-    sesh.set_vals('max', 'max')
-    #sesh.signup()
-    sesh.login()
-    sesh.save('f1/f2/f3', ['maxwellewxam'] * 6000)
-    print(sesh.load('f1/f2/f3'))
-    #sesh.remove()
+#sesh = backend_session('127.0.0.1:5678')
+sesh = FrontSession()
+hash = sesh(code=301, id=id)['hash']
+print(hash)
+print(sesh(code=302, id=id, hash=hash, username='max', password='test')['code'])
+print(sesh(code=307, id=id, hash=hash, username='max', password='test')['code'])
+print(sesh(code=309, id=id, hash=hash)['code'])
+print(sesh(code=310)['code'])
+
