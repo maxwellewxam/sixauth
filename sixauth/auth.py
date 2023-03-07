@@ -177,7 +177,7 @@ class AuthSesh:
     def load(self, Location = ''):
         """Loads data from the specified location on the backend authentication server.
 
-        Raises a `LocationError` if the specified location does not exist. Rasies `DataError` if there is an error loading the data from the server.
+        Raises a `LocationError` if the specified location does not exist. Raises `DataError` if there is an error loading the data from the server.
 
         Parameters
         ----------
@@ -202,7 +202,7 @@ class AuthSesh:
     def delete(self, Location: str):
         """Deletes the data at the specified location on the backend authentication server.
 
-        Raises a `LocationError` if the specified location does not exist. Rasies `DataError` if there is an error deleting the data from the server.
+        Raises a `LocationError` if the specified location does not exist. Raises `DataError` if there is an error deleting the data from the server.
 
         Parameters
         ----------
