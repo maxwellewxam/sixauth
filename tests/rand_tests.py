@@ -1,3 +1,4 @@
+
 from classes import Cache, User, FrontSession
 from cryptography.fernet import Fernet
 import sys
@@ -20,3 +21,4 @@ print(sesh(code=302, id=id, hash=hash, username='max', password='test')['code'])
 print(sesh(code=307, id=id, hash=hash, username='max', password='test')['code'])
 print(sesh(code=309, id=id, hash=hash)['code'])
 print(sesh(code=310)['code'])
+
