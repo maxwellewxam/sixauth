@@ -166,7 +166,7 @@ def make_location(dict:dict, path:str, data) -> dict[str,int]:
     return {'code':200}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def find_data(dict:dict, path:str) -> dict[str,int|Any]:
+def find_data(dict:dict, path:str) -> dict[str,Any]:
     path = path.split('/')
     try:
         for pos, name in enumerate(path):
@@ -242,7 +242,7 @@ def sign_up(database:dict, data:dict) -> dict[str,int]:
     return {'code':200}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def save_data(_,data:dict) -> dict[str,int|Any]:
+def save_data(_,data:dict) -> dict[str,Any]:
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
         return {'code':423}
@@ -268,7 +268,7 @@ def delete_data(_,data:dict) -> dict[str,int]:
     return {'code':200}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def log_out(database:dict, data:dict) -> dict[str,int|Any]:
+def log_out(database:dict, data:dict) -> dict[str,Any]:
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
         return {'code':200}
@@ -315,7 +315,7 @@ def log_in(database:dict, data:dict) -> dict[str,int]:
     return {'code':200}
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def load_data(_,data:dict) -> dict[str,int|Any]:
+def load_data(_,data:dict) -> dict[str,Any]:
     user_from_cache = find_user(data['hash'], data['id'])
     if user_from_cache['code'] == 500:
         return {'code':423}
@@ -524,7 +524,7 @@ def backend_session(address:str) -> Callable:
     client_logger.info(f'Connected to: {address}')
     
     @logger(in_sensitive=True, out_sensitive=True)
-    def session(**data:dict) -> dict[str,int|Any]:
+    def session(**data:dict) -> dict[str,Any]:
         encrypted_data = f.encrypt(json.dumps(data).encode('utf-8'))
         request_length = len(encrypted_data)
         client_socket.send(f.encrypt(json.dumps({'code':320, 'len':request_length}).encode('utf-8')))
@@ -576,7 +576,7 @@ def frontend_session(path:str = os.getcwd()) -> Callable:
         return {'code':200}
     
     @logger(in_sensitive=True, out_sensitive=True)
-    def session(**data:dict) -> dict[str,int|Any]:
+    def session(**data:dict) -> dict[str,Any]:
         function_map = {
             301: create_session,
             302: sign_up,
