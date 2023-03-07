@@ -1,1 +1,1 @@
-'''loging folder'''
+'''logging folder'''

@@ -317,7 +317,7 @@ class AuthSesh:
             self._Hash = request['hash']
         
         elif request['code'] == 416:
-            raise LocationError('Loaction does not exist')
+            raise LocationError('Location does not exist')
         
         elif request['code'] == 417:
             raise LocationError('No path specified')
@@ -338,5 +338,5 @@ class AuthSesh:
             raise AuthenticationError('Failed to authenticate user')
             
         elif request['code'] == 420:
-            raise DataError(f"An error occured during the request\nhere is the data we could recover: {request['data']}\nError: {request['error']}" )
+            raise DataError(f"An error occurred during the request\nhere is the data we could recover: {request['data']}\nError: {request['error']}" )
             

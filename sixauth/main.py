@@ -382,7 +382,7 @@ async def server_send_data(loop, client_socket, client_address, f, data):
         await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
         tb = traceback.extract_tb(sys.exc_info()[2])
         line_number = tb[-1][1]
-        server_logger.info(f'Request {data["code"]} prossesing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')#\n{str(tb)}')
+        server_logger.info(f'Request {data["code"]} processing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')#\n{str(tb)}')
         return {'code':500}
     if response['code'] != 200:
         return {'code':500}
@@ -399,7 +399,7 @@ async def server_recv_data(loop, client_socket, client_address, f):
     try:
         data = json.loads(f.decrypt(request).decode())
         if data['code'] != 320:
-            server_logger.info(f'{client_address} failed to follow protocall')
+            server_logger.info(f'{client_address} failed to follow protocol')
             await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Client failed to follow protocol'}).encode('utf-8')))
             return {'code':500}
         await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':200}).encode('utf-8')))
@@ -420,7 +420,7 @@ async def server_recv_data(loop, client_socket, client_address, f):
             await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
         tb = traceback.extract_tb(sys.exc_info()[2])
         line_number = tb[-1][1]
-        server_logger.info(f'Request {data["code"]} prossesing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')#\n{str(tb)}')
+        server_logger.info(f'Request {data["code"]} processing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')#\n{str(tb)}')
         return {'code':500}
     return {'code':200, 'data':data}
 
@@ -430,7 +430,7 @@ async def main_client_loop(client_socket, client_address, f, loop, session, stop
         try:
             data = await server_recv_data(loop, client_socket, client_address, f)
             if data['code'] == 500:
-                server_logger.info(f'{client_address} failed to follow protocall')
+                server_logger.info(f'{client_address} failed to follow protocol')
                 await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Failed to follow protocol'}).encode('utf-8')))
                 break
             data = data["data"]
@@ -442,7 +442,7 @@ async def main_client_loop(client_socket, client_address, f, loop, session, stop
             server_logger.info(f'response to {client_address}: {response["code"]}')
             status = await server_send_data(loop, client_socket, client_address, f, response)
             if status['code'] == 500:
-                server_logger.info(f'{client_address} failed to follow protocall')
+                server_logger.info(f'{client_address} failed to follow protocol')
                 await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Failed to follow protocol'}).encode('utf-8')))
                 break
             if data['code'] == 309 and response['code'] == 200:
@@ -456,7 +456,7 @@ async def main_client_loop(client_socket, client_address, f, loop, session, stop
                 await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
             tb = traceback.extract_tb(sys.exc_info()[2])
             line_number = tb[-1][1]
-            server_logger.info(f'Request {data["code"]} prossesing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')#\n{str(tb)}')
+            server_logger.info(f'Request {data["code"]} processing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')#\n{str(tb)}')
 
 @logger(is_server=True, in_sensitive=True)
 async def setup_client(client_socket, client_address, server_public_key_bytes, stop_flag1, loop, session, server_private_key=None):

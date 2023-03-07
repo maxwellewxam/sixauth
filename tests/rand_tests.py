@@ -1,4 +1,3 @@
-
 from classes import Cache, User, FrontSession
 from cryptography.fernet import Fernet
 import sys
