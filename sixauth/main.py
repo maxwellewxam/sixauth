@@ -23,7 +23,7 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.backends import default_backend
 from cryptography.fernet import Fernet, InvalidToken
 
-from .logs.log_class import Logger
+from . import logs
 
 class AuthError(Exception): ...
 class LocationError(AuthError): ...
@@ -47,7 +47,82 @@ def exception_hook(exc_type, value, tb):
     
 sys.excepthook = exception_hook
 
-cache = {}
+class Logger:
+    def __init__(self, server_console: logging.Logger, client_console: logging.Logger, server_logger: logging.Logger, client_logger: logging.Logger, console_handler, formatter):
+        self.server_console = server_console
+        self.client_console = client_console
+        self.client_logger = client_logger
+        self.server_logger = server_logger
+        self.console_handler = console_handler
+        self.formatter = formatter
+        self.times = []
+    
+    def set_logger(self, loghandle:logging.Logger):
+        def log_func(text):
+            loghandle.info(text)
+        return log_func
+    
+    def setup_logger(self,
+                        client_logger_location = os.path.dirname(logs.__file__), 
+                        server_logger_location = os.getcwd(), 
+                        debug = False,
+                        log_sensitive = False,
+                        log_more = False):
+        self.client_logger_location = client_logger_location
+        self.server_logger_location = server_logger_location
+        self.debug = debug
+        self.log_sensitive = log_sensitive
+        self.log_more = log_more
+        if server_logger_location != None:
+            server_logger_handler = logging.FileHandler(server_logger_location+'/server.log')
+            self.server_console.addHandler(server_logger_handler)
+            self.server_logger.addHandler(server_logger_handler)
+            self.server_logger.info('VVV---------BEGIN-NEW-LOG----------VVV')
+            if self.log_sensitive:
+                self.server_logger.info('WARNING: LOGGING SENSITIVE INFO')
+            server_logger_handler.setFormatter(self.formatter)
+        if client_logger_location != None:
+            client_logger_handler = logging.FileHandler(client_logger_location+'/client.log')
+            self.client_console.addHandler(client_logger_handler)
+            self.client_logger.addHandler(client_logger_handler)
+            self.client_logger.info('VVV---------BEGIN-NEW-LOG----------VVV')
+            if self.log_sensitive:
+                self.client_logger.info('WARNING: LOGGING SENSITIVE INFO')
+            client_logger_handler.setFormatter(self.formatter)
+        self.server_console.addHandler(self.console_handler)
+        self.client_console.addHandler(self.console_handler)
+        return self
+    
+    def __call__(self, is_server = False, is_log_more=False, in_sensitive=False, out_sensitive=False):
+        if is_server and self.debug:
+            log = self.set_logger(self.server_console)
+        elif is_server and not self.debug:
+            log = self.set_logger(self.server_logger)
+        elif not is_server and self.debug:
+            log = self.set_logger(self.client_console)
+        elif not is_server and not self.debug:
+            log = self.set_logger(self.client_logger)
+        def decorator(func):
+            def wrapper(*args, **kwargs):
+                if is_log_more == False or self.log_more == True:
+                    if not in_sensitive or self.log_sensitive:
+                        log(f'{func.__name__} called with arguments {args} and {kwargs}')
+                    else:
+                        log(f'{func.__name__} called')
+                start = time.time()               
+                returned = func(*args, **kwargs)
+                end = time.time()
+                self.times.append((func.__name__, end-start, str(args), str(kwargs)))
+                if is_log_more == False or self.log_more == True:
+                    if not out_sensitive or self.log_sensitive:
+                        log(f'{func.__name__} returned {returned}')
+                    else:
+                        log(f'{func.__name__} returned')
+                if self.log_more:
+                    log(f"{func.__name__} took {end-start} seconds to execute")
+                return returned
+            return wrapper
+        return decorator
 
 if __name__ != '__main__':
     server_console = logging.getLogger('server_console')
@@ -63,6 +138,14 @@ if __name__ != '__main__':
     console_handler = logging.StreamHandler()
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     logger = Logger(server_console, client_console, server_logger, client_logger, console_handler, formatter).setup_logger(server_logger_location=None)
+
+else:
+    def logger(**_):
+        def decorator(func):
+            def wrapper(*args, **kwargs):
+                return func(*args, **kwargs)
+            return wrapper
+        return decorator
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
 def server_encrypt_data(data:dict, key:str, salt:bytes) -> bytes:
@@ -153,189 +236,286 @@ def is_valid_key(data:bytes, id:str) -> bool:
     except InvalidToken:
         return False
 
-@logger(is_log_more=True, in_sensitive=True)
-def make_location(dict:dict, path:str, data) -> 'dict[str,int]':
-    path = path.split('/')
-    for pos, name in enumerate(path):
-        if not len([match for match in dict.keys() if match == name]) > 0:
-            dict[name] = {'data': None, 'folder':{}}
-        if len(path)==pos+1:
-            dict[name]['data'] = data
-            return {'code':200}
-        dict = dict[name]['folder']
-    return {'code':200}
+class Data:
+    @logger(is_log_more=True, in_sensitive=True)
+    def __init__(self, data):
+        self.data = data
+    
+    @logger(is_log_more=True, out_sensitive=True)
+    def store(self):
+        return self.data
+    
+    @logger(is_log_more=True, in_sensitive=True)
+    def make(self, path:str, data):
+        path = path.split('/')
+        temp = self.data
+        for pos, name in enumerate(path):
+            if not len([match for match in temp.keys() if match == name]) > 0:
+                temp[name] = {'data': None, 'folder':{}}
+            if len(path)==pos+1:
+                temp[name]['data'] = data
+                return {'code':200}
+            temp = temp[name]['folder']
 
-@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def find_data(dict:dict, path:str) -> 'dict[str,int|Any]':
-    path = path.split('/')
-    try:
+    @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+    def find(self, path:str):
+        path = path.split('/')
+        temp = self.data
+        try:
+            for pos, name in enumerate(path):
+                if len(path)==pos+1:
+                    return {'code':200, 'data':temp[name]['data']}
+                temp = temp[name]['folder']
+        except KeyError:
+            return {'code': 500}
+
+    @logger(is_log_more=True, in_sensitive=True)
+    def delete(self, path:str):
+        path = path.split('/')
+        temp = self.data
         for pos, name in enumerate(path):
             if len(path)==pos+1:
-                return {'code':200, 'data':dict[name]['data']}
-            dict = dict[name]['folder']
-    except KeyError:
-        return {'code': 500}
+                del temp[name]
+                return {'code':200}
+            temp = temp[name]['folder']
 
-@logger(is_log_more=True, in_sensitive=True)
-def delete_location(dict:dict, path:str) -> 'dict[str,int]':
-    path = path.split('/')
-    for pos, name in enumerate(path):
-        if len(path)==pos+1:
-            del dict[name]
+class User:
+    data: Data
+    @logger(is_log_more=True, in_sensitive=True)
+    def __init__(self, data = None, username = None, password = None):
+        self.data = Data(data)
+        self.username = username
+        self.password = password
+    
+    @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+    def store(self, id):
+        self.data = self.data.store()
+        return encrypt_data_fast(self.__dict__, id)
+    
+    @logger(is_log_more=True, in_sensitive=True)
+    def from_dict(self, dict, id):
+        self.__dict__ = decrypt_data_fast(dict, id)
+        self.data = Data(self.data)
+        return self
+
+class Cache:
+    @logger(is_log_more=True)
+    def __init__(self, threshold = 300):
+        self.cache = {}
+        self.threshold = threshold
+        self.stop_flag = threading.Event()
+        self.t = threading.Thread(target=self.cache_timeout_thread)
+        self.t.start()
+
+    @logger(is_log_more=True)
+    def cache_timeout_thread(self):
+        while not self.stop_flag.is_set():
+            try:
+                for key in list(self.cache):
+                    if time.time() - self.cache[key]['time'] > self.threshold:
+                        del self.cache[key]
+                time.sleep(1)
+            except Exception as err:
+                server_console.log(err)
+
+    @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+    def add_user(self, id):
+        hash = hashlib.sha512((f'{id}{datetime.now()}').encode("UTF-8")).hexdigest()
+        self.cache[hash] = {'main':User().store(id), 'time':time.time()}
+        return {'code':200, 'hash':hash}
+
+    @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+    def find_user(self, hash, id) -> dict[str,int|User]:
+        if not is_valid_key(self.cache[hash]['main'], id):
+            return {'code':500}
+        self.cache[hash]['time'] = time.time()
+        data = User().from_dict(self.cache[hash]['main'], id)
+        if data.username == None:
+            return {'code':500}
+        return {'code':200, 'data':data}
+    
+    @logger(is_log_more=True, in_sensitive=True)
+    def update_user(self, hash, id, user):
+        if not is_valid_key(self.cache[hash]['main'], id):
+            return {'code':500}
+        self.cache[hash]['main'] = user.store(id)
+        self.cache[hash]['time'] = time.time()
+        return {'code':200}
+        
+    @logger(is_log_more=True, in_sensitive=True)
+    def delete_user(self, hash, id):
+        if not is_valid_key(self.cache[hash]['main'], id):
+            return {'code':500}
+        del self.cache[hash]
+        return {'code':200}
+
+class FrontSession:
+    @logger()
+    def __init__(self, path = os.getcwd(), cache_threshold = 300):
+        self.cache = Cache(cache_threshold)
+        db_path = f'sqlite:///{path}/database.db'
+        client_logger.info(f'Database located at: {db_path}')
+        engine = create_engine(db_path, connect_args={'check_same_thread':False}, poolclass=StaticPool)
+        metadata = MetaData()
+        self.users = Table('users', metadata,
+            Column('username', String, unique=True, primary_key=True),
+            Column('password', String),
+            Column('data', LargeBinary))
+        self.ivs = Table('ivs', metadata,
+            Column('server', String, unique=True, primary_key=True),
+            Column('iv', LargeBinary))
+        metadata.create_all(engine)
+        self.conn = engine.connect()
+        self.key = 'random ass key'
+        self.salt = b'BOOBIES'
+        from_database = self.conn.execute(self.ivs.select().where(self.ivs.c.server == self.key)).fetchone()
+        if from_database:
+            _,ivs_bytes = from_database
+            self.iv_dict = server_decrypt_data(ivs_bytes, self.key, self.salt)
+        else:
+            self.iv_dict = {}
+            self.conn.execute(self.ivs.insert().values(server = self.key, iv=server_encrypt_data(self.iv_dict, self.key, self.salt)))
+        self.function_map = {
+            301: self.create_session,
+            302: self.sign_up,
+            303: self.save_data,
+            304: self.delete_data,
+            305: self.log_out,
+            306: self.remove_account,
+            307: self.log_in,
+            308: self.load_data,
+            309: self.end_session,
+            310: self.close_session}
+        
+    @logger(is_log_more=True, in_sensitive=True)
+    def close_session(self,_) -> 'dict[str,int]':
+        self.cache.stop_flag.set()
+        self.cache.t.join()
+        self.server()
+        self.conn.execute(self.ivs.update().where(self.ivs.c.server == self.key).values(iv=server_encrypt_data(self.iv_dict, self.key, self.salt)))
+        self.conn.commit()
+        self.conn.close()
+    
+    def server(self):
+        pass
+    
+    @logger(in_sensitive=True, out_sensitive=True)
+    def __call__(self, **data:dict) -> 'dict[str,int|Any]':
+        code = data.get('code')
+        if code in self.function_map:
+            return self.function_map[code](data)
+        else:
+            return {'code': 420, 'data':None, 'error': f"Invalid code: {code}"}
+    
+    @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+    def sign_up(self, data):
+        if data['username'] == '':
+            return {'code':406}
+        if data['username'].isalnum() == False:
+            return {'code':406}
+        user_from_database = self.conn.execute(self.users.select().where(self.users.c.username == data['username'])).fetchone()
+        if user_from_database:
+            return {'code':409}
+        encrypted_data, iv = encrypt_data({}, data['username'], data['password'])
+        self.iv_dict[data['username']] = iv
+        self.conn.execute(self.users.insert().values(username=data['username'], password=create_password_hash(data['password']), data=encrypted_data))
+        return {'code':200}
+
+    @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+    def save_data(self, data):
+        user_from_cache = self.cache.find_user(data['hash'], data['id'])
+        if user_from_cache['code'] == 500:
+            return {'code':423}
+        if not is_json_serialized(data['data']):
+            return {'code':420, 'data':data['data'], 'error':'Object is not json serialized'}
+        data_from_request = json.loads(data['data'])
+        if data['location'] == '':
+            return {'code':417}
+        user_from_cache['data'].data.make(data['location'], data_from_request)
+        self.cache.update_user(data['hash'], data['id'], user_from_cache['data'])
+        return {'code':200}
+
+    @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+    def delete_data(self, data):
+        user_from_cache = self.cache.find_user(data['hash'], data['id'])
+        if user_from_cache['code'] == 500:
+            return {'code':423}
+        if data['location'] == '':
+            user_from_cache['data'].data.data = {}
+        else:
+            user_from_cache['data'].data.delete(data['location'])
+        self.cache.update_user(data['hash'], data['id'], user_from_cache['data'])
+        return {'code':200}
+
+    @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+    def log_out(self, data):
+        user_from_cache = self.cache.find_user(data['hash'], data['id'])
+        if user_from_cache['code'] == 500:
             return {'code':200}
-        dict = dict[name]['folder']
-
-@logger(is_log_more=True)
-def cache_timeout_thread(threshold:int, stop_flag:threading.Event) -> None:
-    while not stop_flag.is_set():
-        try:
-            for key in list(cache):
-                if time.time() - cache[key]['time'] > threshold:
-                    del cache[key]
-            time.sleep(1)
-        except Exception as err:
-            server_console.log(err)
-
-@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def add_user(id:str) -> 'dict[str,int|str]':
-    hash = hashlib.sha512((f'{id}{datetime.now()}').encode("UTF-8")).hexdigest()
-    cache[hash] = {'main':encrypt_data_fast([None,(None,None)],id), 'time':time.time()}
-    return {'code':200, 'hash':hash}
-
-@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def find_user(hash:str, id:str) -> 'dict[str,int|dict]':
-    if not is_valid_key(cache[hash]['main'], id):
-        return {'code':500}
-    cache[hash]['time'] = time.time()
-    data = decrypt_data_fast(cache[hash]['main'],id)
-    if data[0] == None:
-        return {'code':500}
-    return {'code':200, 'data':data}
-
-@logger(is_log_more=True, in_sensitive=True)
-def update_user(hash:str, id:str, dbdat:dict) -> 'dict[str,int]':
-    if is_valid_key(cache[hash]['main'], id):
-        cache[hash]['main'] = encrypt_data_fast(dbdat,id)
-        cache[hash]['time'] = time.time()
+        user_from_database = self.conn.execute(self.users.select().where(self.users.c.username == user_from_cache['data'].username)).fetchone()
+        if not user_from_database:
+            return {'code':420, 'data':user_from_cache['data'], 'error':'could not find user to logout'}
+        if not verify_password_hash(user_from_database[1], password=user_from_cache['data'].password):
+            return {'code': 423}
+        encrypted_data, iv = encrypt_data(user_from_cache['data'].data.data, user_from_cache['data'].password, user_from_cache['data'].username)
+        self.iv_dict[user_from_cache['data'].username] = iv
+        self.conn.execute(self.users.update().where(self.users.c.username == user_from_cache['data'].username).values(data=encrypted_data))
+        self.cache.update_user(data['hash'], data['id'], User())
         return {'code':200}
-    return {'code':500}
 
-@logger(is_log_more=True, in_sensitive=True)
-def delete_user(hash:str, id:str) -> 'dict[str,int]':
-    if is_valid_key(cache[hash]['main'], id):
-        del cache[hash]
+    @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+    def remove_account(self, data):
+        user_from_cache = self.cache.find_user(data['hash'], data['id'])
+        if user_from_cache['code'] == 500:
+            return{'code':423}
+        user_from_database = self.conn.execute(self.users.select().where(self.users.c.username == user_from_cache['data'].username)).fetchone()
+        if not user_from_database:
+            return {'code':423}
+        if not verify_password_hash(user_from_database[1], password=user_from_cache['data'].password):
+            return {'code':423}
+        self.conn.execute(self.users.delete().where(self.users.c.username == user_from_cache['data'].username))
+        self.cache.update_user(data['hash'], data['id'], User())
+        del self.iv_dict[user_from_cache['data'].username]
         return {'code':200}
-    return {'code':500}
 
-@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def sign_up(database:dict, data:dict) -> 'dict[str,int]':
-    if data['username'] == '':
-        return {'code':406}
-    if data['username'].isalnum() == False:
-        return {'code':406}
-    user_from_database = database['conn'].execute(database['users'].select().where(database['users'].c.username == data['username'])).fetchone()
-    if user_from_database:
-        return {'code':409}
-    encrypted_data, iv = encrypt_data({}, data['username'], data['password'])
-    database['iv_dict'][data['username']] = iv
-    database['conn'].execute(database['users'].insert().values(username=data['username'], password=create_password_hash(data['password']), data=encrypted_data))
-    return {'code':200}
-
-@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def save_data(_,data:dict) -> 'dict[str,int|Any]':
-    user_from_cache = find_user(data['hash'], data['id'])
-    if user_from_cache['code'] == 500:
-        return {'code':423}
-    if not is_json_serialized(data['data']):
-        return {'code':420, 'data':data['data'], 'error':'Object is not json serialized'}
-    data_from_request = json.loads(data['data'])
-    if data['location'] == '':
-        return {'code':417}
-    make_location(user_from_cache['data'][0], data['location'], data_from_request)
-    update_user(data['hash'], data['id'], [user_from_cache['data'][0], user_from_cache['data'][1]])
-    return {'code':200}
-
-@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def delete_data(_,data:dict) -> 'dict[str,int]':
-    user_from_cache = find_user(data['hash'], data['id'])
-    if user_from_cache['code'] == 500:
-        return {'code':423}
-    if data['location'] == '':
-        update_user(data['hash'], data['id'], [{}, user_from_cache['data'][1]])
+    @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+    def log_in(self, data):
+        if data['username'] == '':
+            return {'code':406}
+        if data['username'].isalnum() == False:
+            return {'code':406}
+        user_from_database = self.conn.execute(self.users.select().where(self.users.c.username == data['username'])).fetchone()
+        if not user_from_database:
+            return {'code':404}
+        if not verify_password_hash(user_from_database[1], password=data['password']):
+            return {'code':401}   
+        cache_data = User(decrypt_data(user_from_database[2], data['username'], data['password'], self.iv_dict[data['username']]), data['username'], data['password'])
+        if self.cache.update_user(data['hash'], data['id'], cache_data)['code'] == 500:
+            return {'code':423}
         return {'code':200}
-    delete_location(user_from_cache['data'][0], data['location'])
-    update_user(data['hash'], data['id'], [user_from_cache['data'][0], user_from_cache['data'][1]])
-    return {'code':200}
 
-@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def log_out(database:dict, data:dict) -> 'dict[str,int|Any]':
-    user_from_cache = find_user(data['hash'], data['id'])
-    if user_from_cache['code'] == 500:
+    @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+    def load_data(self, data):
+        user_from_cache = self.cache.find_user(data['hash'], data['id'])
+        if user_from_cache['code'] == 500:
+            return {'code':423}
+        if data['location'] == '':
+            return {'code':202, 'data':user_from_cache['data'].data.data}
+        val = user_from_cache['data'].data.find(data['location'])
+        if val['code'] == 500:
+            return {'code':416}
+        return {'code':202, 'data':val['data']}
+
+    @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+    def create_session(self, data):
+        user_hash = self.cache.add_user(data['id'])['hash']
+        return {'code':201, 'hash':user_hash}
+
+    @logger(is_log_more=True, in_sensitive=True)
+    def end_session(self, data):
+        if self.cache.delete_user(data['hash'], data['id'])['code'] == 500:
+            return {'code':423}
         return {'code':200}
-    user_from_database = database['conn'].execute(database['users'].select().where(database['users'].c.username == user_from_cache['data'][1][0])).fetchone()
-    if not user_from_database:
-        return {'code':420, 'data':user_from_cache['data'], 'error':'could not find user to logout'}
-    if not verify_password_hash(user_from_database[1], password=user_from_cache['data'][1][1]):
-        return {'code': 423}
-    encrypted_data, iv = encrypt_data(user_from_cache['data'][0], user_from_cache['data'][1][0], user_from_cache['data'][1][1])
-    database['iv_dict'][user_from_cache['data'][1][0]] = iv
-    database['conn'].execute(database['users'].update().where(database['users'].c.username == user_from_cache['data'][1][0]).values(data=encrypted_data))
-    update_user(data['hash'], data['id'], [None,(None,None)])
-    return {'code':200}
-
-@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def remove_account(database:dict, data:dict) -> 'dict[str,int]':
-    user_from_cache = find_user(data['hash'], data['id'])
-    if user_from_cache['code'] == 500:
-        return{'code':423}
-    user_from_database = database['conn'].execute(database['users'].select().where(database['users'].c.username == user_from_cache['data'][1][0])).fetchone()
-    if not user_from_database:
-        return {'code':423}
-    if not verify_password_hash(user_from_database[1], password=user_from_cache['data'][1][1]):
-        return {'code':423}
-    database['conn'].execute(database['users'].delete().where(database['users'].c.username == user_from_cache['data'][1][0]))
-    update_user(data['hash'], data['id'], [None,(None,None)])
-    del database['iv_dict'][user_from_cache['data'][1][0]]
-    return {'code':200}
-
-@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def log_in(database:dict, data:dict) -> 'dict[str,int]':
-    if data['username'] == '':
-        return {'code':406}
-    if data['username'].isalnum() == False:
-        return {'code':406}
-    user_from_database = database['conn'].execute(database['users'].select().where(database['users'].c.username == data['username'])).fetchone()
-    if not user_from_database:
-        return {'code':404}
-    if not verify_password_hash(user_from_database[1], password=data['password']):
-        return {'code':401}   
-    cache_data = [decrypt_data(user_from_database[2], data['username'], data['password'], database['iv_dict'][data['username']]), (data['username'], data['password'])]
-    if update_user(data['hash'], data['id'], cache_data)['code'] == 500:
-        return {'code':423}
-    return {'code':200}
-
-@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def load_data(_,data:dict) -> 'dict[str,int|Any]':
-    user_from_cache = find_user(data['hash'], data['id'])
-    if user_from_cache['code'] == 500:
-        return {'code':423}
-    if data['location'] == '':
-        return {'code':202, 'data':user_from_cache['data'][0]}
-    val = find_data(user_from_cache['data'][0], data['location'])
-    if val['code'] == 500:
-        return {'code':416}
-    return {'code':202, 'data':val['data']}
-
-@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def create_session(_,data:dict) -> 'dict[str,int|str]':
-    user_hash = add_user(data['id'])['hash']
-    return {'code':201, 'hash':user_hash}
-
-@logger(is_log_more=True, in_sensitive=True)
-def end_session(_,data:dict) -> 'dict[str,int]':
-    if delete_user(data['hash'], data['id'])['code'] == 500:
-        return {'code':423}
-    return {'code':200}
 
 @logger(is_log_more=True)
 def establish_client_connection(address:str) -> 'tuple[Fernet,socket.socket]':
@@ -362,161 +542,169 @@ def establish_client_connection(address:str) -> 'tuple[Fernet,socket.socket]':
     f = Fernet(base64.urlsafe_b64encode(key))
     return f, client_socket
 
-@logger(is_log_more=True, is_server=True, in_sensitive=True)
-async def server_send_data(loop, client_socket, client_address, f, data):
-    encrypted_data = f.encrypt(json.dumps(data).encode('utf-8'))
-    request_length = len(encrypted_data)
-    await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':320, 'len':request_length}).encode('utf-8')))
-    recv = await loop.sock_recv(client_socket, 1024)
-    if recv == b'':
-        server_logger.info(f'{client_address} made empty request')
-        await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':200}).encode('utf-8')))
-        return {'code':500}
-    try:
-        response = json.loads(f.decrypt(recv).decode())
-    except InvalidToken:
-        server_logger.info(f'{client_address} sent invalid token')
-        await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Sent invalid token'}).encode('utf-8')))
-        return {'code':500}
-    except BaseException as err:
-        await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
-        tb = traceback.extract_tb(sys.exc_info()[2])
-        line_number = tb[-1][1]
-        server_logger.info(f'Request {data["code"]} processing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')#\n{str(tb)}')
-        return {'code':500}
-    if response['code'] != 200:
-        return {'code':500}
-    client_socket.send(encrypted_data)
-    return {'code':200}
+class Server:
+    @logger(is_server=True)
+    def __init__(self, host, port, cache_threshold = 300, use_default_logger = True):
+        if use_default_logger:
+            logger.setup_logger(client_logger_location=os.getcwd())
+        self.session = FrontSession(cache_threshold=cache_threshold)
+        self.stop_flag1 = self.session.cache.stop_flag
+        self.session.server = self.waiter
+        self.server_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
+        server_public_key = self.server_private_key.public_key()
+        self.server_public_key_bytes = server_public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo)
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_socket.setblocking(0)
+        self.server_socket.bind((host, port))
+        self.server_socket.listen()
+        server_console.info('Server started')
+        server_console.info('Press Ctrl+C to exit')
+        server_console.info(f"Listening for incoming connections on {host}:{port}")
+        try:
+            asyncio.run(self.server_main_loop())
+        except KeyboardInterrupt:
+            server_console.info('Server Closed')
+        except BaseException as err:
+            server_console.info(f'Server did not exit successfully, Error: {err}')
+        finally:
+            self.server_socket.close()
+            self.session(code=310)
 
-@logger(is_log_more=True, is_server=True, in_sensitive=True)
-async def server_recv_data(loop, client_socket, client_address, f):
-    request = await loop.sock_recv(client_socket, 1024)
-    if request == b'':
-        server_logger.info(f'{client_address} made empty request')
-        await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':200}).encode('utf-8')))
-        return {'code':500}
-    try:
-        data = json.loads(f.decrypt(request).decode())
-        if data['code'] != 320:
-            server_logger.info(f'{client_address} failed to follow protocol')
-            await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Client failed to follow protocol'}).encode('utf-8')))
-            return {'code':500}
-        await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':200}).encode('utf-8')))
-        recv = await loop.sock_recv(client_socket, data['len'])
+    @logger(is_log_more=True, is_server=True, in_sensitive=True)
+    async def server_send_data(self, client_socket, client_address, f, data):
+        encrypted_data = f.encrypt(json.dumps(data).encode('utf-8'))
+        request_length = len(encrypted_data)
+        await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':320, 'len':request_length}).encode('utf-8')))
+        recv = await self.loop.sock_recv(client_socket, 1024)
         if recv == b'':
             server_logger.info(f'{client_address} made empty request')
-            await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':200}).encode('utf-8')))
+            await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':200}).encode('utf-8')))
             return {'code':500}
-        data = json.loads(f.decrypt(recv).decode())
-    except InvalidToken:
-        server_logger.info(f'{client_address} sent invalid token')
-        await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Sent invalid token'}).encode('utf-8')))
-        return {'code':500}
-    except BaseException as err:
-        if type(err) == KeyError:
-            await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':f'Couldnt find user in cache, contact owner to recover any data, \nuse this key: {str(err)}\nuse this id: \'{str(data["id"])}\''}).encode('utf-8')))
-        else:
-            await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
-        tb = traceback.extract_tb(sys.exc_info()[2])
-        line_number = tb[-1][1]
-        server_logger.info(f'Request {data["code"]} processing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')#\n{str(tb)}')
-        return {'code':500}
-    return {'code':200, 'data':data}
-
-@logger(is_log_more=True, is_server=True, in_sensitive=True)
-async def main_client_loop(client_socket, client_address, f, loop, session, stop_flag1):
-    while not stop_flag1.is_set():
         try:
-            data = await server_recv_data(loop, client_socket, client_address, f)
-            if data['code'] == 500:
-                server_logger.info(f'{client_address} failed to follow protocol')
-                await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Failed to follow protocol'}).encode('utf-8')))
-                break
-            data = data["data"]
-            server_logger.info(f'{client_address} made request: {data["code"]}')
-            if data['code'] == 310:
-                response = {'code':423}
-            else:
-                response = session(**data)
-            server_logger.info(f'response to {client_address}: {response["code"]}')
-            status = await server_send_data(loop, client_socket, client_address, f, response)
-            if status['code'] == 500:
-                server_logger.info(f'{client_address} failed to follow protocol')
-                await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Failed to follow protocol'}).encode('utf-8')))
-                break
-            if data['code'] == 309 and response['code'] == 200:
-                recv = await server_recv_data(loop, client_socket, client_address, f)
-                await server_send_data(loop, client_socket, client_address, f, {'code':200})
-                break
+            response = json.loads(f.decrypt(recv).decode())
+        except InvalidToken:
+            server_logger.info(f'{client_address} sent invalid token')
+            await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Sent invalid token'}).encode('utf-8')))
+            return {'code':500}
         except BaseException as err:
-            if type(err) == KeyError:
-                await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':f'Couldnt find user in cache, contact owner to recover any data, \nuse this key: {str(err)}\nuse this id: \'{str(data["id"])}\''}).encode('utf-8')))
-            else:
-                await loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
+            await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
             tb = traceback.extract_tb(sys.exc_info()[2])
             line_number = tb[-1][1]
             server_logger.info(f'Request {data["code"]} processing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')#\n{str(tb)}')
+            return {'code':500}
+        if response['code'] != 200:
+            return {'code':500}
+        client_socket.send(encrypted_data)
+        return {'code':200}
 
-@logger(is_server=True, in_sensitive=True)
-async def setup_client(client_socket, client_address, server_public_key_bytes, stop_flag1, loop, session, server_private_key=None):
-    client_public_key_bytes = await loop.sock_recv(client_socket, 1024)
-    client_public_key = serialization.load_pem_public_key(
-    client_public_key_bytes, default_backend())
-    await loop.sock_sendall(client_socket, server_public_key_bytes)
-    shared_secret = server_private_key.exchange(ec.ECDH(), client_public_key)
-    kdf = HKDF(
-    algorithm=hashes.SHA256(),
-    length=32,
-    salt=None,
-    info=b"session key",
-    backend=default_backend())
-    key = kdf.derive(shared_secret)
-    f = Fernet(base64.urlsafe_b64encode(key))
-    await main_client_loop(client_socket, client_address, f, loop, session, stop_flag1)
-    client_socket.close()
+    @logger(is_log_more=True, is_server=True, in_sensitive=True)
+    async def server_recv_data(self, client_socket, client_address, f):
+        request = await self.loop.sock_recv(client_socket, 1024)
+        if request == b'':
+            server_logger.info(f'{client_address} made empty request')
+            await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':200}).encode('utf-8')))
+            return {'code':500}
+        try:
+            data = json.loads(f.decrypt(request).decode())
+            if data['code'] != 320:
+                server_logger.info(f'{client_address} failed to follow protocol')
+                await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Client failed to follow protocol'}).encode('utf-8')))
+                return {'code':500}
+            await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':200}).encode('utf-8')))
+            recv = await self.loop.sock_recv(client_socket, data['len'])
+            if recv == b'':
+                server_logger.info(f'{client_address} made empty request')
+                await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':200}).encode('utf-8')))
+                return {'code':500}
+            data = json.loads(f.decrypt(recv).decode())
+        except InvalidToken:
+            server_logger.info(f'{client_address} sent invalid token')
+            await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Sent invalid token'}).encode('utf-8')))
+            return {'code':500}
+        except BaseException as err:
+            if type(err) == KeyError:
+                await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':f'Couldnt find user in cache, contact owner to recover any data, \nuse this key: {str(err)}\nuse this id: \'{str(data["id"])}\''}).encode('utf-8')))
+            else:
+                await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
+            tb = traceback.extract_tb(sys.exc_info()[2])
+            line_number = tb[-1][1]
+            server_logger.info(f'Request {data["code"]} processing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')#\n{str(tb)}')
+            return {'code':500}
+        return {'code':200, 'data':data}
 
-@logger(is_server=True, in_sensitive=True)
-async def server_main_loop(server_socket, server_public_key_bytes, stop_flag1, session, server_private_key=None):
-    loop = asyncio.get_event_loop()
-    clients = set()
-    while True:
-        client_socket, client_address = await loop.sock_accept(server_socket)
-        task = asyncio.create_task(setup_client(client_socket, client_address, server_public_key_bytes, stop_flag1, loop, session, server_private_key=server_private_key))
-        clients.add(task)
-        task.add_done_callback(clients.discard)
+    @logger(is_log_more=True, is_server=True, in_sensitive=True)
+    async def main_client_loop(self, client_socket, client_address, f):
+        uhash, uid, ex = None
+        while not self.stop_flag1.is_set():
+            try:
+                data = await self.server_recv_data(client_socket, client_address, f)
+                uhash, uid = data['hash'], data['id']
+                if data['code'] == 500:
+                    server_logger.info(f'{client_address} failed to follow protocol')
+                    await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Failed to follow protocol'}).encode('utf-8')))
+                    break
+                data = data["data"]
+                server_logger.info(f'{client_address} made request: {data["code"]}')
+                if data['code'] == 310:
+                    response = {'code':423}
+                else:
+                    response = self.session(**data)
+                server_logger.info(f'response to {client_address}: {response["code"]}')
+                status = await self.server_send_data(client_socket, client_address, f, response)
+                if status['code'] == 500:
+                    server_logger.info(f'{client_address} failed to follow protocol')
+                    await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Failed to follow protocol'}).encode('utf-8')))
+                    break
+                if data['code'] == 309 and response['code'] == 200:
+                    recv = await self.server_recv_data(client_socket, client_address, f)
+                    await self.server_send_data(client_socket, client_address, f, {'code':200})
+                    ex=True
+                    break
+            except BaseException as err:
+                if type(err) == KeyError:
+                    await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':f'Couldnt find user in cache, contact owner to recover any data, \nuse this key: {str(err)}\nuse this id: \'{str(data["id"])}\''}).encode('utf-8')))
+                else:
+                    await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
+                tb = traceback.extract_tb(sys.exc_info()[2])
+                line_number = tb[-1][1]
+                server_logger.info(f'Request {data["code"]} processing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')#\n{str(tb)}')
+                break
+        if not ex:
+            self.session(code=305, hash=uhash, id=uid)
 
-@logger(is_server=True)
-def server(host, port, cache_threshold = 300, use_default_logger = True):
-    if use_default_logger:
-        logger.setup_logger(client_logger_location=os.getcwd())
-    session = frontend_session()
-    stop_flag1 = threading.Event()
-    t = threading.Thread(target=cache_timeout_thread, args=(cache_threshold, stop_flag1))
-    t.start()
-    server_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
-    server_public_key = server_private_key.public_key()
-    server_public_key_bytes = server_public_key.public_bytes(
-    encoding=serialization.Encoding.PEM,
-    format=serialization.PublicFormat.SubjectPublicKeyInfo)
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.setblocking(0)
-    server_socket.bind((host, port))
-    server_socket.listen()
-    server_console.info('Server started')
-    server_console.info('Press Ctrl+C to exit')
-    server_console.info(f"Listening for incoming connections on {host}:{port}")
-    try:
-        asyncio.run(server_main_loop(server_socket, server_public_key_bytes, stop_flag1, session, server_private_key=server_private_key))
-    except KeyboardInterrupt:
-        server_console.info('Server Closed')
-    except BaseException as err:
-        server_console.info(f'Server did not exit successfully, Error: {err}')
-    finally:
-        server_socket.close()
-        stop_flag1.set()
-        t.join()
-        session(code=310)
+    @logger(is_server=True, in_sensitive=True)
+    async def setup_client(self, client_socket, client_address):
+        client_public_key_bytes = await self.loop.sock_recv(client_socket, 1024)
+        client_public_key = serialization.load_pem_public_key(
+        client_public_key_bytes, default_backend())
+        await self.loop.sock_sendall(client_socket, self.server_public_key_bytes)
+        shared_secret = self.server_private_key.exchange(ec.ECDH(), client_public_key)
+        kdf = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=None,
+        info=b"session key",
+        backend=default_backend())
+        key = kdf.derive(shared_secret)
+        f = Fernet(base64.urlsafe_b64encode(key))
+        await self.main_client_loop(client_socket, client_address, f)
+        client_socket.close()
+
+    def waiter(self):
+        while len(self.clients) > 0:
+            time.sleep(0.1)
+    
+    @logger(is_server=True, in_sensitive=True)
+    async def server_main_loop(self):
+        self.loop = asyncio.get_event_loop()
+        self.clients = set()
+        while  not self.stop_flag1.is_set():
+            client_socket, client_address = await self.loop.sock_accept(self.server_socket)
+            task = asyncio.create_task(self.setup_client(client_socket, client_address))
+            self.clients.add(task)
+            task.add_done_callback(self.clients.discard)
 
 @logger()
 def backend_session(address:str) -> Callable:
@@ -541,57 +729,4 @@ def backend_session(address:str) -> Callable:
             return {'code':420, 'data':None, 'error':'Server failed to follow protocol'}
         client_socket.send(f.encrypt(json.dumps({'code':200}).encode('utf-8')))
         return json.loads(f.decrypt(client_socket.recv(request['len'])).decode())
-    return session
-
-@logger()
-def frontend_session(path:str = os.getcwd()) -> Callable:
-    db_path = f'sqlite:///{path}/database.db'
-    client_logger.info(f'Database located at: {db_path}')
-    engine = create_engine(db_path, connect_args={'check_same_thread':False}, poolclass=StaticPool)
-    metadata = MetaData()
-    users = Table('users', metadata,
-        Column('username', String, unique=True, primary_key=True),
-        Column('password', String),
-        Column('data', LargeBinary))
-    ivs = Table('ivs', metadata,
-        Column('server', String, unique=True, primary_key=True),
-        Column('iv', LargeBinary))
-    metadata.create_all(engine)
-    conn = engine.connect()
-    key = 'random ass key'
-    salt = b'BOOBIES'
-    from_database = conn.execute(ivs.select().where(ivs.c.server == key)).fetchone()
-    if from_database:
-        _,ivs_bytes = from_database
-        ivs_dict = server_decrypt_data(ivs_bytes, key, salt)
-    else:
-        ivs_dict = {}
-        conn.execute(ivs.insert().values(server = key, iv=server_encrypt_data(ivs_dict, key, salt)))
-    database = {'conn':conn, 'users':users, 'iv_dict':ivs_dict}
-    
-    def close_session(_,data:dict) -> 'dict[str,int]':
-        conn.execute(ivs.update().where(ivs.c.server == key).values(iv=server_encrypt_data(ivs_dict, key, salt)))
-        conn.commit()
-        conn.close()
-        return {'code':200}
-    
-    @logger(in_sensitive=True, out_sensitive=True)
-    def session(**data:dict) -> 'dict[str,int|Any]':
-        function_map = {
-            301: create_session,
-            302: sign_up,
-            303: save_data,
-            304: delete_data,
-            305: log_out,
-            306: remove_account,
-            307: log_in,
-            308: load_data,
-            309: end_session,
-            310: close_session
-            }
-        code = data.get('code')
-        if code in function_map:
-            return function_map[code](database, data)
-        else:
-            return {'code': 420, 'data':None, 'error': f"Invalid code: {code}"}
     return session
