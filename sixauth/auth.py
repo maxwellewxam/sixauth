@@ -64,7 +64,7 @@ class AuthSesh:
         self._Id = Fernet.generate_key().hex()
 
         if self._Address == None:
-            self._sesh = frontend_session(self._Path)
+            self._sesh = FrontSession(self._Path)
         else:
             self._sesh = backend_session(self._Address)
             

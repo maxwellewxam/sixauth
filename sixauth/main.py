@@ -32,6 +32,8 @@ class UsernameError(AuthError): ...
 class PasswordError(AuthError): ...
 class DataError(AuthError): ...
 
+ver = '1.0.3_DEV'
+
 old_hook = sys.excepthook
 
 def exception_hook(exc_type, value, tb):
@@ -73,6 +75,10 @@ class Logger:
         self.debug = debug
         self.log_sensitive = log_sensitive
         self.log_more = log_more
+        self.client_console.handlers = []
+        self.client_logger.handlers = []
+        self.server_console.handlers = []
+        self.server_logger.handlers = []
         if server_logger_location != None:
             server_logger_handler = logging.FileHandler(server_logger_location+'/server.log')
             self.server_console.addHandler(server_logger_handler)
@@ -395,6 +401,7 @@ class FrontSession:
         self.conn.execute(self.ivs.update().where(self.ivs.c.server == self.key).values(iv=server_encrypt_data(self.iv_dict, self.key, self.salt)))
         self.conn.commit()
         self.conn.close()
+        return {'code':200}
     
     def server(self):
         pass
@@ -559,7 +566,7 @@ class Server:
         self.server_socket.setblocking(0)
         self.server_socket.bind((host, port))
         self.server_socket.listen()
-        server_console.info('Server started')
+        server_console.info(f'Server {ver} started')
         server_console.info('Press Ctrl+C to exit')
         server_console.info(f"Listening for incoming connections on {host}:{port}")
         try:
@@ -624,10 +631,7 @@ class Server:
             await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Sent invalid token'}).encode('utf-8')))
             return {'code':500}
         except BaseException as err:
-            if type(err) == KeyError:
-                await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':f'Couldnt find user in cache, contact owner to recover any data, \nuse this key: {str(err)}\nuse this id: \'{str(data["id"])}\''}).encode('utf-8')))
-            else:
-                await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
+            await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
             tb = traceback.extract_tb(sys.exc_info()[2])
             line_number = tb[-1][1]
             server_logger.info(f'Request {data["code"]} processing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')#\n{str(tb)}')
@@ -636,14 +640,13 @@ class Server:
 
     @logger(is_log_more=True, is_server=True, in_sensitive=True)
     async def main_client_loop(self, client_socket, client_address, f):
-        uhash, uid, ex = None
+        uhash, uid, ex = None, None, None
         while not self.stop_flag1.is_set():
             try:
                 data = await self.server_recv_data(client_socket, client_address, f)
                 uhash, uid = data['hash'], data['id']
                 if data['code'] == 500:
                     server_logger.info(f'{client_address} failed to follow protocol')
-                    await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Failed to follow protocol'}).encode('utf-8')))
                     break
                 data = data["data"]
                 server_logger.info(f'{client_address} made request: {data["code"]}')
@@ -655,7 +658,6 @@ class Server:
                 status = await self.server_send_data(client_socket, client_address, f, response)
                 if status['code'] == 500:
                     server_logger.info(f'{client_address} failed to follow protocol')
-                    await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Failed to follow protocol'}).encode('utf-8')))
                     break
                 if data['code'] == 309 and response['code'] == 200:
                     recv = await self.server_recv_data(client_socket, client_address, f)
@@ -663,10 +665,7 @@ class Server:
                     ex=True
                     break
             except BaseException as err:
-                if type(err) == KeyError:
-                    await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':f'Couldnt find user in cache, contact owner to recover any data, \nuse this key: {str(err)}\nuse this id: \'{str(data["id"])}\''}).encode('utf-8')))
-                else:
-                    await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
+                await self.server_send_data(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
                 tb = traceback.extract_tb(sys.exc_info()[2])
                 line_number = tb[-1][1]
                 server_logger.info(f'Request {data["code"]} processing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')#\n{str(tb)}')

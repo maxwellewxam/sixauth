@@ -8,7 +8,7 @@ from sixauth import AuthSesh as ash
 from sixauth.main import AuthError
 import unittest
 # '127.0.0.1:5678'
-with ash() as user1:
+with ash('127.0.0.1:5678') as user1:
 
     class testAuth(unittest.TestCase):
         def test_111_login_client_side_wrong_username(self):
@@ -60,7 +60,7 @@ with ash() as user1:
             with self.assertRaises(AuthError) as cm:
                 user1.load('John/Green/Rubber/Co')
             the_exception = cm.exception
-            self.assertEqual(str(the_exception), 'Loaction does not exist')
+            self.assertEqual(str(the_exception), 'Location does not exist')
             
         def test_134_save_client_side_whole_dict(self):
             user1.set_vals('test', 'test')

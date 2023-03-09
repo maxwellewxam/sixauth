@@ -7,17 +7,21 @@ if sys.platform == 'win32':
 else:
     HERE = os.path.abspath(os.getcwd())
 sys.path.append(HERE)
-from sixauth.main import frontend_session, backend_session
+from sixauth import AuthSesh as ash
 
+user1 = ash('127.0.0.1:5678')
+user2 = ash('127.0.0.1:5678')
+user3 = ash('127.0.0.1:5678')
 
-id = Fernet.generate_key().hex()
-
-#sesh = backend_session('127.0.0.1:5678')
-sesh = FrontSession()
-hash = sesh(code=301, id=id)['hash']
-print(hash)
-print(sesh(code=302, id=id, hash=hash, username='max', password='test')['code'])
-print(sesh(code=307, id=id, hash=hash, username='max', password='test')['code'])
-print(sesh(code=309, id=id, hash=hash)['code'])
-print(sesh(code=310)['code'])
-
+user1.set_vals('max', 'test')
+user2.set_vals('max', 'test')
+user3.set_vals('max', 'test')
+user2.login()
+user1.login()
+user1.save('some/place/23', False)
+print(user1.load('some/place/23'))
+user2.save('some/place/23', False)
+print(user2.load('some/place/23'))
+user3.login()
+user3.save('some/place/23', False)
+print(user3.load('some/place/23'))
