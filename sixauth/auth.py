@@ -1,5 +1,7 @@
 '''An all-in-one user authenticator and data manager'''
 
+# Made with love by Max
+
 from sixauth.main import *
 
 class AuthSesh:
