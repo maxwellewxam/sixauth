@@ -32,7 +32,7 @@ class UsernameError(AuthError): ...
 class PasswordError(AuthError): ...
 class DataError(AuthError): ...
 
-ver = '1.0.3_DEV'
+ver = '1.0.3_DEV.1'
 
 old_hook = sys.excepthook
 
@@ -154,7 +154,7 @@ else:
         return decorator
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def server_encrypt_data(data:dict, key:str, salt:bytes) -> bytes:
+def server_encrypt_data(data:dict, key:str, salt:bytes):
     for k, v in data.items():
         data[k] = base64.b64encode(v).decode()
     json_data = json.dumps(data)
@@ -169,7 +169,7 @@ def server_encrypt_data(data:dict, key:str, salt:bytes) -> bytes:
     return fernet.encrypt(json_data.encode())
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def server_decrypt_data(data:bytes, key:str, salt:bytes) -> dict:
+def server_decrypt_data(data:bytes, key:str, salt:bytes):
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=32,
@@ -184,7 +184,7 @@ def server_decrypt_data(data:bytes, key:str, salt:bytes) -> dict:
     return iv_dict
         
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def encrypt_data(data:dict, password:str, salt:str) -> 'tuple[bytes, bytes]':
+def encrypt_data(data:dict, password:str, salt:str):
     backend = default_backend()
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
@@ -198,7 +198,7 @@ def encrypt_data(data:dict, password:str, salt:str) -> 'tuple[bytes, bytes]':
     return aesgcm.encrypt(iv, json.dumps(data).encode(), salt.encode()), iv
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def decrypt_data(data:bytes, password:str, salt:bytes, iv:bytes) -> dict:
+def decrypt_data(data:bytes, password:str, salt:bytes, iv:bytes):
     backend = default_backend()
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
@@ -211,23 +211,23 @@ def decrypt_data(data:bytes, password:str, salt:bytes, iv:bytes) -> dict:
     return json.loads(aesgcm.decrypt(iv, data, salt.encode()).decode())
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def encrypt_data_fast(message:dict, key:str) -> bytes:
+def encrypt_data_fast(message:dict, key:str):
     return Fernet(bytes.fromhex(key)).encrypt(json.dumps(message).encode())
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def decrypt_data_fast(message:bytes, key:str) -> dict:
+def decrypt_data_fast(message:bytes, key:str):
     return json.loads(Fernet(bytes.fromhex(key)).decrypt(message).decode())
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def create_password_hash(password:str) -> str:
+def create_password_hash(password:str):
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).hex()
 
 @logger(is_log_more=True, in_sensitive=True)
-def verify_password_hash(hash:str, password:str) -> bool:
+def verify_password_hash(hash:str, password:str):
     return bcrypt.checkpw(password.encode('utf-8'), bytes.fromhex(hash))
 
 @logger(is_log_more=True, in_sensitive=True)
-def is_json_serialized(obj:dict) -> bool:
+def is_json_serialized(obj:dict):
     try:
         json.loads(obj)
         return True
@@ -235,7 +235,7 @@ def is_json_serialized(obj:dict) -> bool:
         return False
 
 @logger(is_log_more=True, in_sensitive=True)
-def is_valid_key(data:bytes, id:str) -> bool:
+def is_valid_key(data:bytes, id:str):
     try:
         decrypt_data_fast(data, id)
         return True
@@ -331,7 +331,7 @@ class Cache:
         return {'code':200, 'hash':hash}
 
     @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-    def find_user(self, hash, id) -> dict[str,int|User]:
+    def find_user(self, hash, id):
         if not is_valid_key(self.cache[hash]['main'], id):
             return {'code':500}
         self.cache[hash]['time'] = time.time()
@@ -394,7 +394,7 @@ class FrontSession:
             310: self.close_session}
         
     @logger(is_log_more=True, in_sensitive=True)
-    def close_session(self,_) -> 'dict[str,int]':
+    def close_session(self,_):
         self.cache.stop_flag.set()
         self.cache.t.join()
         self.server()
@@ -407,7 +407,7 @@ class FrontSession:
         pass
     
     @logger(in_sensitive=True, out_sensitive=True)
-    def __call__(self, **data:dict) -> 'dict[str,int|Any]':
+    def __call__(self, **data:dict):
         code = data.get('code')
         if code in self.function_map:
             return self.function_map[code](data)
@@ -423,7 +423,7 @@ class FrontSession:
         user_from_database = self.conn.execute(self.users.select().where(self.users.c.username == data['username'])).fetchone()
         if user_from_database:
             return {'code':409}
-        encrypted_data, iv = encrypt_data({}, data['username'], data['password'])
+        encrypted_data, iv = encrypt_data({}, data['password'], data['username'])
         self.iv_dict[data['username']] = iv
         self.conn.execute(self.users.insert().values(username=data['username'], password=create_password_hash(data['password']), data=encrypted_data))
         return {'code':200}
@@ -496,7 +496,7 @@ class FrontSession:
             return {'code':404}
         if not verify_password_hash(user_from_database[1], password=data['password']):
             return {'code':401}   
-        cache_data = User(decrypt_data(user_from_database[2], data['username'], data['password'], self.iv_dict[data['username']]), data['username'], data['password'])
+        cache_data = User(decrypt_data(user_from_database[2], data['password'], data['username'], self.iv_dict[data['username']]), data['username'], data['password'])
         if self.cache.update_user(data['hash'], data['id'], cache_data)['code'] == 500:
             return {'code':423}
         return {'code':200}
@@ -525,7 +525,7 @@ class FrontSession:
         return {'code':200}
 
 @logger(is_log_more=True)
-def establish_client_connection(address:str) -> 'tuple[Fernet,socket.socket]':
+def establish_client_connection(address:str):
     client_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
     client_public_key = client_private_key.public_key()
     client_public_key_bytes = client_public_key.public_bytes(
@@ -554,6 +554,8 @@ class Server:
     def __init__(self, host, port, cache_threshold = 300, use_default_logger = True):
         if use_default_logger:
             logger.setup_logger(client_logger_location=os.getcwd())
+        if logger.log_sensitive:
+            server_console.info('WARNING: Logging sensitive information')
         self.session = FrontSession(cache_threshold=cache_threshold)
         self.stop_flag1 = self.session.cache.stop_flag
         self.session.server = self.waiter
@@ -625,7 +627,8 @@ class Server:
                 server_logger.info(f'{client_address} made empty request')
                 await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':200}).encode('utf-8')))
                 return {'code':500}
-            data = json.loads(f.decrypt(recv).decode())
+            ldata = json.loads(f.decrypt(recv).decode())
+            return {'code':200, 'data':ldata}
         except InvalidToken:
             server_logger.info(f'{client_address} sent invalid token')
             await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Sent invalid token'}).encode('utf-8')))
@@ -636,19 +639,18 @@ class Server:
             line_number = tb[-1][1]
             server_logger.info(f'Request {data["code"]} processing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')#\n{str(tb)}')
             return {'code':500}
-        return {'code':200, 'data':data}
 
     @logger(is_log_more=True, is_server=True, in_sensitive=True)
     async def main_client_loop(self, client_socket, client_address, f):
         uhash, uid, ex = None, None, None
         while not self.stop_flag1.is_set():
             try:
-                data = await self.server_recv_data(client_socket, client_address, f)
-                uhash, uid = data['hash'], data['id']
-                if data['code'] == 500:
+                ldata = await self.server_recv_data(client_socket, client_address, f)
+                if ldata['code'] == 500:
                     server_logger.info(f'{client_address} failed to follow protocol')
                     break
-                data = data["data"]
+                data = ldata['data']
+                uhash, uid = data.get('hash'), data.get('id')
                 server_logger.info(f'{client_address} made request: {data["code"]}')
                 if data['code'] == 310:
                     response = {'code':423}
@@ -665,10 +667,10 @@ class Server:
                     ex=True
                     break
             except BaseException as err:
-                await self.server_send_data(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
+                await self.server_send_data(client_socket, client_address, f, {'code':420, 'data':None, 'error':str(err)})
                 tb = traceback.extract_tb(sys.exc_info()[2])
                 line_number = tb[-1][1]
-                server_logger.info(f'Request {data["code"]} processing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')#\n{str(tb)}')
+                server_logger.info(f'Request {data["code"]} processing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}\n{str(tb)}')
                 break
         if not ex:
             self.session(code=305, hash=uhash, id=uid)
@@ -706,12 +708,12 @@ class Server:
             task.add_done_callback(self.clients.discard)
 
 @logger()
-def backend_session(address:str) -> Callable:
+def backend_session(address:str):
     f, client_socket = establish_client_connection(address)
     client_logger.info(f'Connected to: {address}')
     
     @logger(in_sensitive=True, out_sensitive=True)
-    def session(**data:dict) -> 'dict[str,int|Any]':
+    def session(**data:dict):
         encrypted_data = f.encrypt(json.dumps(data).encode('utf-8'))
         request_length = len(encrypted_data)
         client_socket.send(f.encrypt(json.dumps({'code':320, 'len':request_length}).encode('utf-8')))
