@@ -66,7 +66,7 @@ class AuthSesh:
         self._Id = Fernet.generate_key().hex()
 
         if self._Address == None:
-            self._sesh = FrontSession(self._Path)
+            self._sesh,_ = frontend_session(self._Path)
         else:
             self._sesh = backend_session(self._Address)
             
@@ -341,4 +341,4 @@ class AuthSesh:
             
         elif request['code'] == 420:
             raise DataError(f"An error occurred during the request\nhere is the data we could recover: {request['data']}\nError: {request['error']}" )
-            
+                  

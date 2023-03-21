@@ -355,7 +355,7 @@ class Cache:
         del self.cache[hash]
         return {'code':200}
 
-class FrontSession:
+class Session:
     @logger()
     def __init__(self, path = os.getcwd(), cache_threshold = 300):
         self.cache = Cache(cache_threshold)
@@ -405,14 +405,6 @@ class FrontSession:
     
     def server(self):
         pass
-    
-    @logger(in_sensitive=True, out_sensitive=True)
-    def __call__(self, **data:dict):
-        code = data.get('code')
-        if code in self.function_map:
-            return self.function_map[code](data)
-        else:
-            return {'code': 420, 'data':None, 'error': f"Invalid code: {code}"}
     
     @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
     def sign_up(self, data):
@@ -549,6 +541,57 @@ def establish_client_connection(address:str):
     f = Fernet(base64.urlsafe_b64encode(key))
     return f, client_socket
 
+class Connection:
+    def __init__(self, log:logging.Logger):
+        self.log = log.info
+
+    @logger(is_log_more=True, in_sensitive=True)
+    def send_protocol(self, client_socket:socket.socket, client_address, f:Fernet, data:dict):
+        encrypted_data = f.encrypt(json.dumps(data).encode('utf-8'))
+        first = f.encrypt(json.dumps({'code':320, 'len':len(encrypted_data)}).encode('utf-8'))
+        client_socket.send(first)
+        client_socket.send(encrypted_data)
+        self.log(f'Sent data to {client_address}')
+        
+    @logger(is_log_more=True, out_sensitive=True, in_sensitive=True)
+    def recv_protocol(self, client_socket:socket.socket, client_address, f:Fernet):
+        try:
+            first = client_socket.recv(1024)
+            if first == b'':
+                self.log(f'{client_address} made empty request')
+                client_socket.send(f.encrypt(json.dumps({'code':200}).encode('utf-8')))
+                return {'code':500}
+            first = json.loads(f.decrypt(first))
+            code = first.get('code')
+            if not code:
+                self.log(f'{client_address} failed protocol')
+                client_socket.send(f.encrypt(json.dumps({'code':200}).encode('utf-8')))
+                return {'code':500}
+            if code == 420:
+                self.log(f'{client_address} sent 420')
+                self.log(f'{client_address} error: {first["error"]}')
+                client_socket.send(f.encrypt(json.dumps({'code':200}).encode('utf-8')))
+                return {'code':500}
+            if code != 320:
+                self.log(f'{client_address} failed protocol')
+                client_socket.send(f.encrypt(json.dumps({'code':200}).encode('utf-8')))
+                return {'code':500}
+            data = json.loads(f.decrypt(client_socket.recv(first['len'])))
+        except:
+            return 'ERROR'
+
+@logger()
+def frontend_session(path = os.getcwd()):
+    session = Session(path)
+    @logger(in_sensitive=True, out_sensitive=True)
+    def send_data_to_session(**data:dict):
+        code = data.get('code')
+        if code in session.function_map:
+            return session.function_map[code](data)
+        else:
+            return {'code': 420, 'data':None, 'error': f"Invalid code: {code}"}
+    return send_data_to_session, session
+
 class Server:
     @logger(is_server=True)
     def __init__(self, host, port, cache_threshold = 300, use_default_logger = True):
@@ -556,9 +599,9 @@ class Server:
             logger.setup_logger(client_logger_location=os.getcwd())
         if logger.log_sensitive:
             server_console.info('WARNING: Logging sensitive information')
-        self.session = FrontSession(cache_threshold=cache_threshold)
-        self.stop_flag1 = self.session.cache.stop_flag
-        self.session.server = self.waiter
+        self.session, self.back_session = frontend_session(cache_threshold=cache_threshold)
+        self.stop_flag1 = self.back_session.cache.stop_flag
+        self.back_session.server = self.waiter
         self.server_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
         server_public_key = self.server_private_key.public_key()
         self.server_public_key_bytes = server_public_key.public_bytes(
@@ -608,7 +651,7 @@ class Server:
         client_socket.send(encrypted_data)
         return {'code':200}
 
-    @logger(is_log_more=True, is_server=True, in_sensitive=True)
+    @logger(is_log_more=True, is_server=True, in_sensitive=True, out_sensitive=True)
     async def server_recv_data(self, client_socket, client_address, f):
         request = await self.loop.sock_recv(client_socket, 1024)
         if request == b'':
