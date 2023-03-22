@@ -306,12 +306,13 @@ class User:
 
 class Cache:
     @logger(is_log_more=True)
-    def __init__(self, threshold = 300):
+    def __init__(self, threshold = 300, is_server=False):
         self.cache = {}
         self.threshold = threshold
         self.stop_flag = threading.Event()
-        self.t = threading.Thread(target=self.cache_timeout_thread)
-        self.t.start()
+        if is_server:    
+            self.t = threading.Thread(target=self.cache_timeout_thread)
+            self.t.start()
 
     @logger(is_log_more=True)
     def cache_timeout_thread(self):
@@ -319,11 +320,20 @@ class Cache:
             try:
                 for key in list(self.cache):
                     if time.time() - self.cache[key]['time'] > self.threshold:
-                        del self.cache[key]
+                        self.remove_key(self.cache[key])
+                        server_console.info(self.cache)
                 time.sleep(1)
             except Exception as err:
-                server_console.log(err)
+                server_console.info(err)
 
+    @logger(is_log_more=True, in_sensitive=True)
+    def remove_key(self, key):
+        self.server(key)
+        del key
+        
+    def server(self, _):
+        pass
+    
     @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
     def add_user(self, id):
         hash = hashlib.sha512((f'{id}{datetime.now()}').encode("UTF-8")).hexdigest()
@@ -542,47 +552,64 @@ def establish_client_connection(address:str):
     return f, client_socket
 
 class Connection:
-    def __init__(self, log:logging.Logger):
-        self.log = log.info
-
     @logger(is_log_more=True, in_sensitive=True)
-    def send_protocol(self, client_socket:socket.socket, client_address, f:Fernet, data:dict):
-        encrypted_data = f.encrypt(json.dumps(data).encode('utf-8'))
-        first = f.encrypt(json.dumps({'code':320, 'len':len(encrypted_data)}).encode('utf-8'))
-        client_socket.send(first)
-        client_socket.send(encrypted_data)
-        self.log(f'Sent data to {client_address}')
+    def __init__(self, socket:socket.socket, address, f:Fernet, log:logging.Logger):
+        self.log = log.info
+        self.socket = socket
+        self.address = address
+        self.f = f
+        self.dead = False
+
+    def is_dead(self):
+        return self.dead
+    
+    @logger(is_log_more=True, in_sensitive=True)
+    def send(self, data:dict):
+        encrypted_data = self.f.encrypt(json.dumps(data).encode('utf-8'))
+        first = self.f.encrypt(json.dumps({'code':320, 'len':len(encrypted_data)}).encode('utf-8'))
+        self.socket.send(first)
+        self.socket.send(encrypted_data)
+        self.log(f'Sent data to {self.address}')
         
-    @logger(is_log_more=True, out_sensitive=True, in_sensitive=True)
-    def recv_protocol(self, client_socket:socket.socket, client_address, f:Fernet):
+    @logger(is_log_more=True, out_sensitive=True)
+    def recv(self):
         try:
-            first = client_socket.recv(1024)
+            first = self.socket.recv(1024)
             if first == b'':
-                self.log(f'{client_address} made empty request')
-                client_socket.send(f.encrypt(json.dumps({'code':200}).encode('utf-8')))
-                return {'code':500}
-            first = json.loads(f.decrypt(first))
+                self.log(f'{self.address} made empty request')
+                #self.socket.send(self.f.encrypt(json.dumps({'code':400}).encode('utf-8')))
+                return {'code':502}
+            first = json.loads(self.f.decrypt(first))
             code = first.get('code')
             if not code:
-                self.log(f'{client_address} failed protocol')
-                client_socket.send(f.encrypt(json.dumps({'code':200}).encode('utf-8')))
+                self.log(f'{self.address} failed protocol')
+                self.socket.send(self.f.encrypt(json.dumps({'code':400}).encode('utf-8')))
                 return {'code':500}
             if code == 420:
-                self.log(f'{client_address} sent 420')
-                self.log(f'{client_address} error: {first["error"]}')
-                client_socket.send(f.encrypt(json.dumps({'code':200}).encode('utf-8')))
+                self.log(f'{self.address} sent 420')
+                self.log(f'{self.address} error: {first["error"]}')
+                self.socket.send(self.f.encrypt(json.dumps({'code':400}).encode('utf-8')))
                 return {'code':500}
+            if code == 400:
+                self.log(f'{self.address} sent protocol error')
+                return {'code':501}
             if code != 320:
-                self.log(f'{client_address} failed protocol')
-                client_socket.send(f.encrypt(json.dumps({'code':200}).encode('utf-8')))
+                self.log(f'{self.address} failed protocol')
+                self.socket.send(self.f.encrypt(json.dumps({'code':400}).encode('utf-8')))
                 return {'code':500}
-            data = json.loads(f.decrypt(client_socket.recv(first['len'])))
-        except:
-            return 'ERROR'
+            second = self.socket.recv(first['len'])
+            if second == b'':
+                self.log(f'{self.address} made empty request')
+                #self.socket.send(self.f.encrypt(json.dumps({'code':400}).encode('utf-8')))
+                return {'code':502}
+            data = json.loads(self.f.decrypt(second))
+            return {'code':200, 'recv':data}
+        except Exception as err:
+            return {'code':200, 'recv':err}
 
 @logger()
-def frontend_session(path = os.getcwd()):
-    session = Session(path)
+def frontend_session(path = os.getcwd(), cache_threshold = 300):
+    session = Session(path, cache_threshold)
     @logger(in_sensitive=True, out_sensitive=True)
     def send_data_to_session(**data:dict):
         code = data.get('code')
@@ -602,13 +629,14 @@ class Server:
         self.session, self.back_session = frontend_session(cache_threshold=cache_threshold)
         self.stop_flag1 = self.back_session.cache.stop_flag
         self.back_session.server = self.waiter
+        self.back_session.cache.server = self.remover
         self.server_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
         server_public_key = self.server_private_key.public_key()
         self.server_public_key_bytes = server_public_key.public_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo)
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server_socket.setblocking(0)
+        #self.server_socket.setblocking(0)
         self.server_socket.bind((host, port))
         self.server_socket.listen()
         server_console.info(f'Server {ver} started')
@@ -739,6 +767,9 @@ class Server:
     def waiter(self):
         while len(self.clients) > 0:
             time.sleep(0.1)
+    
+    def remover(self, user_cache):
+        
     
     @logger(is_server=True, in_sensitive=True)
     async def server_main_loop(self):
