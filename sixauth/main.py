@@ -11,7 +11,6 @@ import logging
 import traceback
 import asyncio
 
-from typing import Any, Callable
 from datetime import datetime
 from sqlalchemy import create_engine, Column, String, Table, MetaData, LargeBinary
 from sqlalchemy.pool import StaticPool
@@ -559,13 +558,14 @@ class Connection:
         self.address = address
         self.f = f
         self.dead = False
+        self.hash = None
 
     def is_dead(self):
         return self.dead
     
     @logger(is_log_more=True, in_sensitive=True)
     def send(self, data:dict):
-        encrypted_data = self.f.encrypt(json.dumps(data).encode('utf-8'))
+        encrypted_data = self.f.encrypt(json.dumps({'code':321, 'data':data}).encode('utf-8'))
         first = self.f.encrypt(json.dumps({'code':320, 'len':len(encrypted_data)}).encode('utf-8'))
         self.socket.send(first)
         self.socket.send(encrypted_data)
@@ -577,7 +577,6 @@ class Connection:
             first = self.socket.recv(1024)
             if first == b'':
                 self.log(f'{self.address} made empty request')
-                #self.socket.send(self.f.encrypt(json.dumps({'code':400}).encode('utf-8')))
                 return {'code':502}
             first = json.loads(self.f.decrypt(first))
             code = first.get('code')
@@ -593,6 +592,9 @@ class Connection:
             if code == 400:
                 self.log(f'{self.address} sent protocol error')
                 return {'code':501}
+            if code == 321:
+                self.log(f'{self.address} sent data code')
+                return {'code':500}
             if code != 320:
                 self.log(f'{self.address} failed protocol')
                 self.socket.send(self.f.encrypt(json.dumps({'code':400}).encode('utf-8')))
@@ -600,11 +602,17 @@ class Connection:
             second = self.socket.recv(first['len'])
             if second == b'':
                 self.log(f'{self.address} made empty request')
-                #self.socket.send(self.f.encrypt(json.dumps({'code':400}).encode('utf-8')))
                 return {'code':502}
             data = json.loads(self.f.decrypt(second))
-            return {'code':200, 'recv':data}
-        except Exception as err:
+            code = data.get('code')
+            if code != 321:
+                self.log(f'{self.address} failed protocol')
+                self.socket.send(self.f.encrypt(json.dumps({'code':400}).encode('utf-8')))
+                return {'code':500}
+            return {'code':200, 'recv':data['data']}
+        except InvalidToken as err:
+            self.log(f'{self.address} used invalid token')
+            self.socket.send(json.dumps({'code':400}).encode('utf-8'))
             return {'code':200, 'recv':err}
 
 @logger()
