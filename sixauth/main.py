@@ -653,66 +653,7 @@ class Server:
             self.session(code=310)
 
     @logger(is_log_more=True, is_server=True, in_sensitive=True)
-    async def server_send_data(self, client_socket, client_address, f, data):
-        encrypted_data = f.encrypt(json.dumps(data).encode('utf-8'))
-        request_length = len(encrypted_data)
-        await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':320, 'len':request_length}).encode('utf-8')))
-        recv = await self.loop.sock_recv(client_socket, 1024)
-        if recv == b'':
-            server_logger.info(f'{client_address} made empty request')
-            await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':200}).encode('utf-8')))
-            return {'code':500}
-        try:
-            response = json.loads(f.decrypt(recv).decode())
-        except InvalidToken:
-            server_logger.info(f'{client_address} sent invalid token')
-            await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Sent invalid token'}).encode('utf-8')))
-            return {'code':500}
-        except BaseException as err:
-            await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
-            tb = traceback.extract_tb(sys.exc_info()[2])
-            line_number = tb[-1][1]
-            server_logger.info(f'Request {data["code"]} processing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')#\n{str(tb)}')
-            return {'code':500}
-        if response['code'] != 200:
-            return {'code':500}
-        client_socket.send(encrypted_data)
-        return {'code':200}
-
-    @logger(is_log_more=True, is_server=True, in_sensitive=True, out_sensitive=True)
-    async def server_recv_data(self, client_socket, client_address, f):
-        request = await self.loop.sock_recv(client_socket, 1024)
-        if request == b'':
-            server_logger.info(f'{client_address} made empty request')
-            await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':200}).encode('utf-8')))
-            return {'code':500}
-        try:
-            data = json.loads(f.decrypt(request).decode())
-            if data['code'] != 320:
-                server_logger.info(f'{client_address} failed to follow protocol')
-                await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Client failed to follow protocol'}).encode('utf-8')))
-                return {'code':500}
-            await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':200}).encode('utf-8')))
-            recv = await self.loop.sock_recv(client_socket, data['len'])
-            if recv == b'':
-                server_logger.info(f'{client_address} made empty request')
-                await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':200}).encode('utf-8')))
-                return {'code':500}
-            ldata = json.loads(f.decrypt(recv).decode())
-            return {'code':200, 'data':ldata}
-        except InvalidToken:
-            server_logger.info(f'{client_address} sent invalid token')
-            await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':'Sent invalid token'}).encode('utf-8')))
-            return {'code':500}
-        except BaseException as err:
-            await self.loop.sock_sendall(client_socket, f.encrypt(json.dumps({'code':420, 'data':None, 'error':str(err)}).encode('utf-8')))
-            tb = traceback.extract_tb(sys.exc_info()[2])
-            line_number = tb[-1][1]
-            server_logger.info(f'Request {data["code"]} processing for {client_address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}')#\n{str(tb)}')
-            return {'code':500}
-
-    @logger(is_log_more=True, is_server=True, in_sensitive=True)
-    async def main_client_loop(self, client_socket, client_address, f):
+    async def main_client_loop1(self, client_socket, client_address, f):
         uhash, uid, ex = None, None, None
         while not self.stop_flag1.is_set():
             try:
@@ -746,6 +687,18 @@ class Server:
         if not ex:
             self.session(code=305, hash=uhash, id=uid)
 
+    @logger(is_log_more=True, is_server=True, in_sensitive=True)
+    async def main_client_loop(self, client_socket, client_address, f):
+        client = Connection(client_socket, client_address, f, server_logger)
+        while not self.stop_flag1.is_set() and not client.is_dead():
+            recv = client.recv()
+            if recv.get('code') == 200:
+                client.send({'code':200, 'your data': recv.get('recv')})
+                if recv['recv']['code'] == 100:
+                    client.dead = True
+            if recv.get('code') == 502:
+                client.dead = True
+
     @logger(is_server=True, in_sensitive=True)
     async def setup_client(self, client_socket, client_address):
         client_public_key_bytes = await self.loop.sock_recv(client_socket, 1024)
@@ -768,7 +721,7 @@ class Server:
         while len(self.clients) > 0:
             time.sleep(0.1)
     
-    def remover(self, user_cache):
+    def remover(self, user_hash):
         
     
     @logger(is_server=True, in_sensitive=True)
