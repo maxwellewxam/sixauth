@@ -153,7 +153,7 @@ else:
         return decorator
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def server_encrypt_data(data:dict, key:str, salt:bytes):
+def server_encrypt_data(data:dict, key:bytes, salt:bytes):
     for k, v in data.items():
         data[k] = base64.b64encode(v).decode()
     json_data = json.dumps(data)
@@ -163,19 +163,19 @@ def server_encrypt_data(data:dict, key:str, salt:bytes):
         salt=salt,
         iterations=100000,
         backend=default_backend())
-    key = base64.urlsafe_b64encode(kdf.derive(bytes(key.encode())))
+    key = base64.urlsafe_b64encode(kdf.derive(key))
     fernet = Fernet(key)
     return fernet.encrypt(json_data.encode())
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def server_decrypt_data(data:bytes, key:str, salt:bytes):
+def server_decrypt_data(data:bytes, key:bytes, salt:bytes):
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=32,
         salt=salt,
         iterations=100000,
         backend=default_backend())
-    key = base64.urlsafe_b64encode(kdf.derive(bytes(key.encode())))
+    key = base64.urlsafe_b64encode(kdf.derive(key))
     fernet = Fernet(key)
     iv_dict = json.loads(fernet.decrypt(data))
     for k, v in iv_dict.items():
@@ -254,22 +254,30 @@ class Database:
             Column('data', LargeBinary))
         self.ivs = Table('ivs', metadata,
             Column('server', String, unique=True, primary_key=True),
-            Column('iv', LargeBinary))
+            Column('iv', LargeBinary), 
+            Column('bytes', LargeBinary))
         metadata.create_all(engine)
         self.conn = engine.connect()
-        self.key = 'random ass key'
-        self.salt = b'BOOBIES'
-        from_database = self.conn.execute(self.ivs.select().where(self.ivs.c.server == self.key)).fetchone()
+        self.iv = 'server_iv'
+        from_database = self.conn.execute(self.ivs.select().where(self.ivs.c.server == self.iv)).fetchone()
         if from_database:
-            _,ivs_bytes = from_database
+            _,ivs_bytes,bites = from_database
+            self.key, self.salt = json.loads(bites.decode())
             self.iv_dict = server_decrypt_data(ivs_bytes, self.key, self.salt)
         else:
             self.iv_dict = {}
-            self.conn.execute(self.ivs.insert().values(server = self.key, iv=server_encrypt_data(self.iv_dict, self.key, self.salt)))
+            self.key = b'CHANGE'
+            self.salt = b'THIS'
+            bites = json.dumps((self.key, self.salt)).encode()
+            self.conn.execute(self.ivs.insert().values(server=self.iv, iv=server_encrypt_data(self.iv_dict, self.key, self.salt), bytes=bites))
+    
+    def change_keys(self, key, salt):
+        self.key = key
+        self.salt = salt
     
     @logger(is_log_more=True)
     def close(self):
-        self.conn.execute(self.ivs.update().where(self.ivs.c.server == self.key).values(iv=server_encrypt_data(self.iv_dict, self.key, self.salt)))
+        self.conn.execute(self.ivs.update().where(self.ivs.c.server == self.iv).values(iv=server_encrypt_data(self.iv_dict, self.key, self.salt)))
         self.conn.commit()
         self.conn.close()
         
@@ -332,11 +340,88 @@ class Data:
                 return {'code':200}
             temp = temp[name]['folder']
 
-class UserSession:
+class User:
+    data: Data
+    @logger(is_log_more=True, in_sensitive=True)
+    def __init__(self, data = None, username = None, password = None):
+        self.data = Data(data)
+        self.username = username
+        self.password = password
+    
+    @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+    def store(self, id):
+        self.data = self.data.store()
+        return encrypt_data_fast(self.__dict__, id)
+    
+    @logger(is_log_more=True, in_sensitive=True)
+    def from_dict(self, dict, id):
+        self.__dict__ = decrypt_data_fast(dict, id)
+        self.data = Data(self.data)
+        return self
+
+class Cache:
     @logger(is_log_more=True)
-    def __init__(self, db:Database):
-        self.db = db
+    def __init__(self, threshold = 300, is_server=False):
+        self.cache = {}
+        self.threshold = threshold
+        self.stop_flag = threading.Event()
+        if is_server:    
+            self.t = threading.Thread(target=self.cache_timeout_thread)
+            self.t.start()
+
+    @logger(is_log_more=True)
+    def cache_timeout_thread(self):
+        while not self.stop_flag.is_set():
+            try:
+                for key in list(self.cache):
+                    if time.time() - self.cache[key]['time'] > self.threshold:
+                        self.remove_key(self.cache[key])
+                time.sleep(1)
+            except Exception as err:
+                server_console.info(err)
+
+    @logger(is_log_more=True, in_sensitive=True)
+    def remove_key(self, key):
+        del key
+    
+    @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+    def add_user(self, id):
+        hash = hashlib.sha512((f'{id}{datetime.now()}').encode("UTF-8")).hexdigest()
+        self.cache[hash] = {'main':User().store(id), 'time':time.time()}
+        return {'code':200, 'hash':hash}
+
+    @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+    def find_user(self, hash, id):
+        if not is_valid_key(self.cache[hash]['main'], id):
+            return {'code':500}
+        self.cache[hash]['time'] = time.time()
+        data = User().from_dict(self.cache[hash]['main'], id)
+        if data.username == None:
+            return {'code':500}
+        return {'code':200, 'data':data}
+    
+    @logger(is_log_more=True, in_sensitive=True)
+    def update_user(self, hash, id, user):
+        if not is_valid_key(self.cache[hash]['main'], id):
+            return {'code':500}
+        self.cache[hash]['main'] = user.store(id)
+        self.cache[hash]['time'] = time.time()
+        return {'code':200}
         
+    @logger(is_log_more=True, in_sensitive=True)
+    def delete_user(self, hash, id):
+        if not is_valid_key(self.cache[hash]['main'], id):
+            return {'code':500}
+        del self.cache[hash]
+        return {'code':200}
+
+class Session:
+    @logger(is_log_more=True)
+    def __init__(self, path:str = os.getcwd(), threshold = 600, is_server = False):
+        self.db = Database(path)
+        self.cache = Cache(threshold, is_server)
+        
+    @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
     def signup(self, username, password):
         if username == '':
             return {'code':406}
@@ -345,7 +430,24 @@ class UserSession:
         user_from_database = self.db.find(username)
         if user_from_database:
             return {'code':409}
-        encrypted_data, iv = encrypt_data({}, data['password'], data['username'])
+        encrypted_data, iv = encrypt_data({}, password, username)
         self.db.iv_dict[username] = iv
-        self.db.create(username=username, password=password, data=encrypted_data)
+        self.db.create(username, password, encrypted_data)
+        return {'code':200}
+
+    @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+    def log_in(self, hash, id, username, password):
+        if username == '':
+            return {'code':406}
+        if username.isalnum() == False:
+            return {'code':406}
+        user_from_database = self.db.find(username)
+        if not user_from_database:
+            return {'code':404}
+        if not verify_password_hash(user_from_database[1], password):
+            return {'code':401}
+        user_data = decrypt_data(user_from_database[2], password, username, self.db.iv_dict[username])
+        cache_data = User(user_data, username, password)
+        if self.cache.update_user(hash, id, cache_data)['code'] == 500:
+            return {'code':423}
         return {'code':200}
