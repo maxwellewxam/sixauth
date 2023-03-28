@@ -8,15 +8,19 @@ else:
     HERE = os.path.abspath(os.getcwd())
 sys.path.append(HERE)
 from sixauth.main import *
+from sixauth.server import Client
 
 @logger()
 def backend_session(address:str):
     f, client_socket = establish_client_connection(address)
     client_logger.info(f'Connected to: {address}')
-    server = Connection(client_socket, address, f, client_logger)
+    server = Client(client_socket, f, address)
     @logger(in_sensitive=True, out_sensitive=True)
     def session(**data:dict):
-        server.send(data)
+        try:
+            server.send(data)
+        except:
+            pass
         return server.recv()
     return session
     

@@ -425,12 +425,12 @@ class Session:
         self.function_map = {
             301: self.create_session,
             302: self.sign_up,
-            303: self.save_data,
-            304: self.delete_data,
-            305: self.log_out,
-            306: self.remove_account,
-            307: self.log_in,
-            308: self.load_data,
+            303: self.log_in,
+            304: self.log_out,
+            305: self.remove_account,
+            306: self.save_data,
+            307: self.load_data,
+            308: self.delete_data,
             309: self.end_session,
             310: self.close_session}
         
