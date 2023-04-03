@@ -1,30 +1,23 @@
-from classes import Cache, User, FrontSession
-from cryptography.fernet import Fernet
 import sys
 import os
+import json
 if sys.platform == 'win32':
     HERE = os.path.abspath('../maxmods/')
 else:
     HERE = os.path.abspath(os.getcwd())
 sys.path.append(HERE)
-from sixauth.main import *
+from sixauth.main import establish_client_connection
 from sixauth.server import Client
 
-@logger()
-def backend_session(address:str):
-    f, client_socket = establish_client_connection(address)
-    client_logger.info(f'Connected to: {address}')
-    server = Client(client_socket, f, address)
-    @logger(in_sensitive=True, out_sensitive=True)
-    def session(**data:dict):
-        try:
-            server.send(data)
-        except:
-            pass
-        return server.recv()
-    return session
+def send(f, client_socket):
+    code = json.loads(input('code: '))
+    client_socket.send(f.encrypt(json.dumps(code).encode('utf-8')))
+    try:
+        data = json.loads(f.decrypt(client_socket.recv(1024)))
+        print(data)
+    except KeyboardInterrupt:
+        return
     
-server = backend_session('127.0.0.1:5678')
+f, client_socket = establish_client_connection('127.0.0.1:5678')
 while True:
-    send = int(input('code: '))
-    print(server(code=send))
+    send(f, client_socket)
