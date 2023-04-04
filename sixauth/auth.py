@@ -2,7 +2,7 @@
 
 # Made with love by Max
 
-from sixauth.main import *
+from .main import *
 
 class AuthSesh:
     """Main class of the Auth module.
@@ -342,3 +342,4 @@ class AuthSesh:
         elif request['code'] == 420:
             raise DataError(f"An error occurred during the request\nhere is the data we could recover: {request['data']}\nError: {request['error']}" )
                   
+__all__ = ['AuthSesh']
