@@ -40,7 +40,7 @@ class Session:
     
     def create_done_callback(self, hash, id):
         def done_callback():
-            self(code=305, hash=hash, id=id)
+            self(code=304, hash=hash, id=id)
         return done_callback
     
     @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
@@ -68,7 +68,8 @@ class Session:
         if data['location'] == '':
             return {'code':417}
         user_from_cache['data'].data.make(data['location'], data_from_request)
-        self.cache.update_user(data['hash'], data['id'], user_from_cache['data'])
+        done_call = self.create_done_callback(data['hash'], data['id'])
+        self.cache.update_user(data['hash'], data['id'], user_from_cache['data'], done_call)
         return {'code':200}
 
     @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
@@ -80,7 +81,8 @@ class Session:
             user_from_cache['data'].data.data = {}
         else:
             user_from_cache['data'].data.delete(data['location'])
-        self.cache.update_user(data['hash'], data['id'], user_from_cache['data'])
+        done_call = self.create_done_callback(data['hash'], data['id'])
+        self.cache.update_user(data['hash'], data['id'], user_from_cache['data'], done_call)
         return {'code':200}
 
     @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
@@ -96,7 +98,8 @@ class Session:
         encrypted_data, iv = encrypt_data(user_from_cache['data'].data.data, user_from_cache['data'].password, user_from_cache['data'].username)
         self.db.iv_dict[user_from_cache['data'].username] = iv
         self.db.update(user_from_cache['data'].username, encrypted_data)
-        self.cache.update_user(data['hash'], data['id'], User())
+        done_call = self.create_done_callback(data['hash'], data['id'])
+        self.cache.update_user(data['hash'], data['id'], User(), done_call)
         return {'code':200}
 
     @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
@@ -110,7 +113,8 @@ class Session:
         if not verify_password_hash(user_from_database[1], password=user_from_cache['data'].password):
             return {'code':423}
         self.db.delete(user_from_cache['data'].username)
-        self.cache.update_user(data['hash'], data['id'], User())
+        done_call = self.create_done_callback(data['hash'], data['id'])
+        self.cache.update_user(data['hash'], data['id'], User(), done_call)
         del self.db.iv_dict[user_from_cache['data'].username]
         return {'code':200}
 

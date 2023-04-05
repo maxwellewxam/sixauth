@@ -30,7 +30,7 @@ def establish_client_connection(address:str):
 def backend_session(address:str):
     f, client_socket = establish_client_connection(address)
     client_logger.info(f'Connected to: {address}')
-    client = Client(client_socket, f)
+    client = Client(client_socket, f, address)
     
     @logger(in_sensitive=True, out_sensitive=True)
     def session(**data:dict):

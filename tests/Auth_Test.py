@@ -5,10 +5,11 @@ HERE = os.path.abspath(os.getcwd())
 sys.path.append(HERE)
 sys.path.reverse()
 from sixauth import AuthSesh as ash
-from sixauth.main import AuthError
+from sixauth.main import AuthError, logger
+logger.setup_logger(log_sensitive = True, log_more = True)
 import unittest
 # '127.0.0.1:5678'
-with ash() as user1:
+with ash('127.0.0.1:5678') as user1:
 
     class testAuth(unittest.TestCase):
         def test_111_login_client_side_wrong_username(self):

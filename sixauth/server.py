@@ -61,13 +61,13 @@ class Client:
 
 class Server:
     @logger(is_log_more=True, is_server=True)
-    def __init__(self, host:str, port:int, use_default_logger:bool = True):
+    def __init__(self, host:str, port:int, cache_timeout:int = 300, use_default_logger:bool = True, db_path:str = os.getcwd()):
         if use_default_logger:
             logger.setup_logger(client_logger_location=os.getcwd())
         if logger.log_sensitive:
             server_console.info('WARNING: Logging sensitive information')
         self.stop_flag = threading.Event()
-        self.session = Session(is_server=True)
+        self.session = Session(is_server=True, cache_threshold=cache_timeout, path=db_path)
         self.server_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
         server_public_key = self.server_private_key.public_key()
         self.server_public_key_bytes = server_public_key.public_bytes(
@@ -147,7 +147,7 @@ class Server:
         if request['recv']['code'] == 310:
             response = {'code':423}
         else:
-            response = self.session(request['recv'])
+            response = self.session(**request['recv'])
         client.send(response)
         if request['recv']['code'] == 309 and response['code'] == 200:
             client.recv()

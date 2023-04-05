@@ -142,13 +142,13 @@ class Database:
         from_database = self.conn.execute(self.ivs.select().where(self.ivs.c.server == self.iv)).fetchone()
         if from_database:
             _,ivs_bytes,bites = from_database
-            self.key, self.salt = json.loads(bites.decode())
+            self.key, self.salt = separate(bites)
             self.iv_dict = server_decrypt_data(ivs_bytes, self.key, self.salt)
         else:
             self.iv_dict = {}
             self.key = b'CHANGE'
             self.salt = b'THIS'
-            bites = json.dumps((self.key, self.salt)).encode()
+            bites = self.key+b'\x99'+self.salt
             self.conn.execute(self.ivs.insert().values(server=self.iv, iv=server_encrypt_data(self.iv_dict, self.key, self.salt), bytes=bites))
     
     def change_keys(self, key, salt):

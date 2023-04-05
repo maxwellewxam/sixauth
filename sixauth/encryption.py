@@ -1,7 +1,7 @@
 from .main import *
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def server_encrypt_data(data:dict, key:str, salt:bytes):
+def server_encrypt_data(data:dict, key:bytes, salt:bytes):
     for k, v in data.items():
         data[k] = base64.b64encode(v).decode()
     json_data = json.dumps(data)
@@ -11,19 +11,19 @@ def server_encrypt_data(data:dict, key:str, salt:bytes):
         salt=salt,
         iterations=100000,
         backend=default_backend())
-    key = base64.urlsafe_b64encode(kdf.derive(bytes(key.encode())))
+    key = base64.urlsafe_b64encode(kdf.derive(bytes(key)))
     fernet = Fernet(key)
     return fernet.encrypt(json_data.encode())
 
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
-def server_decrypt_data(data:bytes, key:str, salt:bytes):
+def server_decrypt_data(data:bytes, key:bytes, salt:bytes):
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=32,
         salt=salt,
         iterations=100000,
         backend=default_backend())
-    key = base64.urlsafe_b64encode(kdf.derive(bytes(key.encode())))
+    key = base64.urlsafe_b64encode(kdf.derive(bytes(key)))
     fernet = Fernet(key)
     iv_dict = json.loads(fernet.decrypt(data))
     for k, v in iv_dict.items():
@@ -89,6 +89,24 @@ def is_valid_key(data:bytes, id:str):
     except InvalidToken:
         return False
 
+@logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
+def separate(bytes):
+    def find_separator(data, key):
+        index = data.find(key)
+        if index == -1:
+            return None
+        return index + len(key)
+    offset = 0
+    separated_set1 = b''
+    while True:
+        separator_index = find_separator(bytes[offset:], b'\x99')
+        if separator_index is None:
+            break
+        separated_set1 += bytes[offset:offset+separator_index]
+        offset += separator_index
+    separated_set2 = bytes[offset:]
+    return separated_set1[:-1], separated_set2
+
 __all__ = ['server_encrypt_data',
            'server_decrypt_data',
            'encrypt_data',
@@ -98,4 +116,5 @@ __all__ = ['server_encrypt_data',
            'create_password_hash',
            'verify_password_hash',
            'is_json_serialized',
-           'is_valid_key']
+           'is_valid_key',
+           'separate']

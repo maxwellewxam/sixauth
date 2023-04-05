@@ -1,19 +1,18 @@
 import sys
 import os
-import json
 if sys.platform == 'win32':
     HERE = os.path.abspath('../maxmods/')
-else:
-    HERE = os.path.abspath(os.getcwd())
 sys.path.append(HERE)
-from sixauth.client import establish_client_connection
-from sixauth.server import Client
+from sixauth import AuthSesh
+from sixauth.main import logger, time
+logger.setup_logger(log_sensitive = True, log_more = True)
 
-def send(cl:Client):
-    cl.send(json.loads(input('dict: ')))
-    print(cl.recv())
-    
-f, client_socket = establish_client_connection('127.0.0.1:5679')
-cl = Client(client_socket, f, ('127.0.0.1', 5679))
-while True:
-    send(cl)
+sesh = AuthSesh('127.0.0.1:5678')
+
+sesh.set_vals('max', 'max')
+sesh.signup()
+sesh.login()
+sesh.save('home/babe', 'MOMMMY')
+print(sesh.load('home/babe'))
+time.sleep(10)
+print(sesh.load())
