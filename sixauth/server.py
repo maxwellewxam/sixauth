@@ -1,7 +1,5 @@
 from .main import *
-
-def session(data):
-    return data
+from .session import *
 
 class Client:
     @logger(is_log_more=True, in_sensitive=True)
@@ -69,7 +67,7 @@ class Server:
         if logger.log_sensitive:
             server_console.info('WARNING: Logging sensitive information')
         self.stop_flag = threading.Event()
-        self.session = session
+        self.session = Session(is_server=True)
         self.server_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
         server_public_key = self.server_private_key.public_key()
         self.server_public_key_bytes = server_public_key.public_bytes(
@@ -89,7 +87,7 @@ class Server:
             server_console.info(f'Server did not exit successfully, Error: {err}')
         finally:
             self.server_socket.close()
-            #self.session(code=310)
+            self.session(code=310)
     
     @logger(is_log_more=True, is_server=True)
     async def server_main_loop(self):

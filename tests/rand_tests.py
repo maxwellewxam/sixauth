@@ -6,7 +6,7 @@ if sys.platform == 'win32':
 else:
     HERE = os.path.abspath(os.getcwd())
 sys.path.append(HERE)
-from sixauth.main import establish_client_connection
+from sixauth.client import establish_client_connection
 from sixauth.server import Client
 
 def send(cl:Client):

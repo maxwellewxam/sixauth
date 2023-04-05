@@ -3,6 +3,8 @@
 # Made with love by Max
 
 from .main import *
+from .session import frontend_session
+from .client import backend_session
 
 class AuthSesh:
     """Main class of the Auth module.
