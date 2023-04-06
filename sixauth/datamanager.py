@@ -73,6 +73,11 @@ class Cache:
             self.t = threading.Thread(target=self.cache_timeout_thread)
             self.t.start()
 
+    def default_done_callback(self, hash):
+        def done_callback():
+            del self.cache[hash]
+        return done_callback
+    
     @logger(is_log_more=True)
     def cache_timeout_thread(self):
         while not self.stop_flag.is_set():
@@ -87,12 +92,18 @@ class Cache:
     @logger(is_log_more=True, in_sensitive=True)
     def remove_key(self, key):
         key['done']()
-        server_console.info('removed user')
+        server_console.info('user timed out')
+    
+    def add_done_callback(self, hash, id, callback):
+        if not is_valid_key(self.cache[hash]['main'], id):
+            return {'code':500}
+        self.cache[hash]['done'] = callback
+        return {'code':200}
     
     @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
     def add_user(self, id):
         hash = hashlib.sha512((f'{id}{datetime.now()}').encode("UTF-8")).hexdigest()
-        self.cache[hash] = {'main':User().store(id), 'time':time.time()}
+        self.cache[hash] = {'main':User().store(id), 'time':time.time(), 'done':self.default_done_callback(hash)}
         return {'code':200, 'hash':hash}
 
     @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
@@ -106,12 +117,11 @@ class Cache:
         return {'code':200, 'data':data}
     
     @logger(is_log_more=True, in_sensitive=True)
-    def update_user(self, hash, id, user, done_callback):
+    def update_user(self, hash, id, user):
         if not is_valid_key(self.cache[hash]['main'], id):
             return {'code':500}
         self.cache[hash]['main'] = user.store(id)
         self.cache[hash]['time'] = time.time()
-        self.cache[hash]['done'] = done_callback
         return {'code':200}
         
     @logger(is_log_more=True, in_sensitive=True)

@@ -76,6 +76,7 @@ class Server:
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.bind((host, port))
         self.server_socket.listen()
+        self.server_socket.setblocking(False)
         server_console.info(f'Server {VER} started')
         server_console.info('Press Ctrl+C to exit')
         server_console.info(f"Listening for incoming connections on {host}:{port}")
@@ -117,6 +118,7 @@ class Server:
         client = Client(client_socket, f, client_address)
         await self.main_client_loop(client)
         client_socket.close()
+        server_console.info('client disconnected')
     
     @logger(is_log_more=True, is_server=True)
     async def main_client_loop(self, client:Client):
@@ -125,6 +127,8 @@ class Server:
                 status = self.run_client(client)
                 if not status:
                     break
+            except BlockingIOError:
+                pass
             except BaseException as err:
                 client.send({'code':420, 'data':None, 'error':str(err)})
                 tb = traceback.extract_tb(sys.exc_info()[2])
@@ -143,7 +147,8 @@ class Server:
             # it couldn't understand the previous response/send message.
             # meaning that instead of just waiting for another response from the client, like we are here,
             # we should attempt to send the pervious message again. (maybe with max retries?)
-            return True  
+            return True 
+        request['recv']['client'] = client
         if request['recv']['code'] == 310:
             response = {'code':423}
         else:

@@ -35,7 +35,7 @@ def backend_session(address:str):
     @logger(in_sensitive=True, out_sensitive=True)
     def session(**data:dict):
         client.send(data)
-        return client.recv()
+        return client.recv()['recv']
     return session
 
 __all__ = ['backend_session', 'establish_client_connection']
