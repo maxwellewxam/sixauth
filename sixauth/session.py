@@ -24,12 +24,8 @@ class Session:
     def close_session(self,_):
         self.cache.stop_flag.set()
         self.cache.t.join()
-        self.server()
         self.db.close()
         return {'code':200}
-    
-    def server(self):
-        pass
     
     @logger(in_sensitive=True, out_sensitive=True)
     def __call__(self, **data:dict):
@@ -39,11 +35,12 @@ class Session:
         else:
             return {'code': 420, 'data':None, 'error': f"Invalid code: {code}"}
     
+    @logger(is_log_more=True, in_sensitive=True)
     def create_done_callback(self, hash, id, client):
         def done_callback():
             self(code=304, hash=hash, id=id)
             self(code=309, hash=hash, id=id)
-            client.dead = True
+            client.kill()
         return done_callback
     
     @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)

@@ -10,7 +10,7 @@ logger.setup_logger(log_sensitive = True, log_more = True)
 sesh = AuthSesh('127.0.0.1:5678')
 
 sesh.set_vals('max', 'max')
-sesh.signup()
+#sesh.signup()
 sesh.login()
 sesh.save('home/babe', 'MOMMMY')
 print(sesh.load('home/babe'))

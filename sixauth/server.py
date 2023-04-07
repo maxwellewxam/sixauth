@@ -9,10 +9,16 @@ class Client:
         self.address = address
         self.dead = False
     
-    @logger(is_log_more=True)
+    #@logger(is_log_more=True)
     def is_dead(self):
+        if self.dead:
+            server_console.info('I DIED')
         return self.dead
 
+    @logger(is_log_more=True)
+    def kill(self):
+        self.dead = True
+    
     @logger(is_log_more=True, in_sensitive=True)
     def send(self, data:dict):
         encrypted_data = self.f.encrypt(json.dumps({'code':321, 'data':data}).encode('utf-8'))
@@ -21,7 +27,7 @@ class Client:
         self.socket.send(encrypted_data)
         client_logger.info(f'Sent data to {self.address}')
 
-    @logger(is_log_more=True, out_sensitive=True)
+    #@logger(is_log_more=True, out_sensitive=True)
     def recv(self):
         try:
             first = self.socket.recv(1024)
@@ -117,8 +123,8 @@ class Server:
         f = Fernet(base64.urlsafe_b64encode(key))
         client = Client(client_socket, f, client_address)
         await self.main_client_loop(client)
-        client_socket.close()
         server_console.info('client disconnected')
+        client_socket.close()
     
     @logger(is_log_more=True, is_server=True)
     async def main_client_loop(self, client:Client):
@@ -135,7 +141,7 @@ class Server:
                 line_number = tb[-1][1]
                 server_logger.info(f'Request processing for {client.address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}\n{str(tb)}')
     
-    @logger(is_log_more=True, is_server=True)
+    #@logger(is_log_more=True, is_server=True)
     def run_client(self, client:Client):
         request = client.recv()
         if request['code'] == 502:
