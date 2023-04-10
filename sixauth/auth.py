@@ -71,7 +71,8 @@ class AuthSesh:
             self._sesh,_ = frontend_session(self._Path)
         else:
             self._sesh = backend_session(self._Address)
-            
+        
+        time.sleep(0.1)    
         self._requestHandle(self._sesh(code=301, id=self._Id))
 
     def __repr__(self):

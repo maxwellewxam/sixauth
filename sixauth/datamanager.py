@@ -74,9 +74,10 @@ class Cache:
             self.t.start()
 
     def default_done_callback(self, hash):
-        def done_callback():
+        @logger(is_log_more=True)
+        def default_callback():
             del self.cache[hash]
-        return done_callback
+        return default_callback
     
     @logger(is_log_more=True)
     def cache_timeout_thread(self):

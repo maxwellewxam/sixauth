@@ -26,7 +26,7 @@ class Client:
         self.socket.send(encrypted_data)
         client_logger.info(f'Sent data to {self.address}')
 
-    #@logger(is_log_more=True, out_sensitive=True)
+    @logger(is_log_more=True, out_sensitive=True)
     def recv(self):
         try:
             first = self.socket.recv(1024)
@@ -64,13 +64,15 @@ class Client:
             client_logger.info(f'{self.address} used invalid token')
             return {'code':500}
         except BlockingIOError:
+            return {'code':503}
+        except TimeoutError:
             return {'code':500}
 
 class Server:
     @logger(is_log_more=True, is_server=True)
     def __init__(self, host:str, port:int, cache_timeout:int = 300, use_default_logger:bool = True, db_path:str = os.getcwd()):
         if use_default_logger:
-            logger.setup_logger(client_logger_location=logger.server)
+            logger.setup_logger(client_logger_location=logger.server, server_logger_location=os.getcwd())
         if logger.log_sensitive:
             server_console.info('WARNING: Logging sensitive information')
         self.clients = set()
@@ -91,17 +93,22 @@ class Server:
         try:
             asyncio.run(self.server_main_loop())
         except KeyboardInterrupt:
-            server_console.info('Server Closed')
+            server_console.info('Server Closing')
         except BaseException as err:
             server_console.info(f'Server did not exit successfully, Error: {err}')
         finally:
-            for key in list(self.session.cache.cache):
-                self.session.cache.cache[key]['done']()
-            while self.clients:
-                server_console.info('closing active clients...')
-                time.sleep(1)
+            server_console.info('Press Ctrl+C to skip client closing')
+            try:
+                for key in list(self.session.cache.cache):
+                    self.session.cache.cache[key]['done'](key)
+                while self.clients:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                pass
+            server_console.info('Finished')
             self.session(code=310)
             self.server_socket.close()
+            server_console.info('Server closed')
     
     @logger(is_log_more=True, is_server=True)
     async def server_main_loop(self):
@@ -139,24 +146,36 @@ class Server:
                 status = self.run_client(client)
                 if not status:
                     break
+            except ConnectionResetError:
+                if logger.log_more:
+                    server_logger.info(f'{client.address} connection reset')
             except BaseException as err:
-                client.send({'code':420, 'data':None, 'error':str(err)})
+                try:
+                    client.send({'code':420, 'data':None, 'error':str(err)})
+                except:
+                    pass
                 tb = traceback.extract_tb(sys.exc_info()[2])
                 line_number = tb[-1][1]
                 server_logger.info(f'Request processing for {client.address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}\n{str(tb)}')
+            time.sleep(1)
     
-    def check_client(self, client):
+    #@logger(is_log_more=True, is_server=True)
+    def check_client(self, client:Client):
         try:
             kill_call = client.queue.get(block=False)
             kill_call()
+            return True
         except queue.Empty:
-            pass
-        
+            return False
+    
+    #@logger(is_log_more=True, is_server=True)
     def run_client(self, client:Client):
         request = client.recv()
         if request['code'] == 502:
             return False
         if request['code'] == 500:
+            return True
+        if request['code'] == 503:
             return True
         if request['code'] == 501:
             # a 501 response from the recv function means that the sender reported that

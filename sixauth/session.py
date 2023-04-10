@@ -43,7 +43,7 @@ class Session:
             self(code=309, hash=hash, id=id)
             client.kill()
         @logger(is_log_more=True)
-        def done_callback():
+        def done_callback(_):
             client.queue.put(callback)
         return done_callback
     

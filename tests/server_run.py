@@ -6,7 +6,7 @@ if sys.platform == 'win32':
 sys.path.append(HERE)
 from sixauth.server import *
 from sixauth.main import *
-logger.setup_logger(client_logger_location=os.getcwd(), log_sensitive = True, log_more = True)
+logger.setup_logger(client_logger_location=None, log_sensitive = True, log_more = True)
 
 class NewServer(Server):
     @logger(is_log_more=True, is_server=True)

@@ -31,12 +31,16 @@ def backend_session(address:str):
     f, client_socket = establish_client_connection(address)
     client_logger.info(f'Connected to: {address}')
     client = Client(client_socket, f, address)
-    client.socket.settimeout(5)
+    client.socket.settimeout(30)
     
     @logger(in_sensitive=True, out_sensitive=True)
     def session(**data:dict):
-        client.send(data)
-        return client.recv()['recv']
+        while True:
+            client.send(data)
+            recv = client.recv()
+            if recv['code'] == 200:
+                break
+        return recv['recv']
     return session
 
 __all__ = ['backend_session', 'establish_client_connection']

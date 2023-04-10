@@ -21,11 +21,11 @@ class Logger:
         return log_func
     
     def setup_logger(self,
-                        client_logger_location = os.path.dirname(logs.__file__), 
-                        server_logger_location = os.getcwd(), 
-                        debug = False,
-                        log_sensitive = False,
-                        log_more = False):
+                        client_logger_location:str = os.path.dirname(logs.__file__), 
+                        server_logger_location:str = None, 
+                        debug:bool = False,
+                        log_sensitive:bool = False,
+                        log_more:bool = False):
         if client_logger_location == self.server:
             self.client_logger_location = server_logger_location
         else:
@@ -49,14 +49,17 @@ class Logger:
         if client_logger_location != None:
             if client_logger_location == self.server:
                 client_logger_handler = server_logger_handler
+                self.client_console.addHandler(client_logger_handler)
+                self.client_logger.addHandler(client_logger_handler)
+                client_logger_handler.setFormatter(self.formatter)
             else:
                 client_logger_handler = logging.FileHandler(client_logger_location+'/client.log')
-            self.client_console.addHandler(client_logger_handler)
-            self.client_logger.addHandler(client_logger_handler)
-            self.client_logger.info('VVV---------BEGIN-NEW-LOG----------VVV')
-            if self.log_sensitive:
-                self.client_logger.info('WARNING: LOGGING SENSITIVE INFO')
-            client_logger_handler.setFormatter(self.formatter)
+                self.client_console.addHandler(client_logger_handler)
+                self.client_logger.addHandler(client_logger_handler)
+                self.client_logger.info('VVV---------BEGIN-NEW-LOG----------VVV')
+                if self.log_sensitive:
+                    self.client_logger.info('WARNING: LOGGING SENSITIVE INFO')
+                client_logger_handler.setFormatter(self.formatter)
         self.server_console.addHandler(self.console_handler)
         self.client_console.addHandler(self.console_handler)
         return self
@@ -104,6 +107,6 @@ client_logger.setLevel(logging.INFO)
 
 console_handler = logging.StreamHandler()
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = Logger(server_console, client_console, server_logger, client_logger, console_handler, formatter).setup_logger(server_logger_location=None)
+logger = Logger(server_console, client_console, server_logger, client_logger, console_handler, formatter).setup_logger()
     
 __all__ = ['logger', 'server_console', 'client_console', 'server_logger', 'client_logger']
