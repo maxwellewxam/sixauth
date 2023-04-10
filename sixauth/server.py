@@ -8,11 +8,10 @@ class Client:
         self.f = f
         self.address = address
         self.dead = False
+        self.queue = queue.Queue()
     
     #@logger(is_log_more=True)
     def is_dead(self):
-        if self.dead:
-            server_console.info('I DIED')
         return self.dead
 
     @logger(is_log_more=True)
@@ -64,14 +63,17 @@ class Client:
             self.socket.send(json.dumps({'code':400}).encode('utf-8'))
             client_logger.info(f'{self.address} used invalid token')
             return {'code':500}
+        except BlockingIOError:
+            return {'code':500}
 
 class Server:
     @logger(is_log_more=True, is_server=True)
     def __init__(self, host:str, port:int, cache_timeout:int = 300, use_default_logger:bool = True, db_path:str = os.getcwd()):
         if use_default_logger:
-            logger.setup_logger(client_logger_location=os.getcwd())
+            logger.setup_logger(client_logger_location=logger.server)
         if logger.log_sensitive:
             server_console.info('WARNING: Logging sensitive information')
+        self.clients = set()
         self.stop_flag = threading.Event()
         self.session = Session(is_server=True, cache_threshold=cache_timeout, path=db_path)
         self.server_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
@@ -93,13 +95,17 @@ class Server:
         except BaseException as err:
             server_console.info(f'Server did not exit successfully, Error: {err}')
         finally:
-            self.server_socket.close()
+            for key in list(self.session.cache.cache):
+                self.session.cache.cache[key]['done']()
+            while self.clients:
+                server_console.info('closing active clients...')
+                time.sleep(1)
             self.session(code=310)
+            self.server_socket.close()
     
     @logger(is_log_more=True, is_server=True)
     async def server_main_loop(self):
         self.loop = asyncio.get_event_loop()
-        self.clients = set()
         while not self.stop_flag.is_set():
             client_socket, client_address = await self.loop.sock_accept(self.server_socket)
             task = asyncio.create_task(self.setup_client(client_socket, client_address))
@@ -123,25 +129,29 @@ class Server:
         f = Fernet(base64.urlsafe_b64encode(key))
         client = Client(client_socket, f, client_address)
         await self.main_client_loop(client)
-        server_console.info('client disconnected')
         client_socket.close()
     
     @logger(is_log_more=True, is_server=True)
     async def main_client_loop(self, client:Client):
         while not self.stop_flag.is_set() and not client.is_dead():
             try:
+                self.check_client(client)
                 status = self.run_client(client)
                 if not status:
                     break
-            except BlockingIOError:
-                pass
             except BaseException as err:
                 client.send({'code':420, 'data':None, 'error':str(err)})
                 tb = traceback.extract_tb(sys.exc_info()[2])
                 line_number = tb[-1][1]
                 server_logger.info(f'Request processing for {client.address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}\n{str(tb)}')
     
-    #@logger(is_log_more=True, is_server=True)
+    def check_client(self, client):
+        try:
+            kill_call = client.queue.get(block=False)
+            kill_call()
+        except queue.Empty:
+            pass
+        
     def run_client(self, client:Client):
         request = client.recv()
         if request['code'] == 502:

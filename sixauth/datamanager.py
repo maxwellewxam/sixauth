@@ -84,15 +84,10 @@ class Cache:
             try:
                 for key in list(self.cache):
                     if time.time() - self.cache[key]['time'] > self.threshold:
-                        self.remove_key(self.cache[key])
+                        self.cache[key]['done']()
                 time.sleep(1)
             except Exception as err:
                 server_console.info(err)
-
-    @logger(is_log_more=True, in_sensitive=True)
-    def remove_key(self, key):
-        key['done']()
-        server_console.info('user timed out')
     
     def add_done_callback(self, hash, id, callback):
         if not is_valid_key(self.cache[hash]['main'], id):

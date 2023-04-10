@@ -13,6 +13,7 @@ class Logger:
         self.console_handler = console_handler
         self.formatter = formatter
         self.times = []
+        self.server = 'this just needs to be a random variable, it could lowk be anything i could ever want'
     
     def set_logger(self, loghandle:logging.Logger):
         def log_func(text):
@@ -25,7 +26,10 @@ class Logger:
                         debug = False,
                         log_sensitive = False,
                         log_more = False):
-        self.client_logger_location = client_logger_location
+        if client_logger_location == self.server:
+            self.client_logger_location = server_logger_location
+        else:
+            self.client_logger_location = client_logger_location
         self.server_logger_location = server_logger_location
         self.debug = debug
         self.log_sensitive = log_sensitive
@@ -43,7 +47,10 @@ class Logger:
                 self.server_logger.info('WARNING: LOGGING SENSITIVE INFO')
             server_logger_handler.setFormatter(self.formatter)
         if client_logger_location != None:
-            client_logger_handler = logging.FileHandler(client_logger_location+'/client.log')
+            if client_logger_location == self.server:
+                client_logger_handler = server_logger_handler
+            else:
+                client_logger_handler = logging.FileHandler(client_logger_location+'/client.log')
             self.client_console.addHandler(client_logger_handler)
             self.client_logger.addHandler(client_logger_handler)
             self.client_logger.info('VVV---------BEGIN-NEW-LOG----------VVV')

@@ -31,6 +31,7 @@ def backend_session(address:str):
     f, client_socket = establish_client_connection(address)
     client_logger.info(f'Connected to: {address}')
     client = Client(client_socket, f, address)
+    client.socket.settimeout(5)
     
     @logger(in_sensitive=True, out_sensitive=True)
     def session(**data:dict):
