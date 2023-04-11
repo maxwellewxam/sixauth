@@ -75,7 +75,7 @@ class Cache:
 
     def default_done_callback(self, hash):
         @logger(is_log_more=True)
-        def default_callback():
+        def default_callback(_):
             del self.cache[hash]
         return default_callback
     
@@ -85,7 +85,7 @@ class Cache:
             try:
                 for key in list(self.cache):
                     if time.time() - self.cache[key]['time'] > self.threshold:
-                        self.cache[key]['done']()
+                        self.cache[key]['done'](key)
                 time.sleep(1)
             except Exception as err:
                 server_console.info(err)

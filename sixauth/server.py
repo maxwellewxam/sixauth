@@ -10,7 +10,7 @@ class Client:
         self.dead = False
         self.queue = queue.Queue()
     
-    #@logger(is_log_more=True)
+    @logger(is_log_more=True, only_log_change=True)
     def is_dead(self):
         return self.dead
 
@@ -26,7 +26,7 @@ class Client:
         self.socket.send(encrypted_data)
         client_logger.info(f'Sent data to {self.address}')
 
-    @logger(is_log_more=True, out_sensitive=True)
+    @logger(is_log_more=True, out_sensitive=True, only_log_change=True)
     def recv(self):
         try:
             first = self.socket.recv(1024)
@@ -49,6 +49,7 @@ class Client:
                 self.socket.send(self.f.encrypt(json.dumps({'code':400}).encode('utf-8')))
                 client_logger.info(f'{self.address} failed protocol')
                 return {'code':500}
+            time.sleep(0.01)
             second = self.socket.recv(first['len'])
             if second == b'':
                 return {'code':502}
@@ -62,11 +63,11 @@ class Client:
         except InvalidToken:
             self.socket.send(json.dumps({'code':400}).encode('utf-8'))
             client_logger.info(f'{self.address} used invalid token')
-            return {'code':500}
+            return {'code':503}
         except BlockingIOError:
             return {'code':503}
         except TimeoutError:
-            return {'code':500}
+            return {'code':503}
 
 class Server:
     @logger(is_log_more=True, is_server=True)
@@ -76,8 +77,8 @@ class Server:
         if logger.log_sensitive:
             server_console.info('WARNING: Logging sensitive information')
         self.clients = set()
-        self.stop_flag = threading.Event()
         self.session = Session(is_server=True, cache_threshold=cache_timeout, path=db_path)
+        self.stop_flag = self.session.cache.stop_flag
         self.server_private_key = ec.generate_private_key(ec.SECP384R1, default_backend())
         server_public_key = self.server_private_key.public_key()
         self.server_public_key_bytes = server_public_key.public_bytes(
@@ -91,7 +92,10 @@ class Server:
         server_console.info('Press Ctrl+C to exit')
         server_console.info(f"Listening for incoming connections on {host}:{port}")
         try:
-            asyncio.run(self.server_main_loop())
+            main_thread = threading.Thread(target=self.run_thread)
+            main_thread.start()
+            while True:
+                time.sleep(1)
         except KeyboardInterrupt:
             server_console.info('Server Closing')
         except BaseException as err:
@@ -108,35 +112,45 @@ class Server:
             server_console.info('Finished')
             self.session(code=310)
             self.server_socket.close()
+            main_thread.join()
             server_console.info('Server closed')
+    
+    def run_thread(self):
+        asyncio.run(self.server_main_loop())
     
     @logger(is_log_more=True, is_server=True)
     async def server_main_loop(self):
         self.loop = asyncio.get_event_loop()
         while not self.stop_flag.is_set():
-            client_socket, client_address = await self.loop.sock_accept(self.server_socket)
-            task = asyncio.create_task(self.setup_client(client_socket, client_address))
-            self.clients.add(task)
-            task.add_done_callback(self.clients.discard)
-    
+            try:
+                client_socket, client_address = self.server_socket.accept()
+                task = asyncio.ensure_future(self.setup_client(client_socket, client_address))
+                self.clients.add(task)
+                task.add_done_callback(self.clients.discard)
+            except BlockingIOError:
+                 pass
+            
     @logger(is_log_more=True, is_server=True, in_sensitive=True)
     async def setup_client(self, client_socket:socket.socket, client_address):
-        client_public_key_bytes = await self.loop.sock_recv(client_socket, 1024)
-        client_public_key = serialization.load_pem_public_key(
-        client_public_key_bytes, default_backend())
-        await self.loop.sock_sendall(client_socket, self.server_public_key_bytes)
-        shared_secret = self.server_private_key.exchange(ec.ECDH(), client_public_key)
-        kdf = HKDF(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=None,
-        info=b"session key",
-        backend=default_backend())
-        key = kdf.derive(shared_secret)
-        f = Fernet(base64.urlsafe_b64encode(key))
-        client = Client(client_socket, f, client_address)
-        await self.main_client_loop(client)
-        client_socket.close()
+        try:
+            client_public_key_bytes = await self.loop.sock_recv(client_socket, 1024)
+            client_public_key = serialization.load_pem_public_key(
+            client_public_key_bytes, default_backend())
+            await self.loop.sock_sendall(client_socket, self.server_public_key_bytes)
+            shared_secret = self.server_private_key.exchange(ec.ECDH(), client_public_key)
+            kdf = HKDF(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=None,
+            info=b"session key",
+            backend=default_backend())
+            key = kdf.derive(shared_secret)
+            f = Fernet(base64.urlsafe_b64encode(key))
+            client = Client(client_socket, f, client_address)
+            await self.main_client_loop(client)
+            client_socket.close()
+        except ConnectionResetError:
+            pass
     
     @logger(is_log_more=True, is_server=True)
     async def main_client_loop(self, client:Client):
@@ -147,8 +161,7 @@ class Server:
                 if not status:
                     break
             except ConnectionResetError:
-                if logger.log_more:
-                    server_logger.info(f'{client.address} connection reset')
+                pass
             except BaseException as err:
                 try:
                     client.send({'code':420, 'data':None, 'error':str(err)})
@@ -157,18 +170,18 @@ class Server:
                 tb = traceback.extract_tb(sys.exc_info()[2])
                 line_number = tb[-1][1]
                 server_logger.info(f'Request processing for {client.address} failed, Error on line {line_number}: {str(type(err))}:{str(err)}\n{str(tb)}')
-            time.sleep(1)
+            #time.sleep(1)
     
-    #@logger(is_log_more=True, is_server=True)
+    @logger(is_log_more=True, is_server=True, only_log_change=True)
     def check_client(self, client:Client):
         try:
             kill_call = client.queue.get(block=False)
-            kill_call()
+            kill_call('kill called')
             return True
         except queue.Empty:
             return False
     
-    #@logger(is_log_more=True, is_server=True)
+    @logger(is_log_more=True, is_server=True, only_log_change=True)
     def run_client(self, client:Client):
         request = client.recv()
         if request['code'] == 502:

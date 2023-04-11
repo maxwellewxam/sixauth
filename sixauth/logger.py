@@ -64,7 +64,7 @@ class Logger:
         self.client_console.addHandler(self.console_handler)
         return self
     
-    def __call__(self, is_server = False, is_log_more=False, in_sensitive=False, out_sensitive=False):
+    def __call__(self, is_server = False, is_log_more=False, in_sensitive=False, out_sensitive=False, only_log_change=False):
         if is_server and self.debug:
             log = self.set_logger(self.server_console)
         elif is_server and not self.debug:
@@ -73,24 +73,32 @@ class Logger:
             log = self.set_logger(self.client_console)
         elif not is_server and not self.debug:
             log = self.set_logger(self.client_logger)
+        
         def decorator(func):
+            last_in = None
+            last_out = None
+            
             def wrapper(*args, **kwargs):
-                if is_log_more == False or self.log_more == True:
+                nonlocal last_in
+                nonlocal last_out
+                if (is_log_more == False or self.log_more == True) and (not only_log_change or last_in != f'{args}{kwargs}'):
                     if not in_sensitive or self.log_sensitive:
                         log(f'{func.__name__} called with arguments {args} and {kwargs}')
                     else:
                         log(f'{func.__name__} called')
+                last_in = f'{args}{kwargs}'
                 start = time.time()               
                 returned = func(*args, **kwargs)
                 end = time.time()
                 self.times.append((func.__name__, end-start, str(args), str(kwargs)))
-                if is_log_more == False or self.log_more == True:
+                if (is_log_more == False or self.log_more == True) and (not only_log_change or last_out != f'{returned}'):
                     if not out_sensitive or self.log_sensitive:
                         log(f'{func.__name__} returned {returned}')
                     else:
                         log(f'{func.__name__} returned')
-                if self.log_more:
+                if self.log_more and (not only_log_change or last_out != f'{returned}'):
                     log(f"{func.__name__} took {end-start} seconds to execute")
+                last_out = f'{returned}'
                 return returned
             return wrapper
         return decorator

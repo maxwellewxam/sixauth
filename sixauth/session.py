@@ -38,7 +38,7 @@ class Session:
     @logger(is_log_more=True, in_sensitive=True)
     def create_done_callback(self, hash, id, client):
         @logger(is_log_more=True)
-        def callback():
+        def callback(_):
             self(code=304, hash=hash, id=id)
             self(code=309, hash=hash, id=id)
             client.kill()
