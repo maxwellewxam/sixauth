@@ -133,10 +133,10 @@ class Server:
     @logger(is_log_more=True, is_server=True, in_sensitive=True)
     async def setup_client(self, client_socket:socket.socket, client_address):
         try:
-            client_public_key_bytes = await self.loop.sock_recv(client_socket, 1024)
+            client_public_key_bytes = client_socket.recv(1024)
             client_public_key = serialization.load_pem_public_key(
             client_public_key_bytes, default_backend())
-            await self.loop.sock_sendall(client_socket, self.server_public_key_bytes)
+            client_socket.send(self.server_public_key_bytes)
             shared_secret = self.server_private_key.exchange(ec.ECDH(), client_public_key)
             kdf = HKDF(
             algorithm=hashes.SHA256(),
@@ -147,13 +147,13 @@ class Server:
             key = kdf.derive(shared_secret)
             f = Fernet(base64.urlsafe_b64encode(key))
             client = Client(client_socket, f, client_address)
-            await self.main_client_loop(client)
+            self.main_client_loop(client)
             client_socket.close()
         except ConnectionResetError:
             pass
     
     @logger(is_log_more=True, is_server=True)
-    async def main_client_loop(self, client:Client):
+    def main_client_loop(self, client:Client):
         while not self.stop_flag.is_set() and not client.is_dead():
             try:
                 self.check_client(client)

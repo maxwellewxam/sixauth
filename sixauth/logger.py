@@ -12,7 +12,6 @@ class Logger:
         self.server_logger = server_logger
         self.console_handler = console_handler
         self.formatter = formatter
-        self.times = []
         self.server = 'this just needs to be a random variable, it could lowk be anything i could ever want'
     
     def set_logger(self, loghandle:logging.Logger):

@@ -1,8 +1,8 @@
 import sys
 import os
 if sys.platform == 'win32':
-    #HERE = os.path.abspath('../maxmods/')
-    HERE = os.path.abspath('../sixauth/')
+    HERE = os.path.abspath('../maxmods/')
+    #HERE = os.path.abspath('../sixauth/')
 sys.path.append(HERE)
 from sixauth import AuthSesh
 from sixauth.main import logger, time
