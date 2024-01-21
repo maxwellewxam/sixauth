@@ -7,7 +7,12 @@ sys.path.reverse()
 from sixauth import auth
 
 lol = auth.Authenticator(os.getcwd())
-print(lol.remove_user(lol.check_user('max2', 'password2'), 'password2'))
+#lol.new_user('max2', 'password2')
+temp = lol.check_user_db('max2', 'password2')
+if not temp in (lol.BAD_PASS, lol.BAD_USER):
+    print(lol.check_user_token(*temp))
+else:
+    print(temp)
 lol.close()
 sys.exit(0)
 
