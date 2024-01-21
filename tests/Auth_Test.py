@@ -4,8 +4,14 @@ import os
 HERE = os.path.abspath(os.getcwd())
 sys.path.append(HERE)
 sys.path.reverse()
-from sixauth import AuthSesh as ash
-from sixauth.main import AuthError, logger
+from sixauth import auth
+
+lol = auth.Authenticator(os.getcwd())
+print(lol.remove_user(lol.check_user('max2', 'password2'), 'password2'))
+lol.close()
+sys.exit(0)
+
+
 logger.setup_logger(log_sensitive = True, log_more = True)
 import unittest
 # '127.0.0.1:5678'

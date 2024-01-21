@@ -1,5 +1,5 @@
 from .main import *
-from .datamanager import *
+from .database import *
 from .encryption import *
 
 class Session:
