@@ -1,4 +1,4 @@
-from .main import *
+from .main2 import *
 from .server import *
 
 @logger(is_log_more=True)

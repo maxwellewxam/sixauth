@@ -4,16 +4,13 @@ import os
 HERE = os.path.abspath(os.getcwd())
 sys.path.append(HERE)
 sys.path.reverse()
-from sixauth import auth
+from sixauth import main
 
-lol = auth.Authenticator(os.getcwd())
+lol = main.BaseApi(os.getcwd())
 #lol.new_user('max2', 'password2')
-temp = lol.check_user_db('max2', 'password2')
-if not temp in (lol.BAD_PASS, lol.BAD_USER):
-    print(lol.check_user_token(*temp))
-else:
-    print(temp)
-lol.close()
+lol.login('max2', 'password2')
+print(lol.check())
+lol.authenticator.close()
 sys.exit(0)
 
 

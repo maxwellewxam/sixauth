@@ -1,4 +1,5 @@
 # Made with love by Max
+import machineid
 
 VER = '1.1.0_DEV.1'
 
@@ -7,7 +8,6 @@ VER = '1.1.0_DEV.1'
 # all other files get invoked from here
 
 # first we need a database connection
-from .database import Database
 # next we need to grab an authenticator
 from .auth import Authenticator
 
@@ -18,7 +18,20 @@ from .auth import Authenticator
 class BaseApi:
     # first we need to initialize all our other objects
     def __init__(self, path):
-        self.db = Database() # we create/connect to our database file at "db_path = f'sqlite:///{path}/database.db'" to whom that will be useful, here it is, idk if you could possibly specify a remote server in the path variable or if the connection only works for sqlite databases
         self.authenticator = Authenticator(path) # then we create the authenticator object with the database connection
+        self.token = None
     
+    def login(self, username, password):
+        self.token = self.authenticator.login(username, password, machineid.hashed_id())
+        if self.token in (Authenticator.BAD_PASS, Authenticator.BAD_USER):
+            return self.token
+        return Authenticator.SUCCESS
+    def logout(self):
+        pass
+    
+    def signup(self):
+        pass
+    
+    def check(self):
+        return self.authenticator.get_key(*self.token, machineid.hashed_id())
     

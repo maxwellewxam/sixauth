@@ -181,7 +181,21 @@ def server_decrypt_data(data:bytes, key:bytes, salt:bytes):
     for k, v in iv_dict.items():
         iv_dict[k] = base64.b64decode(v.encode())
     return iv_dict
-        
+
+Fernet(PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, iterations=100000, backend=default_backend()).derive(token.encode())).encrypt(password.encode())
+
+backend = default_backend()
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt.encode(),
+        iterations=100000,
+        backend=backend)
+    key = kdf.derive(password.encode())
+    iv = os.urandom(16)
+    aesgcm = AESGCM(key)
+    return aesgcm.encrypt(iv, json.dumps(data).encode(), salt.encode()), iv
+
 @logger(is_log_more=True, in_sensitive=True, out_sensitive=True)
 def encrypt_data(data:dict, password:str, salt:str):
     backend = default_backend()
