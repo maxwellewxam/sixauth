@@ -29,13 +29,13 @@ class Authenticator:
     def __init__(self, path):
         db_path = f'sqlite:///{path}/users.db' # define the path to the database
         engine = create_engine(db_path, connect_args={'check_same_thread':False}, poolclass=StaticPool) # create a database engine
-        metadata = MetaData() # metadata for the database too?
-        self.users = Table('Users', metadata, # this will hold our users and their passwords
+        self.metadata = MetaData() # metadata for the database too?
+        self.users = Table('Users', self.metadata, # this will hold our users and their passwords
             Column('user_id', Uuid, primary_key=True, nullable=False),
             Column('username', String, unique=True, nullable=False),
             Column('password', LargeBinary, nullable=False),
             Column('salt', LargeBinary, nullable=False))
-        metadata.create_all(engine) # create all the tables
+        self.metadata.create_all(engine) # create all the tables
         self.connection = engine.connect() # connect to the database
         self.store = {} # create a dict for tokens
         self.max_age = 3600 # set the max age in seconds
