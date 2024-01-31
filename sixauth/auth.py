@@ -16,7 +16,8 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.fernet import Fernet
 from sqlalchemy import create_engine, Column, String, Table, MetaData, LargeBinary, Uuid
 from sqlalchemy.pool import StaticPool
-from datetime import datetime, timedelta   
+from datetime import datetime, timedelta
+from .database import Database
         
 class Authenticator:
     # define class attributes
@@ -26,37 +27,29 @@ class Authenticator:
     BAD_HWID = 'BAD_HWID'
     SUCCESS = 'SUCCESS'
     # first we connect to the database
-    def __init__(self, path):
-        db_path = f'sqlite:///{path}/users.db' # define the path to the database
-        engine = create_engine(db_path, connect_args={'check_same_thread':False}, poolclass=StaticPool) # create a database engine
-        self.metadata = MetaData() # metadata for the database too?
-        self.users = Table('Users', self.metadata, # this will hold our users and their passwords
-            Column('user_id', Uuid, primary_key=True, nullable=False),
+    def __init__(self, db:Database):
+        self.db = db
+        table = [ # this will hold our users and their passwords
+            Column('uuid', Uuid, primary_key=True, nullable=False),
             Column('username', String, unique=True, nullable=False),
             Column('password', LargeBinary, nullable=False),
-            Column('salt', LargeBinary, nullable=False))
-        self.metadata.create_all(engine) # create all the tables
-        self.connection = engine.connect() # connect to the database
+            Column('salt', LargeBinary, nullable=False)]
+        self.table = self.db.make_table('users', table)
         self.store = {} # create a dict for tokens
         self.max_age = 3600 # set the max age in seconds
-
-    # we need this to save everything to the database when we are done
-    def close(self):
-        self.connection.commit()
-        self.connection.close()
     
     # we need users to authenticate!
     def new_user(self, username: str, password: str):
-        if self.connection.execute(self.users.select().where(self.users.c.username == username)).fetchone(): # ok first we check if the user exists
+        if self.db.find(self.table, 'username', username): # ok first we check if the user exists
             return self.BAD_USER # if they do, we return BAD_USER
         salt = bcrypt.gensalt() # create a salt
         hash = bcrypt.hashpw(password.encode(), salt) # hash the password
-        self.connection.execute(self.users.insert().values(user_id=uuid.uuid4(), username=username, password=hash, salt=salt)) # insert the new user in the database
+        self.db.insert(self.table, uuid=uuid.uuid4(), username=username, password=hash, salt=salt) # insert the new user in the database
         return self.SUCCESS # and we return SUCCESS
         
     # authenticate users that do exist and generate their key
     def login(self, username: str, password: str, hwid: str):
-        from_db = self.connection.execute(self.users.select().where(self.users.c.username == username)).fetchone() # first we grab the db entry for the user
+        from_db = self.db.find(self.table, 'username', username) # first we grab the db entry for the user
         if not from_db: # then we check if the user exists
             return self.BAD_USER # if they dont, we return BAD_USER
         if from_db[2] != bcrypt.hashpw(password.encode(), from_db[3]): # if they do, we check the password
@@ -82,33 +75,33 @@ class Authenticator:
     
     # allow users to change their username
     def update_username(self, uuid:uuid.UUID, password: str, new_username: str):
-        from_db = self.connection.execute(self.users.select().where(self.users.c.user_id == uuid)).fetchone() # first we grab the db entry for the uuid
+        from_db = self.db.find(self.table, 'uuid', uuid) # first we grab the db entry for the uuid
         if not from_db: # then we check if the user exists
             return self.BAD_USER # if they dont, we return BAD_USER
         if from_db[2] != bcrypt.hashpw(password.encode('utf-8'), from_db[3]): # if they do, we check the password
             return self.BAD_PASS # if the password is incorrect, we return BAD_PASS
-        if self.connection.execute(self.users.select().where(self.users.c.username == new_username)).fetchone(): # check if the new username already exists
+        if self.db.find(self.table, 'username', new_username): # check if the new username already exists
             return self.BAD_USER # if it does, we return BAD_USER
-        self.connection.execute(self.users.update().where(self.users.c.user_id == uuid).values(username=new_username)) # update the username in the database
+        self.db.update(self.table, 'uuid', uuid, username=new_username) # update the username in the database
         return self.SUCCESS  # and we return SUCCESS
     
     # allow users to change their password
     def update_password(self, uuid:uuid.UUID, password: str, new_password: str):
-        from_db = self.connection.execute(self.users.select().where(self.users.c.user_id == uuid)).fetchone() # first we grab the db entry for the uuid
+        from_db = self.db.find(self.table, 'uuid', uuid) # first we grab the db entry for the uuid
         if not from_db: # then we check if the user exists
             return self.BAD_USER # if they dont, we return BAD_USER
         if from_db[2] != bcrypt.hashpw(password.encode('utf-8'), from_db[3]): # if they do, we check the password
             return self.BAD_PASS # if the password is incorrect, we return BAD_PASS
-        self.connection.execute(self.users.update().where(self.users.c.user_id == uuid).values(password=bcrypt.hashpw(new_password.encode('utf-8'), from_db[3]))) # update the password in the database
+        self.db.update(self.table, 'uuid', uuid, password=bcrypt.hashpw(new_password.encode('utf-8'), from_db[3])) # update the password in the database
         return self.SUCCESS # and we return SUCCESS
     
     # lastly, we can remove users from the database
     def remove_user(self, uuid:uuid.UUID, password:str):
-        from_db = self.connection.execute(self.users.select().where(self.users.c.user_id == uuid)).fetchone() # first we grab the db entry for the uuid
+        from_db = self.db.find(self.table, 'uuid', uuid) # first we grab the db entry for the uuid
         if not from_db: # then we check if the user exists
             return self.BAD_USER # if they dont, we return BAD_USER
         if from_db[2] != bcrypt.hashpw(password.encode('utf-8'), from_db[3]): # if they do, we check the password
             return self.BAD_PASS # if the password is incorrect, we return BAD_PASS
-        self.connection.execute(self.users.delete().where(self.users.c.user_id == uuid)) # remove the user from the database
+        self.db.delete(self.table, 'uuid', uuid) # remove the user from the database
         return self.SUCCESS # and we return SUCCESS
     
