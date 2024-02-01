@@ -1,8 +1,7 @@
 # Made with love by Max
 
-# this file will handle all authentication related stuff
-# all we need is a database connection and
-# ways to authenticate, create, delete, and update users
+# this file will handle all database related stuff
+# all we need is a database connection 
 
 from sqlalchemy import create_engine, Column, Table, MetaData
 from sqlalchemy.pool import StaticPool 
@@ -34,13 +33,19 @@ class Database:
     
     # we need to insert things into the database
     def insert(self, table:Table, **values):
-        return self.connection.execute(table.insert().values(**values))
+        result = self.connection.execute(table.insert().values(**values))
+        self.connection.commit()
+        return result
     
     # we need to update things in the database
     def update(self, table:Table, column, key, **values):
-        return self.connection.execute(table.update().where(getattr(table.c, column) == key).values(**values))
+        result = self.connection.execute(table.update().where(getattr(table.c, column) == key).values(**values))
+        self.connection.commit()
+        return result
     
     # we need to delete things from the database
     def delete(self, table:Table, column, key):
-        return self.connection.execute(table.delete().where(getattr(table.c, column) == key))
+        result = self.connection.execute(table.delete().where(getattr(table.c, column) == key))
+        self.connection.commit()
+        return result
     

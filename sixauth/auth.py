@@ -1,8 +1,8 @@
 # Made with love by Max
 
 # this file will handle all authentication related stuff
-# all we need is a database connection and
-# ways to authenticate, create, delete, and update users
+# all we need is ways to authenticate,
+# create, delete, and update users
 
 import bcrypt
 import uuid
@@ -14,8 +14,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.backends import default_backend
 from cryptography.fernet import Fernet
-from sqlalchemy import create_engine, Column, String, Table, MetaData, LargeBinary, Uuid
-from sqlalchemy.pool import StaticPool
+from sqlalchemy import Column, String, LargeBinary, Uuid
 from datetime import datetime, timedelta
 from .database import Database
         

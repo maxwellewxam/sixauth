@@ -4,11 +4,13 @@ import os
 HERE = os.path.abspath(os.getcwd())
 sys.path.append(HERE)
 sys.path.reverse()
-from sixauth.auth import Authenticator as Auth
-from sixauth.database import Database
+from sixauth import main
 
-db = Database(os.getcwd())
-auth = Auth(db)
+lol = main.LocalApi(f'{os.getcwd()}/data.db')
+user = main.User(lol)
+user.sign_up('max2', 'password2')
+user.login('max2', 'password2')
+print(user.key())
 
 sys.exit(0)
 
