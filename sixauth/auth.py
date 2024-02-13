@@ -33,7 +33,7 @@ class Authenticator:
             Column('username', String, unique=True, nullable=False),
             Column('password', LargeBinary, nullable=False),
             Column('salt', LargeBinary, nullable=False)]
-        self.table = self.db.make_table('users', table)
+        self.table = self.db.table('users', table)
         self.store = {} # create a dict for tokens
         self.max_age = 3600 # set the max age in seconds
     
@@ -57,7 +57,7 @@ class Authenticator:
         token = secrets.token_urlsafe() # then we generate a token
         encrypted_key = Fernet(base64.urlsafe_b64encode(PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, iterations=100000, backend=default_backend(), salt=hwid.encode()).derive(token.encode()))).encrypt(key) # then we encrypt the key with the token and hashed HWID
         self.store[from_db[0]] = [hashlib.sha512(token.encode()).digest(), datetime.now(pytz.utc) + timedelta(seconds=self.max_age), hwid, encrypted_key] # add the hashed token, expiry date, hwid, and encrypted key to the store
-        return from_db[0], token # then lastly we return the token and uuid
+        return (from_db[0], token) # then lastly we return the token and uuid
     
     # validate hardware and token then return the key
     def get_key(self, uuid:uuid.UUID, token: str, hwid: str):

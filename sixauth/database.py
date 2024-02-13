@@ -7,6 +7,8 @@ from sqlalchemy import create_engine, Column, Table, MetaData
 from sqlalchemy.pool import StaticPool 
         
 class Database:
+    # class attributes
+    NOT_FOUND = 'NOT_FOUND'
     # first we connect to the database
     def __init__(self, path:str):
         db_path = f'sqlite:///{path}' # define the path to the database
@@ -20,11 +22,12 @@ class Database:
         self.connection.close()
     
     # this allows people to create multiple tables in one db
-    def make_table(self, name, columns:list[Column]):
+    def table(self, name, columns:list[Column]):
         table = Table(name, self.metadata) # create the table with our metadata
         for column in columns: # then for every column
                 table.append_column(column) # append the column to the table
         self.metadata.create_all(self.engine) # then push the table into the db
+        self.connection.commit() # and commit
         return table
     
     # we need to grab things from the database
