@@ -7,8 +7,6 @@ from sqlalchemy import create_engine, Column, Table, MetaData
 from sqlalchemy.pool import StaticPool 
         
 class Database:
-    # class attributes
-    NOT_FOUND = 'NOT_FOUND'
     # first we connect to the database
     def __init__(self, path:str):
         db_path = f'sqlite:///{path}' # define the path to the database

@@ -4,14 +4,14 @@ import os
 HERE = os.path.abspath(os.getcwd())
 sys.path.append(HERE)
 sys.path.reverse()
-from sixauth import main
+import sixauth
 
-lol = main.LocalApi(f'{os.getcwd()}/data.db')
-user = main.User(lol)
-user.sign_up('max2', 'password2')
-user.login('max2', 'password2')
-print(user.key())
-
+user = sixauth.LocalUser(f'{os.getcwd()}/db.db')
+user.new_user('max', 'max')
+user.login('max', 'max')
+user.insert('new', 'lol'.encode('utf-8'))
+print(user.find('new').decode('utf-8'))
+user.db.close()
 sys.exit(0)
 
 
