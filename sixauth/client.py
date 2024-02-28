@@ -1,5 +1,5 @@
 from .main2 import *
-from .server import *
+from .server2 import *
 
 @logger(is_log_more=True)
 def establish_client_connection(address:str):

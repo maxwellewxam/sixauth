@@ -1,4 +1,4 @@
-from .main import *
+from .main2 import *
 from .database import *
 from .encryption import *
 

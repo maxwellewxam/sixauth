@@ -4,7 +4,7 @@ import os
 if sys.platform == 'win32':
     HERE = os.path.abspath('../')
 sys.path.append(HERE)
-from sixauth.server import *
+from sixauth.server2 import *
 from sixauth.main import *
 logger.setup_logger(client_logger_location=None, log_sensitive = True, log_more = True)
 

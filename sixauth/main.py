@@ -52,7 +52,7 @@ class LocalUser:
             return BAD_USER
         return self.authenticator.update_password(self.user[0], password, new_password)
     
-    # 
+    # make the remove_user function available to the user and some other processing 
     def remove_user(self, password: str):
         if type(self.user) != tuple:
             return BAD_USER
