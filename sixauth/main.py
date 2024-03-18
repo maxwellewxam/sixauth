@@ -1,6 +1,6 @@
 # Made with love by Max
 
-VER = '1.1.0_DEV.1'
+VER = '2.0.0'
 
 # this file will be the main backbone of our application
 # here we will do all out maintenance stuff
@@ -15,9 +15,7 @@ from .database import Database
 from .constants import *
 
 # this class will be use by our different apis to actual handle the requests
-# we will have two apis, one for a user to interface with a local database
-# and another for a user to interact with a server
-class LocalUser:
+class SingleUser:
     # first we need to initialize all our other objects
     def __init__(self, path: str):
         self.id = machineid.hashed_id() # get a unique id for the machine the user is using
@@ -82,5 +80,16 @@ class LocalUser:
         if auth_key in (BAD_USER, BAD_HWID, BAD_TOKEN):
             return auth_key
         self.db.insert(self.table, key=key, value=Fernet(auth_key).encrypt(value))
+        return SUCCESS
+    
+    def update(self, key: str, value: bytes):
+        if type(self.user) != tuple:
+            return BAD_USER
+        if not self.db.find(self.table, 'key', key):
+            return NOT_FOUND
+        auth_key = self.authenticator.get_key(*self.user, self.id)
+        if auth_key in (BAD_USER, BAD_HWID, BAD_TOKEN):
+            return auth_key
+        self.db.update(self.table, 'key', key, value=Fernet(auth_key).encrypt(value))
         return SUCCESS
         

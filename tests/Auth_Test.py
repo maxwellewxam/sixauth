@@ -6,11 +6,14 @@ sys.path.append(HERE)
 sys.path.reverse()
 import sixauth
 
-user = sixauth.LocalUser(f'{os.getcwd()}/db.db')
+user = sixauth.SingleUser(f'{os.getcwd()}/db.db')
 user.new_user('max', 'max')
 user.login('max', 'max')
+user.insert('bruh', 'lmao'.encode('utf-8'))
+user.update('bruh', 'lol2'.encode('utf-8'))
 user.insert('new', 'lol'.encode('utf-8'))
 print(user.find('new').decode('utf-8'))
+print(user.find('bruh').decode('utf-8'))
 user.db.close()
 sys.exit(0)
 

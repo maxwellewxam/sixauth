@@ -40,7 +40,9 @@ class Database:
     
     # we need to update things in the database
     def update(self, table:Table, column, key, **values):
-        result = self.connection.execute(table.update().where(getattr(table.c, column) == key).values(**values))
+        clause = getattr(table.c, column) == key
+        ex = table.update().where(clause).values(**values)
+        result = self.connection.execute(ex)
         self.connection.commit()
         return result
     
