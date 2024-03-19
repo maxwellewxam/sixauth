@@ -30,11 +30,14 @@ class Database:
     
     # we need to grab things from the database
     def find(self, table:Table, column, key):
-        return self.connection.execute(table.select().where(getattr(table.c, column) == key)).fetchone()
+        clause = getattr(table.c, column) == key
+        ex = table.select().where(clause)
+        return self.connection.execute(ex).fetchone()
     
     # we need to insert things into the database
     def insert(self, table:Table, **values):
-        result = self.connection.execute(table.insert().values(**values))
+        ex = table.insert().values(**values)
+        result = self.connection.execute(ex)
         self.connection.commit()
         return result
     
@@ -48,7 +51,9 @@ class Database:
     
     # we need to delete things from the database
     def delete(self, table:Table, column, key):
-        result = self.connection.execute(table.delete().where(getattr(table.c, column) == key))
+        clause = getattr(table.c, column) == key
+        ex = table.delete().where(clause)
+        result = self.connection.execute(ex)
         self.connection.commit()
         return result
     

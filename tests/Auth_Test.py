@@ -1,19 +1,37 @@
-
 import sys
 import os
 HERE = os.path.abspath(os.getcwd())
 sys.path.append(HERE)
 sys.path.reverse()
 import sixauth
-
+users = dict[sixauth.SingleUser]()
 user = sixauth.SingleUser(f'{os.getcwd()}/db.db')
-user.new_user('max', 'max')
-user.login('max', 'max')
-user.insert('bruh', 'lmao'.encode('utf-8'))
-user.update('bruh', 'lol2'.encode('utf-8'))
-user.insert('new', 'lol'.encode('utf-8'))
+print(user.new_user('max', 'max'))
+for i in range(5):
+    users[i] = sixauth.SingleUser(f'{os.getcwd()}/db.db')
+    current_user = users[i]
+    print(current_user.new_user(f'max{i}', 'max'))
+    print(current_user.login(f'max{i}', 'max'))
+for i in range(5):
+    current_user = users[i]
+    print(current_user.user)
+    print(current_user.insert('bruh', 'lmao'.encode('utf-8')))
+    print(current_user.update('bruh', 'lol2'.encode('utf-8')))
+    print(current_user.insert('new', 'lol'.encode('utf-8')))
+    print(current_user.find('new').decode('utf-8'))
+    print(current_user.find('bruh').decode('utf-8'))
+    print(current_user.remove_user('max'))
+print(user.login('max', 'max'))
+print(user.insert('bruh', 'lmao'.encode('utf-8')))
+print(user.update('bruh', 'lol2'.encode('utf-8')))
+print(user.insert('new', 'lol'.encode('utf-8')))
 print(user.find('new').decode('utf-8'))
 print(user.find('bruh').decode('utf-8'))
+print(user.insert('skibidy', 'stfu'.encode('utf-8')))
+print(user.find('skibidy').decode('utf-8'))
+print(user.delete('skibidy'))
+print(user.find('skibidy'))
+print(user.remove_user('max'))
 user.db.close()
 sys.exit(0)
 
