@@ -5,3 +5,22 @@ BAD_HWID = 'BAD_HWID'
 SUCCESS = 'SUCCESS'
 NOT_FOUND = 'NOT_FOUND'
 EXISTS = 'EXISTS'
+
+
+class User:
+    BAD_USER = True
+    TOKEN = None
+    UUID = None
+    TABLE = None
+    
+class Configure:
+    def __init__(self):
+        self.database_config = {}
+        self.authenticator_config = {}
+    def database(self, **kwargs):
+        self.database_config = kwargs
+        return self
+    
+    def authenticator(self, **kwargs):
+        self.authenticator_config = kwargs
+        return self

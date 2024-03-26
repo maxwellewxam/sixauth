@@ -5,14 +5,20 @@
 
 from sqlalchemy import create_engine, Column, Table, MetaData
 from sqlalchemy.pool import StaticPool 
+from .constants import *
+import os
         
 class Database:
     # first we connect to the database
-    def __init__(self, path:str):
-        db_path = f'sqlite:///{path}' # define the path to the database
+    def __init__(self, config: Configure = Configure()):
+        self.get_conf(**config.database_config)
+        db_path = f'sqlite:///{self.path}' # define the path to the database
         self.engine = create_engine(db_path, connect_args={'check_same_thread':False}, poolclass=StaticPool) # create a database engine
         self.metadata = MetaData() # metadata for the database
         self.connection = self.engine.connect() # connect to the database
+    
+    def get_conf(self, path = f'{os.getcwd()}/db.db'):
+        self.path = path
     
     # we need this to save everything to the database when we are done
     def close(self):
@@ -23,7 +29,7 @@ class Database:
     def table(self, name, columns:list[Column]):
         table = Table(name, self.metadata) # create the table with our metadata
         for column in columns: # then for every column
-                table.append_column(column) # append the column to the table
+                table.append_column(column, replace_existing=True) # append the column to the table
         self.metadata.create_all(self.engine) # then push the table into the db
         self.connection.commit() # and commit
         return table

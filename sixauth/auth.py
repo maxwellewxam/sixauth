@@ -21,8 +21,8 @@ from .constants import *
         
 class Authenticator:
     # first we connect to the database
-    def __init__(self, db:Database):
-        self.db = db
+    def __init__(self, config: Configure = Configure()):
+        self.get_conf(**config.authenticator_config)
         table = [ # this will hold our users and their passwords
             Column('uuid', Uuid, primary_key=True, nullable=False),
             Column('username', String, unique=True, nullable=False),
@@ -30,7 +30,10 @@ class Authenticator:
             Column('salt', LargeBinary, nullable=False)]
         self.table = self.db.table('users', table)
         self.store = {} # create a dict for tokens
-        self.max_age = 3600 # set the max age in seconds
+    
+    def get_conf(self, db:Database = Database(), max_age = 3600):
+        self.db = db
+        self.max_age = max_age 
     
     # we need users to authenticate!
     def new_user(self, username: str, password: str):
@@ -55,7 +58,7 @@ class Authenticator:
         return (from_db[0], token) # then lastly we return the token and uuid
     
     # validate hardware and token then return the key
-    def get_key(self, uuid:uuid.UUID, token: str, hwid: str):
+    def get_key(self, uuid: uuid.UUID, token: str, hwid: str):
         from_store = self.store.get(uuid) # grab the token from the store
         if not from_store: # check if the token exists
             return BAD_USER # if it doesn't, we return BAD_USER
@@ -67,8 +70,22 @@ class Authenticator:
             return BAD_HWID # if the hwid doesn't match, we return BAD_HWID
         return Fernet(base64.urlsafe_b64encode(PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, iterations=100000, backend=default_backend(), salt=hwid.encode()).derive(token.encode()))).decrypt(from_store[3]) # if everything is good, we decrypt the key and return it
     
+    # give users the ability to invalidate their token
+    def logout(self, uuid: uuid.UUID, token:str, hwid: str):
+        from_store = self.store.get(uuid) # grab the token from the store
+        if not from_store: # check if the token exists
+            return BAD_USER # if it doesn't, we return BAD_USER
+        if hashlib.sha512(token.encode()).digest() != from_store[0]: # next we check the token provided against the one in the store
+            return BAD_TOKEN # if it isn't correct, we return BAD_TOKEN
+        if from_store[1] <= datetime.now(pytz.utc): # check if token is expired
+            return BAD_TOKEN # if it is, we return BAD_TOKEN
+        if hwid != from_store[2]: # check if the hwid is correct
+            return BAD_HWID # if the hwid doesn't match, we return BAD_HWID
+        self.store.pop(uuid) # once all is good, we remove their token from the store
+        return SUCCESS # and return success
+    
     # allow users to change their username
-    def update_username(self, uuid:uuid.UUID, password: str, new_username: str):
+    def update_username(self, uuid: uuid.UUID, password: str, new_username: str):
         from_db = self.db.find(self.table, 'uuid', uuid) # first we grab the db entry for the uuid
         if not from_db: # then we check if the user exists
             return BAD_USER # if they dont, we return BAD_USER
@@ -80,7 +97,7 @@ class Authenticator:
         return SUCCESS  # and we return SUCCESS
     
     # allow users to change their password
-    def update_password(self, uuid:uuid.UUID, password: str, new_password: str):
+    def update_password(self, uuid: uuid.UUID, password: str, new_password: str):
         from_db = self.db.find(self.table, 'uuid', uuid) # first we grab the db entry for the uuid
         if not from_db: # then we check if the user exists
             return BAD_USER # if they dont, we return BAD_USER
@@ -90,7 +107,7 @@ class Authenticator:
         return SUCCESS # and we return SUCCESS
     
     # lastly, we can remove users from the database
-    def remove_user(self, uuid:uuid.UUID, password:str):
+    def remove_user(self, uuid: uuid.UUID, password:str):
         from_db = self.db.find(self.table, 'uuid', uuid) # first we grab the db entry for the uuid
         if not from_db: # then we check if the user exists
             return BAD_USER # if they dont, we return BAD_USER
@@ -98,4 +115,10 @@ class Authenticator:
             return BAD_PASS # if the password is incorrect, we return BAD_PASS
         self.db.delete(self.table, 'uuid', uuid) # remove the user from the database
         return SUCCESS # and we return SUCCESS
+    
+    # allow a multi user setup to check store for expired tokens to save space
+    def flush_store(self):
+        for uuid, stored in list(self.store.items()): # go over everything in the store
+            if stored[1] <= datetime.now(pytz.utc): # check if token is expired
+                self.store.pop(uuid) # if its expired, remove it!
     

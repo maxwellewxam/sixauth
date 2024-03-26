@@ -5,8 +5,23 @@ sys.path.append(HERE)
 sys.path.reverse()
 import sixauth
 users = dict[sixauth.SingleUser]()
-user = sixauth.SingleUser(f'{os.getcwd()}/db.db')
+user = sixauth.SingleUser(sixauth.Configure()
+                          .database(path = f'{os.getcwd()}/db.db')
+                          .authenticator(max_age = 3600))
+
 print(user.new_user('max', 'max'))
+print(user.login('max', 'max'))
+print(user.insert('bruh', 'lmao'.encode('utf-8')))
+print(user.find('bruh').decode('utf-8'))
+print(user.update_password('max', 'max2'))
+print(user.authenticator.logout(user.user.UUID, user.user.TOKEN, user.id))
+del user.user.TABLE
+print(user.login('max', 'max2'))
+print(user.find('bruh').decode('utf-8'))
+print(user.remove_user('max'))
+user.db.close()
+sys.exit(0)
+
 for i in range(5):
     users[i] = sixauth.SingleUser(f'{os.getcwd()}/db.db')
     current_user = users[i]
