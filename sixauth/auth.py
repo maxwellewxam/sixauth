@@ -51,9 +51,11 @@ class Authenticator:
             return BAD_USER # if they dont, we return BAD_USER
         if from_db[2] != bcrypt.hashpw(password.encode(), from_db[3]): # if they do, we check the password
             return BAD_PASS # if it isn't correct, we return BAD_PASS
-        key = base64.urlsafe_b64encode(PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, iterations=100000, backend=default_backend(), salt=from_db[0].bytes).derive(password.encode())) # next we generate the key the user needs to access their data
+        key_gen1 = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, iterations=100000, backend=default_backend(), salt=from_db[0].bytes) # make the first key gen object
+        key = base64.urlsafe_b64encode(key_gen1.derive(password.encode())) # next we generate the key the user needs to access their data
         token = secrets.token_urlsafe() # then we generate a token
-        encrypted_key = Fernet(base64.urlsafe_b64encode(PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, iterations=100000, backend=default_backend(), salt=hwid.encode()).derive(token.encode()))).encrypt(key) # then we encrypt the key with the token and hashed HWID
+        key_gen2 = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, iterations=100000, backend=default_backend(), salt=hwid.encode()) # make the second key gen object
+        encrypted_key = Fernet(base64.urlsafe_b64encode(key_gen2.derive(token.encode()))).encrypt(key) # then we encrypt the key with the token and hashed HWID
         self.store[from_db[0]] = [hashlib.sha512(token.encode()).digest(), datetime.now(pytz.utc) + timedelta(seconds=self.max_age), hwid, encrypted_key] # add the hashed token, expiry date, hwid, and encrypted key to the store
         return (from_db[0], token) # then lastly we return the token and uuid
     
@@ -68,7 +70,10 @@ class Authenticator:
             return BAD_TOKEN # if it is, we return BAD_TOKEN
         if hwid != from_store[2]: # check if the hwid is correct
             return BAD_HWID # if the hwid doesn't match, we return BAD_HWID
-        return Fernet(base64.urlsafe_b64encode(PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, iterations=100000, backend=default_backend(), salt=hwid.encode()).derive(token.encode()))).decrypt(from_store[3]) # if everything is good, we decrypt the key and return it
+        from_store[1] = datetime.now(pytz.utc) + timedelta(seconds=self.max_age) # update the expiry time for the token
+        key_generator = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, iterations=100000, backend=default_backend(), salt=hwid.encode()) # make key gen object
+        decryption_key = base64.urlsafe_b64encode(key_generator.derive(token.encode())) # generate the key
+        return Fernet(decryption_key).decrypt(from_store[3]) # if everything is good, we decrypt the user key and return it
     
     # give users the ability to invalidate their token
     def logout(self, uuid: uuid.UUID, token:str, hwid: str):
@@ -97,14 +102,18 @@ class Authenticator:
         return SUCCESS  # and we return SUCCESS
     
     # allow users to change their password
-    def update_password(self, uuid: uuid.UUID, password: str, new_password: str):
+    def update_password(self, uuid: uuid.UUID, old_password: str, new_password: str):
         from_db = self.db.find(self.table, 'uuid', uuid) # first we grab the db entry for the uuid
         if not from_db: # then we check if the user exists
             return BAD_USER # if they dont, we return BAD_USER
-        if from_db[2] != bcrypt.hashpw(password.encode('utf-8'), from_db[3]): # if they do, we check the password
+        if from_db[2] != bcrypt.hashpw(old_password.encode('utf-8'), from_db[3]): # if they do, we check the password
             return BAD_PASS # if the password is incorrect, we return BAD_PASS
         self.db.update(self.table, 'uuid', uuid, password=bcrypt.hashpw(new_password.encode('utf-8'), from_db[3])) # update the password in the database
-        return SUCCESS # and we return SUCCESS
+        key_func = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, iterations=100000, backend=default_backend(), salt=from_db[0].bytes) # key func to derive keys from
+        new_key = base64.urlsafe_b64encode(key_func.derive(new_password.encode())) # next we generate the old key for the user
+        old_key = base64.urlsafe_b64encode(key_func.derive(old_password.encode())) # next we generate the new key for the user
+        self.store.pop(uuid, None) # then we try to remove the store entry for the user
+        return old_key, new_key # finally we return the keys
     
     # lastly, we can remove users from the database
     def remove_user(self, uuid: uuid.UUID, password:str):

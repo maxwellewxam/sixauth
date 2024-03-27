@@ -63,3 +63,8 @@ class Database:
         self.connection.commit()
         return result
     
+    def multi_find(self, table:Table, column):
+        clause = getattr(table.c, column)
+        ex = table.select().where(clause)
+        return self.connection.execute(ex)
+        

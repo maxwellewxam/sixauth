@@ -47,7 +47,11 @@ class MultiUser:
     def update_password(self, user: User, password: str, new_password: str):
         if user.BAD_USER:
             return BAD_USER
-        return self.authenticator.update_password(user.UUID, password, new_password)
+        keys = self.authenticator.update_password(user.UUID, password, new_password)
+        if keys in (BAD_USER, BAD_PASS):
+            return keys
+        old_key, new_key = keys
+        
     
     # make the remove_user function available to the user and some other processing 
     def remove_user(self, user: User, password: str):
