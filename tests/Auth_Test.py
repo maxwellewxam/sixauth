@@ -5,21 +5,21 @@ sys.path.append(HERE)
 sys.path.reverse()
 import sixauth
 users = dict[sixauth.SingleUser]()
-user = sixauth.SingleUser(sixauth.Configure()
+with sixauth.SingleUser(sixauth.Configure()
                           .database(path = f'{os.getcwd()}/db.db')
-                          .authenticator(max_age = 3600))
-
-print(user.new_user('max', 'max'))
-print(user.login('max', 'max'))
-print(user.insert('bruh', 'lmao'.encode('utf-8')))
-print(user.find('bruh').decode('utf-8'))
-print(user.update_password('max', 'max2'))
-print(user.authenticator.logout(user.user.UUID, user.user.TOKEN, user.id))
-del user.user.TABLE
-print(user.login('max', 'max2'))
-print(user.find('bruh').decode('utf-8'))
-print(user.remove_user('max'))
-user.db.close()
+                          .authenticator(max_age = 3600)) as user:
+    print(user.new_user('max', 'max'))
+    print(user.login('max', 'max'))
+    print(user.insert('bruh', 'lmao'.encode('utf-8')))
+    print(user.find('bruh').decode('utf-8'))
+    print(user.update_password('max', 'max2'))
+with sixauth.SingleUser(sixauth.Configure()
+                          .database(path = f'{os.getcwd()}/db.db')
+                          .authenticator(max_age = 3600)) as user2:
+    print(user.authenticator.logout(user.user.UUID, user.user.TOKEN, user.id))
+    print(user2.login('max', 'max2'))
+    print(user2.find('bruh').decode('utf-8'))
+    print(user2.remove_user('max2'))
 sys.exit(0)
 
 for i in range(5):

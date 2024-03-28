@@ -16,9 +16,16 @@ from .constants import *
 
 class MultiUser:
     def __init__(self, config: Configure = Configure()):
-        self.db = Database(config) # make the database connection
-        config.authenticator_config['db'] = self.db
-        self.authenticator = Authenticator(config) # then we create the authenticator object with the database connection
+        self.config = config
+    
+    def __enter__(self):
+        self.db = Database(self.config) # make the database connection
+        self.config.authenticator_config['db'] = self.db
+        self.authenticator = Authenticator(self.config) # then we create the authenticator object with the database connection
+        return self
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.db.close()
     
     # just make the new_user function available to the user
     def new_user(self, username: str, password: str):
@@ -51,7 +58,12 @@ class MultiUser:
         if keys in (BAD_USER, BAD_PASS):
             return keys
         old_key, new_key = keys
-        
+        for row in self.db.multi_find(user.TABLE):
+            key, data = row
+            unencrypted = Fernet(old_key).decrypt(data)
+            reencrypted = Fernet(new_key).encrypt(unencrypted)
+            self.db.update(user.TABLE, 'key', key, value=reencrypted)
+        return SUCCESS
     
     # make the remove_user function available to the user and some other processing 
     def remove_user(self, user: User, password: str):
@@ -114,7 +126,7 @@ class SingleUser(MultiUser):
     def __init__(self, config: Configure = Configure()):
         self.id = machineid.hashed_id() # get a unique id for the machine the user is using
         self.user = User() # predefine the user value to None
-        super().__init__(config)
+        return super().__init__(config)
     
     def login(self, username: str, password: str):
         return super().login(self.user, self.id, username, password)

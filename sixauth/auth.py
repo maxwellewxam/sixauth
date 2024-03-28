@@ -102,16 +102,19 @@ class Authenticator:
         return SUCCESS  # and we return SUCCESS
     
     # allow users to change their password
-    def update_password(self, uuid: uuid.UUID, old_password: str, new_password: str):
-        from_db = self.db.find(self.table, 'uuid', uuid) # first we grab the db entry for the uuid
+    def update_password(self, uuid_or_username: uuid.UUID, old_password: str, new_password: str):
+        from_db = self.db.find(self.table, 'uuid', uuid_or_username) # first we grab the db entry for the uuid
         if not from_db: # then we check if the user exists
-            return BAD_USER # if they dont, we return BAD_USER
+            from_db = self.db.find(self.table, 'username', uuid_or_username) # and try db entry for the username
+            if not from_db: # then we check if the user exists
+                return BAD_USER # if they dont, we return BAD_USER
         if from_db[2] != bcrypt.hashpw(old_password.encode('utf-8'), from_db[3]): # if they do, we check the password
             return BAD_PASS # if the password is incorrect, we return BAD_PASS
-        self.db.update(self.table, 'uuid', uuid, password=bcrypt.hashpw(new_password.encode('utf-8'), from_db[3])) # update the password in the database
+        self.db.update(self.table, 'uuid', from_db[0], password=bcrypt.hashpw(new_password.encode('utf-8'), from_db[3])) # update the password in the database
         key_func = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, iterations=100000, backend=default_backend(), salt=from_db[0].bytes) # key func to derive keys from
         new_key = base64.urlsafe_b64encode(key_func.derive(new_password.encode())) # next we generate the old key for the user
-        old_key = base64.urlsafe_b64encode(key_func.derive(old_password.encode())) # next we generate the new key for the user
+        key_func = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, iterations=100000, backend=default_backend(), salt=from_db[0].bytes) # key func to derive keys from
+        old_key = base64.urlsafe_b64encode(key_func.derive(old_password.encode())) # and we generate the new key for the user
         self.store.pop(uuid, None) # then we try to remove the store entry for the user
         return old_key, new_key # finally we return the keys
     
